@@ -574,6 +574,19 @@ export type TaxonomyImportResult = {
   unknownCandidateProfileSignalTags: string[]
 }
 
+export type LibraryTagRefreshResult = {
+  taxonomyVersion: string
+  retaggedEvidenceCount: number
+  rebuiltRecordCount: number
+  unknownCandidateProfileSignalTags: string[]
+}
+
+export type LibraryTagSyncStatus = {
+  requiresReinference: boolean
+  lastTaxonomyChangeAt: string | null
+  lastLibraryTagRefreshAt: string | null
+}
+
 export type ValidationError = {
   field: string
   message: string
@@ -691,6 +704,8 @@ export interface CareerService {
   importTaxonomy(path: string): Promise<TaxonomyImportResult>
   exportTaxonomy(path: string): Promise<string>
   resetTaxonomyToStarter(): Promise<TaxonomyImportResult>
+  getLibraryTagSyncStatus(): Promise<LibraryTagSyncStatus>
+  reInferLibraryTags(): Promise<LibraryTagRefreshResult>
   createCanonicalTag(
     tag: string,
     description: string | null,

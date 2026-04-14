@@ -20,6 +20,8 @@ import type {
   TagInferenceMarkerInput,
   TagNormalizationResult,
   TaxonomyImportResult,
+  LibraryTagRefreshResult,
+  LibraryTagSyncStatus,
   RawIntakeImportResult,
   EvidenceInferenceComparison,
   EvidenceSaveDecision,
@@ -245,6 +247,14 @@ class TauriCareerService implements CareerService {
 
   async resetTaxonomyToStarter(): Promise<TaxonomyImportResult> {
     return invoke('reset_taxonomy_to_starter')
+  }
+
+  async getLibraryTagSyncStatus(): Promise<LibraryTagSyncStatus> {
+    return invoke('get_library_tag_sync_status')
+  }
+
+  async reInferLibraryTags(): Promise<LibraryTagRefreshResult> {
+    return invoke('re_infer_library_tags')
   }
 
   async createCanonicalTag(

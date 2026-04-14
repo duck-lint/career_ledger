@@ -30,8 +30,8 @@ use crate::requirement_analysis::RequirementAnalysis;
 use crate::resume_assembler::ResumeAssemblyResult;
 use crate::resume_pipeline::{ResumePipelineRequest, ResumePipelineResult};
 use crate::taxonomy::{
-    CanonicalTag, DeliveryToolkitCategory, TagInferenceMarker, TagInferenceMarkerInput,
-    TagNormalizationResult, TaxonomyImportResult,
+    CanonicalTag, DeliveryToolkitCategory, LibraryTagRefreshResult, LibraryTagSyncStatus,
+    TagInferenceMarker, TagInferenceMarkerInput, TagNormalizationResult, TaxonomyImportResult,
 };
 use crate::validation::{
     normalize_optional_owned, normalize_required_record_type, normalize_required_text,
@@ -1191,6 +1191,24 @@ fn reset_taxonomy_to_starter(
 }
 
 #[tauri::command]
+fn get_library_tag_sync_status(
+    state: tauri::State<DbState>,
+) -> Result<LibraryTagSyncStatus, String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    taxonomy::get_library_tag_sync_status(conn)
+}
+
+#[tauri::command]
+fn re_infer_library_tags(
+    state: tauri::State<DbState>,
+) -> Result<LibraryTagRefreshResult, String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    taxonomy::re_infer_library_tags(conn)
+}
+
+#[tauri::command]
 fn get_tag_inference_markers(
     state: tauri::State<DbState>,
     canonical_tag: String,
@@ -1293,6 +1311,8 @@ pub fn run() {
             import_taxonomy,
             export_taxonomy,
             reset_taxonomy_to_starter,
+            get_library_tag_sync_status,
+            re_infer_library_tags,
             get_tag_inference_markers,
             replace_tag_inference_markers,
             normalize_tags,

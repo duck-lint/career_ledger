@@ -3,6 +3,8 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { careerService } from '@/lib/service'
 import type {
   CanonicalTag,
+  LibraryTagRefreshResult,
+  LibraryTagSyncStatus,
   TagInferenceMarker,
   TagInferenceMarkerInput,
   TaxonomyImportResult,
@@ -90,6 +92,10 @@ function markerFormToInput(form: MarkerForm): TagInferenceMarkerInput {
   }
 }
 
+function formatSyncTimestamp(value: string | null): string {
+  return value ?? 'Not yet recorded'
+}
+
 export default function TaxonomyView() {
   const isTauri = '__TAURI_INTERNALS__' in window
   const [canonicalTags, setCanonicalTags] = useState<CanonicalTag[]>([])
@@ -101,6 +107,9 @@ export default function TaxonomyView() {
   const [editingTag, setEditingTag] = useState<CanonicalTag | null>(null)
   const [taxonomyOpPending, setTaxonomyOpPending] = useState(false)
   const [taxonomyImportResult, setTaxonomyImportResult] = useState<TaxonomyImportResult | null>(null)
+  const [libraryTagRefreshResult, setLibraryTagRefreshResult] = useState<LibraryTagRefreshResult | null>(null)
+  const [libraryTagSyncStatus, setLibraryTagSyncStatus] = useState<LibraryTagSyncStatus | null>(null)
+  const [libraryTagRefreshPending, setLibraryTagRefreshPending] = useState(false)
   const [confirmState, setConfirmState] = useState<
     | { kind: 'import'; path: string }
     | { kind: 'reset' }
@@ -142,8 +151,22 @@ export default function TaxonomyView() {
     }
   }
 
+  const loadLibraryTagSyncStatus = async () => {
+    try {
+      const nextStatus = await careerService.getLibraryTagSyncStatus()
+      setLibraryTagSyncStatus(nextStatus)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load library tag sync status')
+    }
+  }
+
+  const refreshTaxonomySurface = async () => {
+    const nextSelectedTag = await loadTaxonomyData()
+    await Promise.all([loadMarkers(nextSelectedTag), loadLibraryTagSyncStatus()])
+  }
+
   useEffect(() => {
-    void loadTaxonomyData()
+    void refreshTaxonomySurface()
   }, [])
 
   useEffect(() => {
@@ -171,7 +194,7 @@ export default function TaxonomyView() {
   }
 
   const handleSaveTag = async () => {
-    await loadTaxonomyData()
+    await refreshTaxonomySurface()
     setTagDialogOpen(false)
   }
 
@@ -211,17 +234,13 @@ export default function TaxonomyView() {
         markerForms.map(markerFormToInput)
       )
       setMarkerForms(updated.map(markerToForm))
+      await loadLibraryTagSyncStatus()
       toast.success(`Markers updated for "${selectedTag}"`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save markers')
     } finally {
       setMarkerSavePending(false)
     }
-  }
-
-  const refreshTaxonomySurface = async () => {
-    const nextSelectedTag = await loadTaxonomyData()
-    await loadMarkers(nextSelectedTag)
   }
 
   const handleBrowseImportTaxonomy = async () => {
@@ -285,6 +304,7 @@ export default function TaxonomyView() {
 
       await refreshTaxonomySurface()
       setTaxonomyImportResult(result)
+      setLibraryTagRefreshResult(null)
       setConfirmState(null)
       toast.success(
         confirmState.kind === 'import'
@@ -295,6 +315,20 @@ export default function TaxonomyView() {
       toast.error(error instanceof Error ? error.message : 'Taxonomy update failed')
     } finally {
       setTaxonomyOpPending(false)
+    }
+  }
+
+  const handleReInferLibraryTags = async () => {
+    setLibraryTagRefreshPending(true)
+    try {
+      const result = await careerService.reInferLibraryTags()
+      await refreshTaxonomySurface()
+      setLibraryTagRefreshResult(result)
+      toast.success('Library tags re-inferred from the current taxonomy')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Library tag re-inference failed')
+    } finally {
+      setLibraryTagRefreshPending(false)
     }
   }
 
@@ -317,12 +351,87 @@ export default function TaxonomyView() {
           <Button variant="outline" onClick={() => setConfirmState({ kind: 'reset' })} disabled={taxonomyOpPending}>
             Reset to Starter
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => void handleReInferLibraryTags()}
+            disabled={taxonomyOpPending || libraryTagRefreshPending || !isTauri}
+          >
+            <ArrowsClockwise className="mr-2" />
+            {libraryTagRefreshPending ? 'Re-inferring...' : 'Re-infer Library Tags'}
+          </Button>
           <Button variant="outline" onClick={() => void refreshTaxonomySurface()} disabled={taxonomyOpPending}>
             <ArrowsClockwise className="mr-2" />
             Refresh
           </Button>
         </div>
       </div>
+
+      {libraryTagSyncStatus?.requiresReinference && (
+        <Alert>
+          <AlertDescription>
+            Taxonomy changes have not been backfilled into the library yet. Existing evidence tags and record context tags may be stale until you run Re-infer Library Tags.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {libraryTagSyncStatus && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Library Tag Sync</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div>
+              <div className="text-sm text-muted-foreground">Status</div>
+              <div className="font-medium">
+                {libraryTagSyncStatus.requiresReinference ? 'Re-inference required' : 'In sync'}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Last taxonomy change</div>
+              <div className="font-medium">{formatSyncTimestamp(libraryTagSyncStatus.lastTaxonomyChangeAt)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Last library refresh</div>
+              <div className="font-medium">{formatSyncTimestamp(libraryTagSyncStatus.lastLibraryTagRefreshAt)}</div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {libraryTagRefreshResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Last Library Re-inference</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-4">
+            <div>
+              <div className="text-sm text-muted-foreground">Version</div>
+              <div className="font-medium">{libraryTagRefreshResult.taxonomyVersion}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Retagged evidence</div>
+              <div className="font-medium">{libraryTagRefreshResult.retaggedEvidenceCount}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Rebuilt records</div>
+              <div className="font-medium">{libraryTagRefreshResult.rebuiltRecordCount}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Unknown profile tags</div>
+              <div className="font-medium">{libraryTagRefreshResult.unknownCandidateProfileSignalTags.length}</div>
+            </div>
+            {libraryTagRefreshResult.unknownCandidateProfileSignalTags.length > 0 && (
+              <div className="md:col-span-4">
+                <Alert>
+                  <AlertDescription>
+                    Candidate-profile signal tags no longer in the canonical taxonomy: {libraryTagRefreshResult.unknownCandidateProfileSignalTags.join(', ')}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {taxonomyImportResult && (
         <Card>
@@ -474,8 +583,7 @@ export default function TaxonomyView() {
                 <CardContent className="space-y-4">
                   <Alert>
                     <AlertDescription>
-                      Every canonical tag must keep at least one marker. Renaming a tag rewrites
-                      its markers back to defaults.
+                      Every canonical tag must keep at least one marker.
                     </AlertDescription>
                   </Alert>
 

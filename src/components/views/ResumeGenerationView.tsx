@@ -29,6 +29,7 @@ import type {
   Anomaly,
   BuildPolicy,
   GenerationManifest,
+  RequirementAnalysis,
   ResumeArtifactFile,
   ResumePipelineResult,
 } from '@/lib/types'
@@ -111,6 +112,27 @@ function formatBuildPolicySource(value: string | null | undefined): string {
   }
 
   return value
+}
+
+function formatRequirementKind(value: string): string {
+  return value
+    .split('_')
+    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : part))
+    .join(' ')
+}
+
+function mapResumeGenerationError(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'Resume generation failed'
+
+  if (message.includes('Active candidate profile not found')) {
+    return 'Resume generation requires an active candidate profile. Go to Library > Candidate Profile and save one before generating.'
+  }
+
+  if (message.includes('contains invalid signal tags')) {
+    return `${message} Update the candidate profile signal tags to match the current taxonomy, then try again.`
+  }
+
+  return message
 }
 
 function PolicyToggleField({
@@ -226,10 +248,13 @@ export default function ResumeGenerationView() {
   const [renderDocx, setRenderDocx] = useState(true)
   const [persistManifest, setPersistManifest] = useState(true)
   const [manifestNotes, setManifestNotes] = useState('')
+  const [analysisResult, setAnalysisResult] = useState<RequirementAnalysis | null>(null)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [pipelineResult, setPipelineResult] = useState<ResumePipelineResult | null>(null)
   const [manifests, setManifests] = useState<GenerationManifest[]>([])
   const [anomalies, setAnomalies] = useState<Anomaly[]>([])
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [surfaceLoading, setSurfaceLoading] = useState(false)
   const [buildPolicyLoading, setBuildPolicyLoading] = useState(false)
@@ -333,6 +358,55 @@ export default function ResumeGenerationView() {
     [deferredPipelineResult]
   )
 
+  const analysisSummaryCards = useMemo(() => {
+    if (!analysisResult) {
+      return []
+    }
+
+    return [
+      {
+        title: 'Posting',
+        lines: [
+          {
+            label: 'Role family',
+            value: analysisResult.source.target_role_family || 'n/a',
+          },
+          { label: 'Clusters', value: analysisResult.clusters.length },
+          { label: 'Atoms', value: analysisResult.atoms.length },
+        ],
+      },
+      {
+        title: 'Taxonomy Signals',
+        lines: [
+          {
+            label: 'Matched keywords',
+            value: analysisResult.source.posting_keyword_bank.length,
+          },
+          {
+            label: 'Suggested terms',
+            value: analysisResult.source.unrecognized_notable_terms.length,
+          },
+          {
+            label: 'Method',
+            value: analysisResult.source.extraction_method,
+          },
+        ],
+      },
+    ]
+  }, [analysisResult])
+
+  const suggestedTerms = useMemo(
+    () => analysisResult?.source.unrecognized_notable_terms ?? [],
+    [analysisResult]
+  )
+
+  const matchedPostingKeywords = useMemo(
+    () => analysisResult?.source.posting_keyword_bank ?? [],
+    [analysisResult]
+  )
+
+  const analysisClusters = useMemo(() => analysisResult?.clusters ?? [], [analysisResult])
+
   const pipelineSummaryCards = useMemo(() => {
     if (!pipelineResult) {
       return []
@@ -429,12 +503,43 @@ export default function ResumeGenerationView() {
     try {
       const fileText = await file.text()
       setJobPostingText(fileText)
+      setAnalysisError(null)
       setSubmissionError(null)
       toast.success(`Loaded job posting from ${file.name}`)
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to load the selected posting file'
       toast.error(message)
+    }
+  }
+
+  const handleAnalyzePosting = async () => {
+    if (!isTauri) {
+      toast.error('Posting analysis is available only in the Tauri desktop runtime.')
+      return
+    }
+
+    const normalizedPostingText = jobPostingText.trim()
+    if (!normalizedPostingText) {
+      const message = 'Paste or load a job posting before analyzing it.'
+      setAnalysisError(message)
+      toast.error(message)
+      return
+    }
+
+    setIsAnalyzing(true)
+    setAnalysisError(null)
+
+    try {
+      const result = await careerService.buildRequirementAnalysis(normalizedPostingText)
+      setAnalysisResult(result)
+      toast.success('Posting analysis updated')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Posting analysis failed'
+      setAnalysisError(message)
+      toast.error(message)
+    } finally {
+      setIsAnalyzing(false)
     }
   }
 
@@ -500,7 +605,7 @@ export default function ResumeGenerationView() {
 
       toast.success('Resume pipeline completed')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Resume generation failed'
+      const message = mapResumeGenerationError(error)
       setSubmissionError(message)
       toast.error(message)
     } finally {
@@ -585,7 +690,11 @@ export default function ResumeGenerationView() {
                   <Textarea
                     id="resume-job-posting"
                     value={jobPostingText}
-                    onChange={(event) => setJobPostingText(event.target.value)}
+                    onChange={(event) => {
+                      setJobPostingText(event.target.value)
+                      setAnalysisError(null)
+                      setSubmissionError(null)
+                    }}
                     placeholder="Paste the target posting here..."
                     rows={14}
                     className="min-h-64"
@@ -716,6 +825,18 @@ export default function ResumeGenerationView() {
                   />
                 </div>
 
+                <Alert>
+                  <AlertDescription>
+                    Analyze Posting is the read-only taxonomy-first step. It works without a candidate profile and helps you seed tags before adding evidence. Generate Resume still requires Library &gt; Candidate Profile plus existing library data.
+                  </AlertDescription>
+                </Alert>
+
+                {analysisError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{analysisError}</AlertDescription>
+                  </Alert>
+                )}
+
                 {submissionError && (
                   <Alert variant="destructive">
                     <AlertDescription>{submissionError}</AlertDescription>
@@ -724,13 +845,148 @@ export default function ResumeGenerationView() {
 
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <p className="text-sm text-muted-foreground">
-                    This view runs the Tauri pipeline command with the active DB-backed build policy, then reloads manifests and anomalies.
+                    Analyze Posting is read-only. Generate Resume runs the full Tauri pipeline with the active DB-backed build policy, then reloads manifests and anomalies.
                   </p>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Generating...' : 'Generate Resume'}
-                  </Button>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleAnalyzePosting()}
+                      disabled={isSubmitting || isAnalyzing}
+                    >
+                      {isAnalyzing ? 'Analyzing...' : 'Analyze Posting'}
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting || isAnalyzing}>
+                      {isSubmitting ? 'Generating...' : 'Generate Resume'}
+                    </Button>
+                  </div>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Posting Analysis</CardTitle>
+              <CardDescription>
+                Use this read-only pass to inspect requirement structure and collect candidate taxonomy terms before you start tagging evidence.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!analysisResult ? (
+                <Alert>
+                  <AlertDescription>
+                    Run Analyze Posting to see role family, matched taxonomy keywords, and candidate terms for taxonomy seeding.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+                    {analysisSummaryCards.map((card) => (
+                      <SummaryCard key={card.title} title={card.title} lines={card.lines} />
+                    ))}
+                  </div>
+
+                  <Card className="gap-0">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Suggested Taxonomy Terms</CardTitle>
+                      <CardDescription>
+                        Repeated posting terms that are not already recognized by the current taxonomy.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {suggestedTerms.length === 0 ? (
+                        <Alert>
+                          <AlertDescription>
+                            No repeated unrecognized terms were promoted into the seed list for this posting.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedTerms.map((term) => (
+                            <Badge key={term.term} variant="secondary" className="gap-2">
+                              <span className="mono">{term.term}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                x{term.count}
+                              </span>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="gap-0">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Matched Posting Keywords</CardTitle>
+                      <CardDescription>
+                        Terms already recognized by the current taxonomy from this posting.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {matchedPostingKeywords.length === 0 ? (
+                        <Alert>
+                          <AlertDescription>
+                            No taxonomy-backed posting keywords matched. This is expected when the taxonomy is still empty or early.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {matchedPostingKeywords.map((keyword) => (
+                            <Badge key={keyword} variant="outline" className="mono">
+                              {keyword}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="gap-0">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Requirement Clusters</CardTitle>
+                      <CardDescription>
+                        High-level grouping of extracted requirements from the posting.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {analysisClusters.length === 0 ? (
+                        <Alert>
+                          <AlertDescription>
+                            No requirement clusters were extracted from this posting.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        analysisClusters.map((cluster) => (
+                          <div
+                            key={cluster.cluster_id}
+                            className="space-y-2 rounded-lg border bg-muted/20 p-3 text-sm"
+                          >
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                              <div className="font-medium text-foreground">{cluster.label}</div>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant="secondary">
+                                  {formatRequirementKind(cluster.kind)}
+                                </Badge>
+                                <Badge variant="outline">{cluster.atom_ids.length} atoms</Badge>
+                              </div>
+                            </div>
+                            {cluster.matched_tags.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {cluster.matched_tags.map((tag) => (
+                                  <Badge key={`${cluster.cluster_id}-${tag}`} variant="outline" className="mono">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
             </CardContent>
           </Card>
 

@@ -27,6 +27,12 @@ const CANONICAL_TAG_SELECT: &str = "
     FROM canonical_tags ct
     LEFT JOIN delivery_toolkit_metadata dtm ON dtm.canonical_tag = ct.tag
 ";
+const TAXONOMY_VERSION_METADATA_KEY: &str = "version";
+const TAXONOMY_CHANGE_GENERATION_METADATA_KEY: &str = "taxonomy_change_generation";
+const LAST_LIBRARY_TAG_REFRESH_GENERATION_METADATA_KEY: &str =
+    "last_library_tag_refresh_generation";
+const LAST_TAXONOMY_CHANGE_AT_METADATA_KEY: &str = "last_taxonomy_change_at";
+const LAST_LIBRARY_TAG_REFRESH_AT_METADATA_KEY: &str = "last_library_tag_refresh_at";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CanonicalTag {
@@ -91,6 +97,23 @@ pub struct TaxonomyImportResult {
     pub unknown_candidate_profile_signal_tags: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTagRefreshResult {
+    pub taxonomy_version: String,
+    pub retagged_evidence_count: usize,
+    pub rebuilt_record_count: usize,
+    pub unknown_candidate_profile_signal_tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTagSyncStatus {
+    pub requires_reinference: bool,
+    pub last_taxonomy_change_at: Option<String>,
+    pub last_library_tag_refresh_at: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct NormalizedTagInferenceMarkerInput {
     marker_kind: String,
@@ -153,6 +176,111 @@ fn default_tag_inference_markers(tag: &str) -> Vec<String> {
 
 fn new_id() -> String {
     Uuid::new_v4().to_string()
+}
+
+fn taxonomy_metadata_now() -> &'static str {
+    "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+}
+
+fn current_taxonomy_metadata_timestamp(conn: &Connection) -> Result<String, String> {
+    conn.query_row(
+        &format!("SELECT {}", taxonomy_metadata_now()),
+        [],
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn get_taxonomy_metadata_value(conn: &Connection, key: &str) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT metadata_value FROM taxonomy_metadata WHERE metadata_key = ?1 LIMIT 1",
+        params![key],
+        |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+fn get_taxonomy_metadata_i64(conn: &Connection, key: &str) -> Result<Option<i64>, String> {
+    let Some(value) = get_taxonomy_metadata_value(conn, key)? else {
+        return Ok(None);
+    };
+
+    value.parse::<i64>().map(Some).map_err(|error| {
+        format!("Invalid integer metadata value for {key:?}: {error}")
+    })
+}
+
+fn upsert_taxonomy_metadata_value(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        &format!(
+            "INSERT INTO taxonomy_metadata (metadata_key, metadata_value, updated_at)
+             VALUES (?1, ?2, {})
+             ON CONFLICT(metadata_key) DO UPDATE SET
+                 metadata_value = excluded.metadata_value,
+                 updated_at = {}",
+            taxonomy_metadata_now(),
+            taxonomy_metadata_now(),
+        ),
+        params![key, value],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn mark_taxonomy_changed(conn: &Connection) -> Result<(i64, String), String> {
+    let next_generation = get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?
+        .unwrap_or(0)
+        + 1;
+    let timestamp = current_taxonomy_metadata_timestamp(conn)?;
+
+    upsert_taxonomy_metadata_value(
+        conn,
+        TAXONOMY_CHANGE_GENERATION_METADATA_KEY,
+        &next_generation.to_string(),
+    )?;
+    upsert_taxonomy_metadata_value(conn, LAST_TAXONOMY_CHANGE_AT_METADATA_KEY, &timestamp)?;
+
+    Ok((next_generation, timestamp))
+}
+
+fn mark_library_tags_refreshed(conn: &Connection) -> Result<(i64, String), String> {
+    let generation = get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?
+        .unwrap_or(0);
+    let timestamp = current_taxonomy_metadata_timestamp(conn)?;
+
+    upsert_taxonomy_metadata_value(
+        conn,
+        LAST_LIBRARY_TAG_REFRESH_GENERATION_METADATA_KEY,
+        &generation.to_string(),
+    )?;
+    upsert_taxonomy_metadata_value(conn, LAST_LIBRARY_TAG_REFRESH_AT_METADATA_KEY, &timestamp)?;
+
+    Ok((generation, timestamp))
+}
+
+fn mark_taxonomy_and_library_tags_in_sync(conn: &Connection) -> Result<(i64, String), String> {
+    let (generation, timestamp) = mark_taxonomy_changed(conn)?;
+    upsert_taxonomy_metadata_value(
+        conn,
+        LAST_LIBRARY_TAG_REFRESH_GENERATION_METADATA_KEY,
+        &generation.to_string(),
+    )?;
+    upsert_taxonomy_metadata_value(conn, LAST_LIBRARY_TAG_REFRESH_AT_METADATA_KEY, &timestamp)?;
+    Ok((generation, timestamp))
+}
+
+fn build_library_tag_refresh_result(
+    conn: &Connection,
+    retagged_evidence_count: usize,
+    rebuilt_record_count: usize,
+) -> Result<LibraryTagRefreshResult, String> {
+    Ok(LibraryTagRefreshResult {
+        taxonomy_version: get_runtime_taxonomy_version(conn)?,
+        retagged_evidence_count,
+        rebuilt_record_count,
+        unknown_candidate_profile_signal_tags: query_unknown_candidate_profile_signal_tags(conn)?,
+    })
 }
 
 fn row_to_canonical_tag(row: &Row<'_>) -> rusqlite::Result<CanonicalTag> {
@@ -490,8 +618,8 @@ fn seed_taxonomy_contents_from_seed(conn: &Connection, seed: &TaxonomySeed) -> R
     }
 
     conn.execute(
-        "INSERT INTO taxonomy_metadata (metadata_key, metadata_value) VALUES ('version', ?1)",
-        params![version],
+        "INSERT INTO taxonomy_metadata (metadata_key, metadata_value) VALUES (?1, ?2)",
+        params![TAXONOMY_VERSION_METADATA_KEY, version],
     )
     .map_err(|e| e.to_string())?;
 
@@ -790,6 +918,7 @@ fn import_taxonomy_seed_inner(
     let imported_taxonomy_version = seed_taxonomy_contents_from_seed(conn, seed)?;
     let (retagged_evidence_count, rebuilt_record_count) = retag_evidence_and_rebuild_record_contexts(conn)?;
     let unknown_candidate_profile_signal_tags = query_unknown_candidate_profile_signal_tags(conn)?;
+    mark_taxonomy_and_library_tags_in_sync(conn)?;
 
     Ok(TaxonomyImportResult {
         imported_taxonomy_version,
@@ -800,14 +929,7 @@ fn import_taxonomy_seed_inner(
 }
 
 pub fn ensure_runtime_taxonomy_seeded(conn: &Connection) -> Result<(), String> {
-    let existing_version = conn
-        .query_row(
-            "SELECT metadata_value FROM taxonomy_metadata WHERE metadata_key = 'version' LIMIT 1",
-            [],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|e| e.to_string())?;
+    let existing_version = get_taxonomy_metadata_value(conn, TAXONOMY_VERSION_METADATA_KEY)?;
 
     if existing_version.is_some() {
         return Ok(());
@@ -815,24 +937,57 @@ pub fn ensure_runtime_taxonomy_seeded(conn: &Connection) -> Result<(), String> {
 
     with_transaction(conn, |conn| {
         clear_taxonomy_tables(conn)?;
-        seed_taxonomy_contents(conn).map(|_| ())
+        seed_taxonomy_contents(conn)?;
+        mark_taxonomy_and_library_tags_in_sync(conn).map(|_| ())
     })
 }
 
 pub fn get_runtime_taxonomy_version(conn: &Connection) -> Result<String, String> {
     ensure_runtime_taxonomy_seeded(conn)?;
-    conn.query_row(
-        "SELECT metadata_value FROM taxonomy_metadata WHERE metadata_key = 'version' LIMIT 1",
-        [],
-        |row| row.get(0),
-    )
-    .map_err(|e| format!("Failed to read taxonomy version: {e}"))
+    get_taxonomy_metadata_value(conn, TAXONOMY_VERSION_METADATA_KEY)?
+        .ok_or_else(|| "Failed to read taxonomy version metadata.".to_string())
 }
 
 pub fn reset_runtime_taxonomy(conn: &Connection) -> Result<(), String> {
     with_transaction(conn, |conn| {
         clear_taxonomy_tables(conn)?;
-        seed_taxonomy_contents(conn).map(|_| ())
+        seed_taxonomy_contents(conn)?;
+        mark_taxonomy_and_library_tags_in_sync(conn).map(|_| ())
+    })
+}
+
+pub fn get_library_tag_sync_status(conn: &Connection) -> Result<LibraryTagSyncStatus, String> {
+    ensure_runtime_taxonomy_seeded(conn)?;
+
+    let current_generation =
+        get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?.unwrap_or(0);
+    let last_refresh_generation = get_taxonomy_metadata_i64(
+        conn,
+        LAST_LIBRARY_TAG_REFRESH_GENERATION_METADATA_KEY,
+    )?
+    .unwrap_or(0);
+
+    Ok(LibraryTagSyncStatus {
+        requires_reinference: current_generation > last_refresh_generation,
+        last_taxonomy_change_at: get_taxonomy_metadata_value(
+            conn,
+            LAST_TAXONOMY_CHANGE_AT_METADATA_KEY,
+        )?,
+        last_library_tag_refresh_at: get_taxonomy_metadata_value(
+            conn,
+            LAST_LIBRARY_TAG_REFRESH_AT_METADATA_KEY,
+        )?,
+    })
+}
+
+pub fn re_infer_library_tags(conn: &Connection) -> Result<LibraryTagRefreshResult, String> {
+    ensure_runtime_taxonomy_seeded(conn)?;
+
+    with_transaction(conn, |conn| {
+        let (retagged_evidence_count, rebuilt_record_count) =
+            retag_evidence_and_rebuild_record_contexts(conn)?;
+        mark_library_tags_refreshed(conn)?;
+        build_library_tag_refresh_result(conn, retagged_evidence_count, rebuilt_record_count)
     })
 }
 
@@ -1128,7 +1283,8 @@ pub fn replace_tag_inference_markers(
     let normalized_markers = normalize_tag_inference_marker_inputs(markers)?;
 
     with_transaction(conn, |conn| {
-        replace_tag_inference_markers_inner(conn, &normalized_tag, &normalized_markers)
+        replace_tag_inference_markers_inner(conn, &normalized_tag, &normalized_markers)?;
+        mark_taxonomy_changed(conn).map(|_| ())
     })?;
     get_tag_inference_markers(conn, &normalized_tag)
 }
@@ -1226,7 +1382,8 @@ pub fn create_canonical_tag(
             params![normalized_tag, normalized_category, normalized_display_label],
         )
         .map_err(|e| e.to_string())?;
-        rewrite_tag_inference_markers_to_defaults(conn, &normalized_tag)
+        rewrite_tag_inference_markers_to_defaults(conn, &normalized_tag)?;
+        mark_taxonomy_changed(conn).map(|_| ())
     })?;
 
     get_canonical_tag(conn, &normalized_tag)?
@@ -1291,7 +1448,8 @@ pub fn update_canonical_tag(
                 &normalized_new_tag,
             )?;
         }
-        rewrite_tag_inference_markers_to_defaults(conn, &normalized_new_tag)
+        rewrite_tag_inference_markers_to_defaults(conn, &normalized_new_tag)?;
+        mark_taxonomy_changed(conn).map(|_| ())
     })?;
 
     get_canonical_tag(conn, &normalized_new_tag)?
@@ -1332,6 +1490,46 @@ pub fn delete_canonical_tag(conn: &Connection, tag: String) -> Result<(), String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn insert_record(conn: &Connection, id: &str, organization: &str, title: &str) {
+        conn.execute(
+            "INSERT INTO experience_records (
+                id, slug, record_type, organization, title, start_date, end_date,
+                location, employment_type, context_tags_json, canonical_scope_summary,
+                common_context_json, created_at, updated_at
+             ) VALUES (
+                ?1, ?2, 'employment', ?3, ?4, '2023-01-01', '2024-01-01',
+                NULL, NULL, '[]', NULL, NULL, '2026-04-08T00:00:00Z', '2026-04-08T00:00:00Z'
+             )",
+            params![id, format!("{id}-slug"), organization, title],
+        )
+        .unwrap();
+    }
+
+    fn insert_evidence(conn: &Connection, id: &str, record_id: &str, claim: &str) {
+        conn.execute(
+            "INSERT INTO evidence_items (
+                id, experience_record_id, claim, date_range, tags_json, scope_context_json,
+                evidence_note, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, NULL, '[]', NULL, NULL, '2026-04-08T00:00:00Z', '2026-04-08T00:00:00Z')",
+            params![id, record_id, claim],
+        )
+        .unwrap();
+    }
+
+    fn insert_active_candidate_profile(conn: &Connection) {
+        conn.execute(
+            "INSERT INTO candidate_profiles (
+                id, version, config_type, display_name, location, email, phone, linkedin, github,
+                created_at, updated_at
+             ) VALUES (
+                'active', '1.0', 'candidate_profile', 'Test User', 'Remote', NULL, NULL, NULL, NULL,
+                '2026-04-08T00:00:00Z', '2026-04-08T00:00:00Z'
+             )",
+            [],
+        )
+        .unwrap();
+    }
 
     fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -1390,6 +1588,165 @@ mod tests {
         let markers = get_tag_inference_markers(&conn, &created.tag).unwrap();
         assert!(!markers.is_empty());
         assert!(markers.iter().all(|marker| marker.marker_kind == "literal"));
+    }
+
+    #[test]
+    fn explicit_reinference_retags_library_and_clears_stale_status() {
+        let conn = setup_conn();
+        ensure_runtime_taxonomy_seeded(&conn).unwrap();
+        insert_record(&conn, "record-1", "Acme", "Engineer");
+        insert_evidence(&conn, "evidence-1", "record-1", "Led zebra delivery migration");
+
+        create_canonical_tag(
+            &conn,
+            "zebra_delivery".to_string(),
+            None,
+            "Implementation & Delivery".to_string(),
+            "Zebra Delivery".to_string(),
+        )
+        .unwrap();
+
+        let stale_status = get_library_tag_sync_status(&conn).unwrap();
+        assert!(stale_status.requires_reinference);
+
+        let result = re_infer_library_tags(&conn).unwrap();
+        assert_eq!(result.retagged_evidence_count, 1);
+        assert_eq!(result.rebuilt_record_count, 1);
+        assert!(result
+            .unknown_candidate_profile_signal_tags
+            .is_empty());
+
+        let evidence_tags: String = conn
+            .query_row(
+                "SELECT tags_json FROM evidence_items WHERE id = 'evidence-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(evidence_tags.contains("zebra_delivery"));
+
+        let record_tags: String = conn
+            .query_row(
+                "SELECT context_tags_json FROM experience_records WHERE id = 'record-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(record_tags.contains("zebra_delivery"));
+
+        let clean_status = get_library_tag_sync_status(&conn).unwrap();
+        assert!(!clean_status.requires_reinference);
+        assert!(clean_status.last_taxonomy_change_at.is_some());
+        assert!(clean_status.last_library_tag_refresh_at.is_some());
+    }
+
+    #[test]
+    fn second_reinference_run_is_idempotent_without_new_taxonomy_changes() {
+        let conn = setup_conn();
+        ensure_runtime_taxonomy_seeded(&conn).unwrap();
+        insert_record(&conn, "record-1", "Acme", "Engineer");
+        insert_evidence(&conn, "evidence-1", "record-1", "Led zebra delivery migration");
+
+        create_canonical_tag(
+            &conn,
+            "zebra_delivery".to_string(),
+            None,
+            "Implementation & Delivery".to_string(),
+            "Zebra Delivery".to_string(),
+        )
+        .unwrap();
+
+        re_infer_library_tags(&conn).unwrap();
+        let second_run = re_infer_library_tags(&conn).unwrap();
+        assert_eq!(second_run.retagged_evidence_count, 0);
+        assert_eq!(second_run.rebuilt_record_count, 0);
+        assert!(!get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+    }
+
+    #[test]
+    fn taxonomy_edits_mark_library_tags_stale_until_reinference_or_reset() {
+        let conn = setup_conn();
+        ensure_runtime_taxonomy_seeded(&conn).unwrap();
+        assert!(!get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+
+        create_canonical_tag(
+            &conn,
+            "workflow_review".to_string(),
+            None,
+            "Implementation & Delivery".to_string(),
+            "Workflow Review".to_string(),
+        )
+        .unwrap();
+        assert!(get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+
+        re_infer_library_tags(&conn).unwrap();
+        assert!(!get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+
+        update_canonical_tag(
+            &conn,
+            "workflow_review".to_string(),
+            "workflow_assessment".to_string(),
+            None,
+            "Implementation & Delivery".to_string(),
+            "Workflow Assessment".to_string(),
+        )
+        .unwrap();
+        assert!(get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+
+        re_infer_library_tags(&conn).unwrap();
+        replace_tag_inference_markers(
+            &conn,
+            "workflow_assessment".to_string(),
+            vec![TagInferenceMarkerInput {
+                marker_kind: "literal".to_string(),
+                literal_value: Some("workflow assessment".to_string()),
+                all_of: Vec::new(),
+                any_of: Vec::new(),
+            }],
+        )
+        .unwrap();
+        assert!(get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+
+        reset_runtime_taxonomy_to_starter(&conn).unwrap();
+        assert!(!get_library_tag_sync_status(&conn)
+            .unwrap()
+            .requires_reinference);
+    }
+
+    #[test]
+    fn explicit_reinference_reports_unknown_candidate_profile_signal_tags() {
+        let conn = setup_conn();
+        ensure_runtime_taxonomy_seeded(&conn).unwrap();
+        insert_active_candidate_profile(&conn);
+        conn.execute(
+            "INSERT INTO candidate_profile_education (
+                id, profile_id, sort_order, institution, credential, signal_tags_json,
+                major, minor, created_at, updated_at
+             ) VALUES (
+                'education-1', 'active', 0, 'Test University', 'BS', '[\"unknown_custom_tag\"]',
+                NULL, NULL, '2026-04-08T00:00:00Z', '2026-04-08T00:00:00Z'
+             )",
+            [],
+        )
+        .unwrap();
+
+        let result = re_infer_library_tags(&conn).unwrap();
+        assert_eq!(
+            result.unknown_candidate_profile_signal_tags,
+            vec!["unknown_custom_tag".to_string()]
+        );
     }
 
     #[test]

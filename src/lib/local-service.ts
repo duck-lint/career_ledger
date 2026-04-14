@@ -25,6 +25,8 @@ import type {
   TagInferenceMarkerInput,
   TagNormalizationResult,
   TaxonomyImportResult,
+  LibraryTagRefreshResult,
+  LibraryTagSyncStatus,
   RawIntakeImportResult,
   EvidenceInferenceComparison,
   EvidenceSaveDecision,
@@ -1241,6 +1243,18 @@ class LocalCareerService implements CareerService {
 
   async resetTaxonomyToStarter(): Promise<TaxonomyImportResult> {
     throw new Error('Taxonomy reset is available only in the Tauri desktop runtime.')
+  }
+
+  async getLibraryTagSyncStatus(): Promise<LibraryTagSyncStatus> {
+    return {
+      requiresReinference: false,
+      lastTaxonomyChangeAt: null,
+      lastLibraryTagRefreshAt: null,
+    }
+  }
+
+  async reInferLibraryTags(): Promise<LibraryTagRefreshResult> {
+    throw new Error('Library tag re-inference is available only in the Tauri desktop runtime.')
   }
 
   async createCanonicalTag(
