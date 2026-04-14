@@ -1,0 +1,679 @@
+use crate::build_policy;
+use crate::bundle_prep::ResumeBundleInput;
+use crate::candidate_profile::{self, CandidateProfile};
+use crate::docx_renderer;
+use crate::library_export::{self, CareerLibraryExport};
+use crate::operations::{self, GenerationManifest, NewGenerationManifest};
+use crate::preflight_filter::{self, PreflightFilterResult};
+use crate::project_paths::runtime_repo_root;
+use crate::requirement_analysis::{self, RequirementAnalysis};
+use crate::resume_assembler::{self, ResumeAssemblyResult};
+use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+
+const ARTIFACT_KIND_ASSEMBLED_RESUME: &str = "assembled_resume";
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct ResumePipelineRequest {
+    pub job_posting_text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_output_dir: Option<String>,
+    #[serde(default)]
+    pub write_bundle_json: bool,
+    #[serde(default)]
+    pub render_docx: bool,
+    #[serde(default)]
+    pub persist_manifest: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ResumeArtifactFile {
+    pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ResumeGeneratedArtifacts {
+    pub output_dir: String,
+    pub assembled_json: ResumeArtifactFile,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle_json: Option<ResumeArtifactFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_docx: Option<ResumeArtifactFile>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResumePipelineResult {
+    pub career_library_export: CareerLibraryExport,
+    pub requirement_analysis: RequirementAnalysis,
+    pub preflight_result: PreflightFilterResult,
+    pub bundle: ResumeBundleInput,
+    pub assembly_result: ResumeAssemblyResult,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated_artifacts: Option<ResumeGeneratedArtifacts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generation_manifest: Option<GenerationManifest>,
+}
+
+pub fn run_resume_pipeline(
+    conn: &Connection,
+    active_db_path: Option<&str>,
+    request: &ResumePipelineRequest,
+) -> Result<ResumePipelineResult, String> {
+    let candidate_profile = candidate_profile::get_candidate_profile(conn)?
+        .ok_or("Active candidate profile not found")?;
+    let source_db_name = source_db_name(active_db_path);
+    let career_library_export = library_export::build_career_library_export(conn, &source_db_name)?;
+    let requirement_analysis =
+        requirement_analysis::build_requirement_analysis(conn, &request.job_posting_text)?;
+    let (build_policy, build_policy_snapshot_json) = build_policy::get_build_policy_snapshot(conn)?;
+    let build_policy_sha256 = sha256_hex(build_policy_snapshot_json.as_bytes());
+    let preflight_config = build_policy.effective_preflight_config();
+    let preflight_result = preflight_filter::run_preflight_filter(
+        &career_library_export,
+        &requirement_analysis,
+        preflight_config.threshold,
+        preflight_config.fallback_min_records,
+    )
+    .map_err(|error| error.to_string())?;
+    let bundle = crate::bundle_prep::prepare_resume_bundle(
+        conn,
+        &candidate_profile,
+        &preflight_result.career_library_export,
+        &build_policy,
+        &request.job_posting_text,
+        &requirement_analysis,
+        &preflight_result.preflight_report,
+    )?;
+    let assembly_result = resume_assembler::assemble_resume(&bundle)?;
+    let generated_artifacts = match normalize_optional_string(&request.artifact_output_dir) {
+        Some(output_dir) => Some(write_resume_artifacts(
+            &bundle,
+            &assembly_result,
+            &output_dir,
+            request.write_bundle_json,
+            request.render_docx,
+        )?),
+        None => {
+            if request.write_bundle_json || request.render_docx {
+                return Err(
+                    "artifact_output_dir is required when bundle JSON or DOCX artifact generation is enabled."
+                        .to_string(),
+                );
+            }
+            None
+        }
+    };
+    let generation_manifest = if request.persist_manifest {
+        Some(persist_generation_manifest(
+            conn,
+            &candidate_profile,
+            &career_library_export,
+            &request.job_posting_text,
+            build_policy::BUILD_POLICY_SOURCE_URI,
+            &build_policy_sha256,
+            &assembly_result,
+            generated_artifacts.as_ref(),
+            normalize_optional_string(&request.manifest_notes),
+        )?)
+    } else {
+        None
+    };
+
+    Ok(ResumePipelineResult {
+        career_library_export,
+        requirement_analysis,
+        preflight_result,
+        bundle,
+        assembly_result,
+        generated_artifacts,
+        generation_manifest,
+    })
+}
+
+fn write_resume_artifacts(
+    bundle: &ResumeBundleInput,
+    assembly_result: &ResumeAssemblyResult,
+    artifact_output_dir: &str,
+    write_bundle_json: bool,
+    render_docx: bool,
+) -> Result<ResumeGeneratedArtifacts, String> {
+    let output_dir = resolve_output_dir(artifact_output_dir)?;
+    let output_dir_string = output_dir.display().to_string();
+    let base_stem = artifact_base_stem(&assembly_result.artifact.provenance.target_role_family);
+
+    let assembled_json = write_json_artifact(
+        &output_dir.join(format!("{base_stem}_assembled.json")),
+        &assembly_result.artifact,
+    )?;
+    let bundle_json = if write_bundle_json {
+        Some(write_json_artifact(
+            &output_dir.join(format!("{base_stem}_bundle.json")),
+            bundle,
+        )?)
+    } else {
+        None
+    };
+    let rendered_docx = if render_docx {
+        Some(render_docx_artifact(
+            &assembly_result.artifact,
+            &output_dir.join(format!("{base_stem}.docx")),
+        )?)
+    } else {
+        None
+    };
+
+    Ok(ResumeGeneratedArtifacts {
+        output_dir: output_dir_string,
+        assembled_json,
+        bundle_json,
+        rendered_docx,
+    })
+}
+
+fn persist_generation_manifest(
+    conn: &Connection,
+    candidate_profile: &CandidateProfile,
+    career_library_export: &CareerLibraryExport,
+    job_posting_text: &str,
+    build_policy_path: &str,
+    build_policy_sha256: &str,
+    assembly_result: &ResumeAssemblyResult,
+    generated_artifacts: Option<&ResumeGeneratedArtifacts>,
+    manifest_notes: Option<String>,
+) -> Result<GenerationManifest, String> {
+    operations::create_generation_manifest(
+        conn,
+        NewGenerationManifest {
+            artifact_kind: ARTIFACT_KIND_ASSEMBLED_RESUME.to_string(),
+            target_role_family: Some(
+                assembly_result
+                    .artifact
+                    .provenance
+                    .target_role_family
+                    .clone(),
+            ),
+            job_posting_path: None,
+            job_posting_sha256: Some(sha256_hex(job_posting_text.as_bytes())),
+            build_policy_path: Some(build_policy_path.to_string()),
+            build_policy_sha256: Some(build_policy_sha256.to_string()),
+            candidate_profile_path: None,
+            candidate_profile_sha256: Some(sha256_json(candidate_profile)?),
+            library_export_path: None,
+            library_export_sha256: Some(sha256_json(career_library_export)?),
+            selected_record_ids: Some(
+                serde_json::to_value(&assembly_result.selected_record_ids)
+                    .map_err(|error| error.to_string())?,
+            ),
+            selected_evidence_ids: Some(
+                serde_json::to_value(&assembly_result.selected_evidence_ids)
+                    .map_err(|error| error.to_string())?,
+            ),
+            gap_report: Some(
+                serde_json::to_value(&assembly_result.artifact.gap_report)
+                    .map_err(|error| error.to_string())?,
+            ),
+            artifact_paths: generated_artifacts.map(artifact_paths_json),
+            artifact_hashes: generated_artifacts.map(artifact_hashes_json),
+            notes: manifest_notes,
+        },
+    )
+}
+
+fn artifact_paths_json(generated_artifacts: &ResumeGeneratedArtifacts) -> Value {
+    let mut paths = Map::new();
+    paths.insert(
+        "assembled_json".to_string(),
+        Value::String(generated_artifacts.assembled_json.path.clone()),
+    );
+    if let Some(bundle_json) = &generated_artifacts.bundle_json {
+        paths.insert(
+            "bundle_json".to_string(),
+            Value::String(bundle_json.path.clone()),
+        );
+    }
+    if let Some(rendered_docx) = &generated_artifacts.rendered_docx {
+        paths.insert(
+            "rendered_docx".to_string(),
+            Value::String(rendered_docx.path.clone()),
+        );
+    }
+    Value::Object(paths)
+}
+
+fn artifact_hashes_json(generated_artifacts: &ResumeGeneratedArtifacts) -> Value {
+    let mut hashes = Map::new();
+    hashes.insert(
+        "assembled_json".to_string(),
+        Value::String(generated_artifacts.assembled_json.sha256.clone()),
+    );
+    if let Some(bundle_json) = &generated_artifacts.bundle_json {
+        hashes.insert(
+            "bundle_json".to_string(),
+            Value::String(bundle_json.sha256.clone()),
+        );
+    }
+    if let Some(rendered_docx) = &generated_artifacts.rendered_docx {
+        hashes.insert(
+            "rendered_docx".to_string(),
+            Value::String(rendered_docx.sha256.clone()),
+        );
+    }
+    Value::Object(hashes)
+}
+
+fn resolve_output_dir(artifact_output_dir: &str) -> Result<PathBuf, String> {
+    let requested_path = PathBuf::from(artifact_output_dir);
+    let candidate = if requested_path.is_absolute() {
+        requested_path
+    } else {
+        runtime_repo_root()?.join(requested_path)
+    };
+    fs::create_dir_all(&candidate).map_err(|error| {
+        format!(
+            "Failed to create artifact output directory {}: {error}",
+            candidate.display()
+        )
+    })?;
+    candidate.canonicalize().map_err(|error| {
+        format!(
+            "Failed to resolve artifact output directory {}: {error}",
+            candidate.display()
+        )
+    })
+}
+
+fn artifact_base_stem(target_role_family: &str) -> String {
+    let role_slug = slugify_filename_segment(target_role_family);
+    let role_segment = if role_slug.is_empty() {
+        "resume".to_string()
+    } else {
+        role_slug
+    };
+
+    format!("resume_{role_segment}_{}", Uuid::new_v4().simple())
+}
+
+fn slugify_filename_segment(value: &str) -> String {
+    value
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .split('_')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
+}
+
+fn write_json_artifact<T: Serialize>(path: &Path, payload: &T) -> Result<ResumeArtifactFile, String> {
+    let bytes = serde_json::to_vec_pretty(payload).map_err(|error| error.to_string())?;
+    let mut bytes_with_newline = bytes;
+    bytes_with_newline.push(b'\n');
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "Failed to create artifact parent directory {}: {error}",
+                parent.display()
+            )
+        })?;
+    }
+    fs::write(path, &bytes_with_newline).map_err(|error| {
+        format!("Failed to write artifact JSON {}: {error}", path.display())
+    })?;
+
+    let resolved_path = path.canonicalize().map_err(|error| {
+        format!("Failed to resolve artifact JSON path {}: {error}", path.display())
+    })?;
+
+    Ok(ResumeArtifactFile {
+        path: resolved_path.display().to_string(),
+        sha256: sha256_hex(&bytes_with_newline),
+    })
+}
+
+fn render_docx_artifact(
+    assembled_artifact: &crate::resume_assembler::AssembledResumeArtifact,
+    docx_output_path: &Path,
+) -> Result<ResumeArtifactFile, String> {
+    if let Some(parent) = docx_output_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "Failed to create DOCX artifact directory {}: {error}",
+                parent.display()
+            )
+        })?;
+    }
+    docx_renderer::render_resume_artifact(assembled_artifact, docx_output_path)?;
+
+    let resolved_path = docx_output_path.canonicalize().map_err(|error| {
+        format!(
+            "Failed to resolve rendered DOCX path {}: {error}",
+            docx_output_path.display()
+        )
+    })?;
+    let bytes = fs::read(&resolved_path).map_err(|error| {
+        format!(
+            "Failed to read rendered DOCX artifact {}: {error}",
+            resolved_path.display()
+        )
+    })?;
+
+    Ok(ResumeArtifactFile {
+        path: resolved_path.display().to_string(),
+        sha256: sha256_hex(&bytes),
+    })
+}
+
+fn source_db_name(active_db_path: Option<&str>) -> String {
+    active_db_path
+        .and_then(|value| Path::new(value).file_name())
+        .and_then(|value| value.to_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| "career.db".to_string())
+}
+
+fn normalize_optional_string(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn sha256_json<T: Serialize>(value: &T) -> Result<String, String> {
+    let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
+    Ok(sha256_hex(&bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::candidate_profile::{
+        replace_candidate_profile, CandidateCertificationEntry, CandidateContact,
+        CandidateEducationEntry, CandidateEducationFieldNotes, CandidateIdentity, CandidateProfile,
+        CandidateStaticSections,
+    };
+    use crate::operations::get_generation_manifests;
+    use crate::taxonomy::ensure_runtime_taxonomy_seeded;
+    use rusqlite::params;
+    use serde_json::json;
+    use std::env;
+
+    fn setup_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::embedded_assets::CAREER_SCHEMA_SQL)
+            .unwrap();
+        ensure_runtime_taxonomy_seeded(&conn).unwrap();
+        conn
+    }
+
+    fn seed_candidate_profile(conn: &Connection) {
+        replace_candidate_profile(
+            conn,
+            CandidateProfile {
+                version: "1.0".to_string(),
+                config_type: "candidate_profile".to_string(),
+                candidate_identity: CandidateIdentity {
+                    display_name: "Test User".to_string(),
+                    location: "Remote".to_string(),
+                    contact: CandidateContact {
+                        email: Some("test@example.com".to_string()),
+                        phone: Some("555-0100".to_string()),
+                        linkedin: Some("linkedin/test".to_string()),
+                        github: Some("github/test".to_string()),
+                    },
+                },
+                static_sections: CandidateStaticSections {
+                    education: vec![CandidateEducationEntry {
+                        id: "edu-1".to_string(),
+                        institution: "School".to_string(),
+                        credential: "BBA".to_string(),
+                        signal_tags: vec!["degree".to_string()],
+                        field_notes: CandidateEducationFieldNotes::default(),
+                    }],
+                    certifications: vec![CandidateCertificationEntry {
+                        id: "cert-1".to_string(),
+                        name: "Python Cert".to_string(),
+                        issuer: "Issuer".to_string(),
+                        credential_detail: "Level 1".to_string(),
+                        signal_tags: vec!["python".to_string()],
+                    }],
+                    profile_summary_seed: vec![
+                        "Built CLI tooling for deterministic exports.".to_string()
+                    ],
+                },
+            },
+        )
+        .unwrap();
+    }
+
+    fn seed_library(conn: &Connection) {
+        conn.execute(
+            "INSERT INTO experience_records (
+                id, slug, record_type, organization, title, start_date, end_date,
+                location, context_tags_json, common_context_json
+             ) VALUES (?1, ?2, 'employment', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                "rec-1",
+                "role-one",
+                "Example Org",
+                "Analyst",
+                "2024-01",
+                "present",
+                "Remote",
+                serde_json::to_string(&vec!["python", "automation"]).unwrap(),
+                json!({}).to_string(),
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO evidence_items (
+                id, experience_record_id, claim, tags_json, scope_context_json
+             ) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                "ev-1",
+                "rec-1",
+                "Built CLI tooling for deterministic exports.",
+                serde_json::to_string(&vec!["python", "automation"]).unwrap(),
+                json!({}).to_string(),
+            ],
+        )
+        .unwrap();
+    }
+
+    fn configure_test_build_policy(conn: &Connection) {
+        let mut build_policy = build_policy::default_build_policy().unwrap();
+        build_policy.max_bullets_per_role = 2;
+        build_policy.max_project_bullets = 2;
+        build_policy.max_projects = 2;
+        build_policy.preflight = Some(build_policy::BuildPolicyPreflight {
+            threshold: Some(0.0),
+            fallback_min_records: Some(1),
+        });
+        build_policy.assembler_strategy.max_highlights = 2;
+        build_policy.assembler_strategy.bullet_max_chars = 120;
+        build_policy.assembler_strategy.highlight_max_chars = 120;
+        build_policy.assembler_strategy.profile_max_chars = 120;
+        build_policy::save_build_policy(conn, build_policy).unwrap();
+    }
+
+    fn temp_output_dir() -> PathBuf {
+        let path = env::temp_dir().join(format!("career-ledger-artifacts-{}", Uuid::new_v4()));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn run_resume_pipeline_returns_stages_without_manifest_writeback() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+
+        let result = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                artifact_output_dir: None,
+                write_bundle_json: false,
+                render_docx: false,
+                persist_manifest: false,
+                manifest_notes: None,
+            },
+        )
+        .unwrap();
+
+        assert!(result.generated_artifacts.is_none());
+        assert!(result.generation_manifest.is_none());
+        assert_eq!(result.preflight_result.preflight_report.threshold, 0.0);
+        assert_eq!(
+            result.bundle.build_policy.policy_type,
+            "resume_build_policy"
+        );
+        assert_eq!(result.assembly_result.selected_record_ids, vec!["rec-1"]);
+        assert!(get_generation_manifests(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn run_resume_pipeline_persists_generation_manifest_when_enabled() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+        let artifact_output_dir = temp_output_dir();
+
+        let result = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                artifact_output_dir: Some(artifact_output_dir.display().to_string()),
+                write_bundle_json: true,
+                render_docx: false,
+                persist_manifest: true,
+                manifest_notes: Some("preview pipeline".to_string()),
+            },
+        )
+        .unwrap();
+
+        let manifest = result.generation_manifest.as_ref().unwrap();
+        let generated_artifacts = result.generated_artifacts.as_ref().unwrap();
+        let manifests = get_generation_manifests(&conn).unwrap();
+
+        assert_eq!(manifest.artifact_kind, ARTIFACT_KIND_ASSEMBLED_RESUME);
+        assert_eq!(manifest.notes.as_deref(), Some("preview pipeline"));
+        assert_eq!(manifests.len(), 1);
+        assert_eq!(manifests[0].id, manifest.id);
+        assert_eq!(
+            manifests[0].selected_record_ids,
+            Some(json!(result.assembly_result.selected_record_ids))
+        );
+        assert_eq!(
+            manifests[0].selected_evidence_ids,
+            Some(json!(result.assembly_result.selected_evidence_ids))
+        );
+        assert!(Path::new(&generated_artifacts.assembled_json.path).exists());
+        assert!(Path::new(
+            &generated_artifacts.bundle_json.as_ref().unwrap().path
+        )
+        .exists());
+        assert!(generated_artifacts.rendered_docx.is_none());
+        assert_eq!(
+            manifests[0].artifact_paths,
+            Some(json!({
+                "assembled_json": generated_artifacts.assembled_json.path,
+                "bundle_json": generated_artifacts.bundle_json.as_ref().unwrap().path,
+            }))
+        );
+        assert_eq!(
+            manifests[0].artifact_hashes,
+            Some(json!({
+                "assembled_json": generated_artifacts.assembled_json.sha256,
+                "bundle_json": generated_artifacts.bundle_json.as_ref().unwrap().sha256,
+            }))
+        );
+        assert_eq!(manifest.build_policy_path.as_deref(), Some(build_policy::BUILD_POLICY_SOURCE_URI));
+
+        fs::remove_dir_all(artifact_output_dir).unwrap();
+    }
+
+    #[test]
+    fn run_resume_pipeline_rejects_artifact_flags_without_output_dir() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+
+        let error = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                artifact_output_dir: None,
+                write_bundle_json: true,
+                render_docx: false,
+                persist_manifest: false,
+                manifest_notes: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("artifact_output_dir"));
+    }
+
+    #[test]
+    fn run_resume_pipeline_renders_docx_when_requested() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+        let artifact_output_dir = temp_output_dir();
+
+        let result = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                artifact_output_dir: Some(artifact_output_dir.display().to_string()),
+                write_bundle_json: false,
+                render_docx: true,
+                persist_manifest: false,
+                manifest_notes: None,
+            },
+        )
+        .unwrap();
+
+        let generated_artifacts = result.generated_artifacts.as_ref().unwrap();
+        let rendered_docx = generated_artifacts.rendered_docx.as_ref().unwrap();
+
+        assert!(Path::new(&generated_artifacts.assembled_json.path).exists());
+        assert!(Path::new(&rendered_docx.path).exists());
+        assert!(generated_artifacts.bundle_json.is_none());
+        assert!(rendered_docx.path.ends_with(".docx"));
+
+        fs::remove_dir_all(artifact_output_dir).unwrap();
+    }
+}

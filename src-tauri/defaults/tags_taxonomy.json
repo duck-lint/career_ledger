@@ -1,0 +1,5147 @@
+{
+  "version": "3.0",
+  "canonical_tags": [
+    "accounting",
+    "adoption_support",
+    "advanced_excel",
+    "agile_methodologies",
+    "agile_project_management",
+    "ai",
+    "analysis",
+    "analytics_support",
+    "android",
+    "artifact_creation",
+    "artificial_intelligence",
+    "autohotkey",
+    "automation",
+    "azure_devops",
+    "bachelor",
+    "benefits",
+    "benefits_administration",
+    "bid_coordination",
+    "budgeting",
+    "business_administration",
+    "business_analysis",
+    "business_intelligence",
+    "business_process",
+    "case_management",
+    "change_adoption",
+    "change_enablement",
+    "change_management",
+    "ci_cd",
+    "cli_tools",
+    "compliance",
+    "confidentiality",
+    "containerization",
+    "continuous_improvement",
+    "copilot",
+    "cost_modeling",
+    "crm",
+    "crm_admin",
+    "crm_administration",
+    "crm_analytics",
+    "crm_reporting",
+    "cross_functional_collaboration",
+    "cross_platform",
+    "current_state",
+    "dashboarding",
+    "data_analysis",
+    "data_engineering",
+    "data_governance",
+    "data_integrity",
+    "data_interpretation",
+    "data_migration",
+    "data_processing",
+    "data_pipelines",
+    "data_quality",
+    "data_quality_assurance",
+    "data_reconciliation",
+    "data_science",
+    "data_storytelling",
+    "data_validation",
+    "database_management",
+    "defect_management",
+    "defect_tracking",
+    "disability_management",
+    "degree",
+    "devcontainers",
+    "docker_products",
+    "documentation",
+    "documentation_authoring",
+    "employee_lifecycle_administration",
+    "end_user_enablement",
+    "excel",
+    "excel_modeling",
+    "exception_handling",
+    "ffi",
+    "financial_analysis",
+    "forecasting",
+    "friction_reduction",
+    "future_state",
+    "generative_ai",
+    "github_actions",
+    "global",
+    "global_reporting",
+    "grant_funding",
+    "headcount_analysis",
+    "hris",
+    "human_resources",
+    "implementation",
+    "implementation_support",
+    "intelligence_gathering",
+    "internal_application",
+    "internal_mobility",
+    "investigation",
+    "issue_triage",
+    "it_service_management",
+    "it_management_monitoring",
+    "jira",
+    "json",
+    "knowledge_base",
+    "knowledge_transfer",
+    "kotlin",
+    "kpi_reporting",
+    "license_administration",
+    "llm",
+    "markdown",
+    "maximo",
+    "mergers_acquisitions",
+    "metric_definition",
+    "obsidian",
+    "onboarding",
+    "operational_support",
+    "payroll",
+    "payroll_support",
+    "post_go_live_support",
+    "power_bi",
+    "pre_employment_coordination",
+    "problem_resolution",
+    "process_improvement",
+    "process_mapping",
+    "process_optimization",
+    "process_standardization",
+    "procurement",
+    "project_management",
+    "prompt_engineering",
+    "python",
+    "quality_assurance",
+    "rag",
+    "react",
+    "reconciliation",
+    "relocation_flexibility",
+    "remote_travel_flexibility",
+    "return_to_work",
+    "report_automation",
+    "report_design",
+    "report_standardization",
+    "reporting",
+    "requirements",
+    "requirements_analysis",
+    "requirements_gathering",
+    "retrieval_augmented_generation",
+    "rollout",
+    "root_cause_analysis",
+    "rust",
+    "runtime",
+    "sap_c4c",
+    "scripting",
+    "solutions_architecture",
+    "sql",
+    "sqlite",
+    "stakeholder_alignment",
+    "stakeholder_coordination",
+    "stakeholder_management",
+    "subject_matter_expert",
+    "superuser",
+    "superuser_administration",
+    "superuser_support",
+    "system_administration",
+    "system_adoption",
+    "system_owner",
+    "tauri",
+    "technical_writing",
+    "test_case_design",
+    "testing",
+    "time_and_absence",
+    "training",
+    "training_delivery",
+    "training_design",
+    "training_enablement",
+    "troubleshooting",
+    "typescript",
+    "uat",
+    "uat_management",
+    "user_support",
+    "user_training",
+    "variance_analysis",
+    "vendor_coordination",
+    "version_control",
+    "web",
+    "win32",
+    "windows_api",
+    "workday",
+    "workflow_analysis",
+    "workflow_design",
+    "workflow_optimization",
+    "workforce_analytics",
+    "yaml"
+  ],
+  "tag_inference_markers": {
+    "analysis": [
+      "structured analysis",
+      "conducted analysis",
+      "analytical review",
+      "analysis support"
+    ],
+    "agile_methodologies": [
+      "agile",
+      "scrum",
+      "kanban",
+      "sprint",
+      "retrospective",
+      "standup",
+      "stand-up",
+      "user stories",
+      "backlog grooming",
+      "backlog refinement"
+    ],
+    "agile_project_management": [
+      "agile project",
+      "sprint planning",
+      "velocity",
+      "burndown",
+      "product backlog"
+    ],
+    "ai": [
+      "artificial intelligence",
+      "machine learning",
+      "neural network",
+      "deep learning",
+      "ai-powered",
+      "ai tool",
+      "ai tools",
+      "ai solution",
+      "ai assistant",
+      "ai integration"
+    ],
+    "artificial_intelligence": [
+      "artificial intelligence discipline",
+      "artificial intelligence solution",
+      "artificial intelligence platform",
+      "artificial intelligence initiative"
+    ],
+    "analytics_support": [
+      "analytics",
+      "traceability",
+      "data analytics",
+      "analytical support",
+      "analytics platform"
+    ],
+    "android": [
+      "android",
+      "jetpack compose",
+      "compose ui",
+      "datastore",
+      "stateflow",
+      "viewmodel",
+      "jetpack",
+      "gradle",
+      "android studio",
+      "apk",
+      "play store"
+    ],
+    "artifact_creation": [
+      "tracker",
+      "trackers",
+      "template",
+      "templates",
+      "manifest",
+      "job record schema",
+      "job-record schema",
+      "release zip",
+      "zip artifacts",
+      "checksums",
+      "run identifiers",
+      "per-action metadata",
+      "zero-padded file-naming",
+      "created a template",
+      "built a tracker",
+      "developed a checklist",
+      "reference document"
+    ],
+    "autohotkey": [
+      "autohotkey",
+      "ahk",
+      "hotkey",
+      "hotstring",
+      "project-ahk"
+    ],
+    "automation": [
+      "automation",
+      "automated",
+      "automating",
+      "automate",
+      "auto-generated",
+      "auto-populate",
+      "metadata enrichment",
+      "fact-type inference",
+      "scripted workflow",
+      "hands-free",
+      "unattended"
+    ],
+    "azure_devops": [
+      "azure devops",
+      "azure pipelines",
+      "ado boards",
+      "ado repos",
+      "azure boards",
+      "tfs",
+      "team foundation",
+      "logged defects",
+      "monitored bug status"
+    ],
+    "benefits_administration": [
+      "benefits administration",
+      "benefits enrollment",
+      "open enrollment",
+      "benefit elections",
+      "benefits plan",
+      "plan documents",
+      "benefits inquiries",
+      "benefit eligibility",
+      "eligibility questions",
+      "coverage details",
+      "policy interpretation",
+      "enrollment procedures",
+      "enrollment issues",
+      {
+        "all_of": [
+          "administered"
+        ],
+        "any_of": [
+          "benefits",
+          "benefit elections",
+          "open enrollment",
+          "benefits plan"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "benefits",
+          "benefits enrollment",
+          "benefits plan",
+          "benefit elections",
+          "plan documents"
+        ]
+      },
+      {
+        "all_of": [
+          "coordinated"
+        ],
+        "any_of": [
+          "benefits enrollment",
+          "open enrollment",
+          "benefit elections",
+          "enrollment procedures"
+        ]
+      },
+      {
+        "all_of": [
+          "processed"
+        ],
+        "any_of": [
+          "benefit elections",
+          "benefits enrollment",
+          "enrollment issues"
+        ]
+      },
+      {
+        "all_of": [
+          "responded"
+        ],
+        "any_of": [
+          "benefits inquiries",
+          "benefit eligibility",
+          "eligibility questions",
+          "coverage details",
+          "claims resolution"
+        ]
+      },
+      {
+        "all_of": [
+          "provided"
+        ],
+        "any_of": [
+          "benefits support",
+          "benefits inquiries",
+          "policy interpretation"
+        ]
+      }
+    ],
+    "bid_coordination": [
+      "bid coordination",
+      "proposal submission",
+      "proposal writing",
+      "rfp response",
+      "rfi authoring",
+      "rfi response",
+      "supply arrangement",
+      "government proposal",
+      "procurement submission",
+      "solicitation response",
+      "authored a proposal",
+      "coordinated a proposal",
+      "submitted to dnd",
+      "submitted to government",
+      "rfx management",
+      "bid management",
+      "owned the timeline",
+      "aligned engineering and supplier inputs",
+      {
+        "all_of": [
+          "authored",
+          "rfi"
+        ]
+      },
+      {
+        "all_of": [
+          "authored",
+          "rfis"
+        ]
+      },
+      {
+        "all_of": [
+          "authored",
+          "solicitation"
+        ]
+      },
+      {
+        "all_of": [
+          "rfi",
+          "dnd"
+        ]
+      },
+      {
+        "all_of": [
+          "consolidating",
+          "solicitation"
+        ]
+      },
+      {
+        "all_of": [
+          "rfp",
+          "authored"
+        ]
+      },
+      {
+        "all_of": [
+          "rfp",
+          "submitted"
+        ]
+      }
+    ],
+    "budgeting": [
+      "budgeting",
+      "annual budget",
+      "budget preparation",
+      "budget cycle",
+      "budget forecast",
+      "cost centre budget",
+      "departmental budget",
+      "cost budget",
+      "budget model",
+      "budget models",
+      "budget update",
+      "budget updates",
+      "employee costs",
+      "employee cost",
+      {
+        "all_of": [
+          "developed",
+          "budget"
+        ]
+      },
+      {
+        "all_of": [
+          "built",
+          "budget"
+        ]
+      },
+      {
+        "all_of": [
+          "created",
+          "budget"
+        ]
+      },
+      {
+        "all_of": [
+          "prepared",
+          "budget"
+        ]
+      }
+    ],
+    "business_analysis": [
+      "business analysis",
+      "business analyst",
+      "gap analysis",
+      "fit-gap",
+      "business requirements document",
+      "brd",
+      "used by both",
+      {
+        "all_of": [
+          "translated"
+        ],
+        "any_of": [
+          "issues",
+          "user needs",
+          "business needs",
+          "user requirements",
+          "business requirements",
+          "functional requirements",
+          "use cases",
+          "user stories",
+          "requirements",
+          "problems",
+          "questions"
+        ]
+      }
+    ],
+    "business_intelligence": [
+      "business intelligence",
+      "bi tool",
+      "bi report",
+      "bi dashboard",
+      "olap",
+      "data warehouse",
+      {
+        "all_of": [
+          "translated"
+        ],
+        "any_of": [
+          "issues",
+          "user needs",
+          "business needs",
+          "user requirements",
+          "business requirements",
+          "functional requirements",
+          "use cases",
+          "user stories",
+          "requirements",
+          "problems",
+          "questions"
+        ]
+      }
+    ],
+    "business_process": [
+      "business process",
+      "bpm",
+      "process flow",
+      "standard operating procedure",
+      "sop"
+    ],
+    "case_management": [
+      "case management",
+      "case tracking",
+      "case queue",
+      "ticket management",
+      "incident management",
+      "service request",
+      "case maintenance",
+      "disability claim",
+      "disability claims",
+      "employer claims",
+      "disability case",
+      "disability cases",
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "case",
+          "cases",
+          "claim",
+          "claims",
+          "ticket",
+          "tickets",
+          "disability claims",
+          "employer claims"
+        ]
+      },
+      {
+        "all_of": [
+          "resolved"
+        ],
+        "any_of": [
+          "case",
+          "cases",
+          "claim",
+          "claims",
+          "ticket",
+          "tickets",
+          "coverage disputes"
+        ]
+      },
+      {
+        "all_of": [
+          "maintained"
+        ],
+        "any_of": [
+          "case queue",
+          "ticket queue",
+          "case tracking",
+          "disability cases",
+          "case records"
+        ]
+      }
+    ],
+    "change_adoption": [
+      "adoption",
+      "adopt",
+      "make-it-usable",
+      "self-serve",
+      "user adoption",
+      "adoption rate",
+      "adoption strategy",
+      "change readiness",
+      "readiness assessment",
+      {
+        "all_of": [
+          "drove",
+          "adoption"
+        ]
+      },
+      {
+        "all_of": [
+          "increased",
+          "adoption"
+        ]
+      }
+    ],
+    "change_enablement": [
+      "change enablement",
+      "enablement planning",
+      "enablement strategy",
+      "change readiness enablement"
+    ],
+    "change_management": [
+      "change management",
+      "change initiative",
+      "organizational change",
+      "change impact",
+      "change communication",
+      "prosci",
+      "adkar"
+    ],
+    "ci_cd": [
+      "ci/cd",
+      "ci cd",
+      "continuous integration",
+      "continuous delivery",
+      "continuous deployment",
+      "build pipeline",
+      "deploy pipeline",
+      "release pipeline"
+    ],
+    "cli_tools": [
+      "cli tools",
+      "cli commands",
+      "cli interfaces",
+      "cli entry points",
+      "entry point",
+      "entry points",
+      "subcommand",
+      "argparse",
+      "command dispatch",
+      "subparsers",
+      "command routing",
+      "exit codes",
+      "exit-code",
+      "command-line interface",
+      "command line tool",
+      "cli option",
+      "option groups",
+      "argument parsing",
+      "argument arrays",
+      "argument construction",
+      "command-line strings",
+      "dry-run mode",
+      "dry-run previews",
+      "preview output",
+      "overwrite guards",
+      "verbosity levels",
+      "external cli tool",
+      "multi-command plugin",
+      "cli defaults",
+      "fail-closed behavior",
+      "verbosity-controlled"
+    ],
+    "compliance": [
+      "compliance",
+      "regulatory",
+      "audit",
+      "supplier standing",
+      "ministry of national defense",
+      "policy adherence",
+      "regulatory requirement",
+      "sox compliance",
+      "gdpr",
+      "data privacy",
+      {
+        "all_of": [
+          "ensured",
+          "compliance"
+        ]
+      },
+      {
+        "all_of": [
+          "compliance",
+          "requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "maintained",
+          "compliance"
+        ]
+      }
+    ],
+    "confidentiality": [
+      "confidential information",
+      "sensitive information",
+      "data privacy",
+      "information security",
+      "non-disclosure",
+      "nda",
+      "confidential data handling",
+      "secure data handling",
+      "confidentiality agreement",
+      "termination discussions",
+      "terminations",
+      "employee changes",
+      {
+        "any_of": [
+          "confidential",
+          "confidentiality",
+          "sensitive"
+        ]
+      }
+    ],
+    "containerization": [
+      "containerization",
+      "container",
+      "docker",
+      "dockerfile",
+      "docker compose",
+      "kubernetes",
+      "k8s",
+      "helm"
+    ],
+    "continuous_improvement": [
+      "continuous improvement",
+      "kaizen",
+      "lean",
+      "lessons learned",
+      "iterative improvement",
+      "process maturity",
+      {
+        "all_of": [
+          "identified",
+          "improvements"
+        ]
+      },
+      {
+        "all_of": [
+          "improvement",
+          "initiatives"
+        ]
+      },
+      {
+        "all_of": [
+          "drove",
+          "improvement"
+        ]
+      }
+    ],
+    "copilot": [
+      "copilot",
+      "copilot studio",
+      "microsoft copilot",
+      "github copilot",
+      "ai copilot"
+    ],
+    "cost_modeling": [
+      "cost budget",
+      "cost model",
+      "cost modeling",
+      "cost analysis",
+      "total cost of ownership",
+      "tco",
+      "cost-benefit",
+      "employee costs",
+      "employee cost",
+      {
+        "all_of": [
+          "modeled",
+          "cost"
+        ]
+      },
+      {
+        "all_of": [
+          "built",
+          "cost model"
+        ]
+      },
+      {
+        "all_of": [
+          "developed",
+          "cost model"
+        ]
+      }
+    ],
+    "crm": [
+      "crm",
+      "customer relationship management",
+      "salesforce",
+      "dynamics 365",
+      "hubspot"
+    ],
+    "cross_functional_collaboration": [
+      "cross-functional",
+      "cross functional",
+      "interdepartmental",
+      "inter-departmental",
+      "multi-team",
+      "collaborated across",
+      "partnered with",
+      "worked alongside",
+      {
+        "all_of": [
+          "consolidating",
+          "input"
+        ]
+      },
+      {
+        "all_of": [
+          "engineering",
+          "program",
+          "input"
+        ]
+      },
+      {
+        "all_of": [
+          "coordinating",
+          "teams"
+        ]
+      },
+      {
+        "all_of": [
+          "aligned",
+          "teams"
+        ]
+      },
+      {
+        "all_of": [
+          "aligned",
+          "stakeholders"
+        ]
+      }
+    ],
+    "cross_platform": [
+      "cross platform",
+      "cross-platform",
+      "multi-platform",
+      "platform-independent",
+      "cross-OS"
+    ],
+    "dashboarding": [
+      "dashboard",
+      "dashboarding",
+      "executive dashboard",
+      "interactive dashboard",
+      "real-time dashboard",
+      "scorecard"
+    ],
+    "data_analysis": [
+      "data analysis",
+      "data analyst",
+      "analyze data",
+      "analyzed data",
+      "data-driven",
+      "statistical analysis",
+      "trend analysis"
+    ],
+    "data_engineering": [
+      "data engineering",
+      "data engineer",
+      "etl pipeline",
+      "etl process",
+      "elt pipeline",
+      "elt process",
+      "data lake",
+      "data warehouse",
+      "data modeling"
+    ],
+    "data_governance": [
+      "data governance",
+      "data steward",
+      "data classification",
+      "data catalog",
+      "data lineage",
+      "master data management",
+      {
+        "all_of": [
+          "governed",
+          "data"
+        ]
+      },
+      {
+        "all_of": [
+          "data",
+          "standards"
+        ]
+      },
+      {
+        "all_of": [
+          "data",
+          "ownership"
+        ]
+      }
+    ],
+    "data_migration": [
+      "data migration",
+      "data transfer",
+      "data conversion",
+      "data import",
+      "data export",
+      "bulk file processing",
+      "bulk file-processing",
+      "data cutover",
+      "legacy data",
+      "data mapping",
+      "data load"
+    ],
+    "data_integrity": [
+      "data integrity",
+      "data consistency",
+      "data validation",
+      "data verification",
+      "avoid keystroke loss",
+      "data accuracy",
+      "data completeness",
+      "source of truth",
+      "fail-closed behavior",
+      "fail-closed",
+      "checksum",
+      "checksums",
+      "referential integrity",
+      "content fingerprint",
+      "content fingerprints",
+      "atomic file",
+      "idempotent",
+      "file-based locking",
+      {
+        "all_of": [
+          "validated",
+          "data"
+        ]
+      },
+      {
+        "all_of": [
+          "ensured",
+          "data integrity"
+        ]
+      },
+      {
+        "all_of": [
+          "maintained",
+          "data integrity"
+        ]
+      },
+      {
+        "all_of": [
+          "verified",
+          "outputs"
+        ]
+      }
+    ],
+    "data_interpretation": [
+      "interpreted",
+      "translated hr data",
+      "drivers behind",
+      "insights from data",
+      "data storytelling",
+      "what the numbers mean"
+    ],
+    "data_pipelines": [
+      "data pipeline",
+      "pipeline",
+      "pipeline stages",
+      "commit_status",
+      "pipeline orchestration",
+      "pipeline step",
+      "stage gate"
+    ],
+    "data_processing": [
+      "ocr",
+      "tesseract",
+      "pytesseract",
+      "bounding box",
+      "highlight region",
+      "line-break rejoining",
+      "text extraction",
+      "document parsing",
+      "pdf extraction",
+      "pymupdf",
+      "rendered pdf pages",
+      "split pdf",
+      "rotated pdf",
+      "page specifications",
+      "scanned images",
+      "aspect-ratio thresholding",
+      "gutter position",
+      "crop bounding-box",
+      "black-bar margins",
+      "page sizing",
+      "pillow",
+      "image-processing heuristics",
+      "glob-based file selection",
+      "text chunking"
+    ],
+    "data_quality": [
+      "data quality",
+      "cleaned up",
+      "reconciled",
+      "mismatched",
+      "data cleansing",
+      "data scrubbing",
+      "deduplication",
+      "duplicate removal",
+      "data hygiene"
+    ],
+    "data_reconciliation": [
+      "reconciliation",
+      "data reconciliation",
+      "reconciled data",
+      "cross-system reconciliation",
+      "matching records"
+    ],
+    "data_science": [
+      "data science",
+      "data scientist",
+      "predictive model",
+      "feature engineering",
+      "model training"
+    ],
+    "data_storytelling": [
+      "data storytelling",
+      "narrative with data",
+      "insight narrative",
+      "presented findings",
+      "visualization narrative"
+    ],
+    "data_validation": [
+      "jsonschema",
+      "schema validation",
+      "output validation",
+      "format validation",
+      "validator",
+      "input validation",
+      "field validation",
+      "validation rules",
+      "data checks",
+      "configuration keys",
+      "rejected unknowns",
+      "scheme enforcement",
+      "structural constraints",
+      "chronology validation",
+      "gap and overlap detection",
+      "human-readable dates",
+      "descriptive error messages",
+      "typed field checks",
+      "deterministic slugs",
+      "collision avoidance",
+      "fact-type management",
+      "data validation",
+      "schema-validated",
+      "edge case",
+      "edge cases"
+    ],
+    "database_management": [
+      "uuidv7",
+      "schema migrations",
+      "foreign keys",
+      "cascade deletes",
+      "check constraints",
+      "database initialization",
+      "schema apply",
+      "rollback",
+      "database design",
+      "table schema",
+      "indexing strategy",
+      "db migration",
+      "duplicate detection",
+      "referential integrity",
+      "incremental document upserts",
+      "content fingerprinting",
+      "cascade dependency counting",
+      {
+        "all_of": [
+          "managed",
+          "database"
+        ]
+      },
+      {
+        "all_of": [
+          "designed",
+          "schema"
+        ]
+      },
+      {
+        "all_of": [
+          "maintained",
+          "database"
+        ]
+      }
+    ],
+    "defect_management": [
+      "defect management",
+      "defect tracking",
+      "bug tracking",
+      "bug report",
+      "defect log",
+      "defect resolution",
+      {
+        "all_of": [
+          "managed",
+          "defects"
+        ]
+      },
+      {
+        "all_of": [
+          "tracked",
+          "bugs"
+        ]
+      },
+      {
+        "all_of": [
+          "resolved",
+          "defects"
+        ]
+      }
+    ],
+    "degree": [
+      "degree",
+      "undergraduate degree",
+      "undergraduate degree in business",
+      "bachelor",
+      "business administration",
+      "accounting",
+      "master's degree",
+      "diploma",
+      "post-secondary"
+    ],
+    "devcontainers": [
+      "devcontainer",
+      "devcontainers",
+      "dev container",
+      ".devcontainer",
+      "codespace",
+      "codespaces"
+    ],
+    "docker_products": [
+      "docker",
+      "dockerfile",
+      "docker compose",
+      "docker hub",
+      "docker image",
+      "container image"
+    ],
+    "documentation": [
+      "documentation",
+      "guide",
+      "how-to",
+      "frontmatter",
+      "documented",
+      "reference guide",
+      "runbook",
+      "playbook",
+      "knowledge article"
+    ],
+    "documentation_authoring": [
+      "job aid",
+      "job aids",
+      "troubleshooting guidance",
+      "authored documentation",
+      "wrote documentation",
+      "created a guide",
+      "step-by-step guide",
+      "user guide"
+    ],
+    "employee_lifecycle_administration": [
+      "employee lifecycle administration",
+      "employee lifecycle",
+      "lifecycle change form",
+      "lifecycle change forms",
+      "employee status changes",
+      {
+        "all_of": [
+          "employee changes"
+        ],
+        "any_of": [
+          "transfers",
+          "promotions",
+          "demotions",
+          "terminations"
+        ]
+      },
+      {
+        "all_of": [
+          "status changes"
+        ],
+        "any_of": [
+          "transfers",
+          "promotions",
+          "demotions",
+          "terminations"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "transfers",
+          "promotions",
+          "demotions",
+          "terminations",
+          "lifecycle change forms"
+        ]
+      },
+      {
+        "all_of": [
+          "processed"
+        ],
+        "any_of": [
+          "transfers",
+          "promotions",
+          "demotions",
+          "terminations",
+          "lifecycle change forms"
+        ]
+      }
+    ],
+    "end_user_enablement": [
+      "end-user enablement",
+      "end user enablement",
+      "self-service",
+      "self service",
+      "enablement material",
+      "quick reference",
+      "quick reference guide",
+      {
+        "all_of": [
+          "end-user"
+        ],
+        "any_of": [
+          "readiness",
+          "adoption",
+          "enablement"
+        ]
+      },
+      {
+        "all_of": [
+          "end user"
+        ],
+        "any_of": [
+          "readiness",
+          "adoption",
+          "enablement"
+        ]
+      },
+      {
+        "all_of": [
+          "created"
+        ],
+        "any_of": [
+          "job aid",
+          "job aids",
+          "quick reference",
+          "enablement material"
+        ]
+      },
+      {
+        "all_of": [
+          "built"
+        ],
+        "any_of": [
+          "job aid",
+          "job aids",
+          "quick reference",
+          "enablement material"
+        ]
+      }
+    ],
+    "excel": [
+      "excel",
+      "spreadsheet",
+      "xlsx",
+      "workbook",
+      "pivot table",
+      "vlookup",
+      "xlookup"
+    ],
+    "advanced_excel": [
+      "advanced excel",
+      "power query",
+      "power pivot",
+      "vba",
+      "macro",
+      "index match",
+      "array formula",
+      "excel model"
+    ],
+    "excel_modeling": [
+      "excel model",
+      "financial model",
+      "scenario analysis",
+      "what-if analysis",
+      "sensitivity analysis"
+    ],
+    "exception_handling": [
+      "exception handling",
+      "error handling",
+      "try-except",
+      "try-catch",
+      "graceful degradation",
+      "fault tolerance",
+      "exception types",
+      "user-facing error messages",
+      "try/finally",
+      "fallback",
+      "fallbacks"
+    ],
+    "ffi": [
+      "ffi",
+      "foreign function interface",
+      "interop",
+      "native binding",
+      "c binding"
+    ],
+    "financial_analysis": [
+      "financial analysis",
+      "financial analyst",
+      "financial ",
+      "profit and loss",
+      "p&l",
+      "revenue analysis"
+    ],
+    "forecasting": [
+      "forecasting",
+      "forecasted",
+      "workforce forecasting",
+      "forecast model",
+      "projection",
+      "projected headcount",
+      "demand planning",
+      {
+        "all_of": [
+          "forecasted",
+          "budget"
+        ]
+      },
+      {
+        "all_of": [
+          "forecasted",
+          "revenue"
+        ]
+      },
+      {
+        "all_of": [
+          "projected",
+          "revenue"
+        ]
+      }
+    ],
+    "friction_reduction": [
+      "reduce friction",
+      "reducing friction",
+      "streamline",
+      "streamlined",
+      "simplify the process",
+      "eliminated manual steps",
+      "removed bottleneck"
+    ],
+    "generative_ai": [
+      "generative ai",
+      "gen ai",
+      "genai",
+      "large language model",
+      "chatgpt",
+      "claude",
+      "gpt",
+      "text generation",
+      "ai-generated"
+    ],
+    "github_actions": [
+      "github actions",
+      "upload-artifact",
+      "artifact upload",
+      "concurrency control",
+      "path filtering",
+      "changed file paths",
+      "workflow_dispatch",
+      "on: push",
+      "github workflow",
+      ".github/workflows"
+    ],
+    "global": [
+      "global ",
+      "multi-country ",
+      "international ",
+      "regional ",
+      "cross-region",
+      "US",
+      "United States",
+      "Canada",
+      "EMEA",
+      "APAC",
+      "LATAM"
+    ],
+    "grant_funding": [
+      "grant funding",
+      "training grants",
+      "provincial grants",
+      "grant application",
+      "grant applications",
+      "grant submission",
+      "grant submissions",
+      "secured grants",
+      {
+        "all_of": [
+          "secured"
+        ],
+        "any_of": [
+          "grant",
+          "grants",
+          "grant funding",
+          "training grants",
+          "provincial grants"
+        ]
+      },
+      {
+        "all_of": [
+          "submitted"
+        ],
+        "any_of": [
+          "grant application",
+          "grant applications",
+          "grant submission",
+          "grant submissions"
+        ]
+      },
+      {
+        "all_of": [
+          "applied"
+        ],
+        "any_of": [
+          "grant",
+          "grants",
+          "grant funding"
+        ]
+      }
+    ],
+    "headcount_analysis": [
+      "headcount",
+      "headcount analysis",
+      "fte count",
+      "staff count",
+      "position management",
+      "org chart"
+    ],
+    "hris": [
+      "hris",
+      "hr system",
+      "hr platform",
+      "human capital management",
+      "hcm",
+      "peoplesoft",
+      "successfactors",
+      {
+        "all_of": [
+          "configured"
+        ],
+        "any_of": [
+          "hris",
+          "hr system",
+          "hr platform",
+          "workday",
+          "human capital management",
+          "hcm",
+          "payroll system",
+          "benefits system",
+          "time and absence",
+          "time & absence",
+          "schedule",
+          "schedules"
+        ]
+      },
+      {
+        "all_of": [
+          "implemented"
+        ],
+        "any_of": [
+          "hris",
+          "hr system",
+          "hr platform",
+          "workday",
+          "human capital management",
+          "hcm",
+          "payroll system",
+          "benefits system",
+          "time and absence",
+          "time & absence"
+        ]
+      },
+      {
+        "all_of": [
+          "administered"
+        ],
+        "any_of": [
+          "hris",
+          "hr system",
+          "hr platform",
+          "workday",
+          "human capital management",
+          "hcm",
+          "payroll system",
+          "benefits system",
+          "time and absence",
+          "time & absence"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "hris",
+          "hr system",
+          "hr platform",
+          "workday",
+          "human capital management",
+          "hcm"
+        ]
+      },
+      {
+        "all_of": [
+          "owned"
+        ],
+        "any_of": [
+          "hris",
+          "hr system",
+          "hr platform",
+          "workday",
+          "human capital management",
+          "hcm"
+        ]
+      }
+    ],
+    "human_resources": [
+      "human resources",
+      "hr department",
+      "hr team",
+      "hr function",
+      "people operations",
+      "people ops"
+    ],
+    "implementation": [
+      "implementation planning",
+      "implementation methodology",
+      "implementation lead",
+      "implementation phase",
+      "rollout"
+    ],
+    "implementation_support": [
+      "implementation support",
+      "go-live support",
+      "go live support",
+      "rollout support",
+      "post-implementation support",
+      "post implementation support",
+      "system implementation",
+      "software implementation",
+      "phased rollout",
+      "rollout",
+      {
+        "all_of": [
+          "supported"
+        ],
+        "any_of": [
+          "implementation",
+          "rollout",
+          "launch",
+          "go-live",
+          "go live",
+          "deployment",
+          "cutover",
+          "hypercare",
+          "stabilization"
+        ]
+      },
+      {
+        "all_of": [
+          "support"
+        ],
+        "any_of": [
+          "implementation",
+          "rollout",
+          "launch",
+          "go-live",
+          "go live",
+          "deployment",
+          "cutover",
+          "hypercare",
+          "stabilization"
+        ]
+      },
+      {
+        "all_of": [
+          "assisted"
+        ],
+        "any_of": [
+          "implementation",
+          "rollout",
+          "launch",
+          "go-live",
+          "go live",
+          "deployment"
+        ]
+      },
+      {
+        "all_of": [
+          "provided"
+        ],
+        "any_of": [
+          "go-live support",
+          "go live support",
+          "rollout support",
+          "post-implementation support"
+        ]
+      }
+    ],
+    "intelligence_gathering": [
+      "intelligence gathering",
+      "competitive intelligence",
+      "market research",
+      "market analysis",
+      "competitive analysis",
+      "competitor analysis",
+      "competitor and market analysis",
+      "landscape analysis",
+      "product positioning",
+      {
+        "all_of": [
+          "gathered",
+          "intelligence"
+        ]
+      },
+      {
+        "all_of": [
+          "researched"
+        ],
+        "any_of": [
+          "competitors",
+          "market",
+          "landscape"
+        ]
+      },
+      {
+        "all_of": [
+          "competitor",
+          "market"
+        ],
+        "any_of": [
+          "analysis",
+          "research",
+          "intelligence"
+        ]
+      },
+      {
+        "all_of": [
+          "product offerings"
+        ],
+        "any_of": [
+          "competitor",
+          "competitors",
+          "market",
+          "positioning"
+        ]
+      },
+      {
+        "all_of": [
+          "position",
+          "products"
+        ],
+        "any_of": [
+          "competitor",
+          "market",
+          "product offerings",
+          "weapon systems"
+        ]
+      }
+    ],
+    "investigation": [
+      "investigation",
+      "investigated",
+      "root cause investigation",
+      "diagnostic",
+      "forensic analysis",
+      {
+        "all_of": [
+          "investigated",
+          "issue"
+        ]
+      },
+      {
+        "all_of": [
+          "investigated",
+          "problem"
+        ]
+      }
+    ],
+    "issue_triage": [
+      "triage",
+      "triaged",
+      "routed user issues",
+      "support contact",
+      "superuser",
+      "prioritized issues",
+      "escalation",
+      "escalated",
+      "severity classification",
+      "ticket routing"
+    ],
+    "it_service_management": [
+      "itsm",
+      "it service management",
+      "itil",
+      "service desk",
+      "incident management",
+      "change request",
+      "service catalog",
+      "service level agreement",
+      "sla target",
+      "sla compliance"
+    ],
+    "json": [
+      "json",
+      "json schema",
+      "json parser",
+      "structured json",
+      "json manifest",
+      "json payload",
+      "json config",
+      "versioned taxonomy",
+      "generation provenance",
+      "structured values",
+      "config snapshots",
+      "geojson",
+      "ndjson"
+    ],
+    "kotlin": [
+      "kotlin",
+      "sealed interface",
+      "extension function",
+      "coroutine",
+      "suspend fun",
+      "data class",
+      "companion object",
+      "stateIn",
+      "collectAsStateWithLifecycle",
+      "DataStore",
+      "coerceIn",
+      "NavHost",
+      "LifecycleResumeEffect",
+      "jetpack compose",
+      "in compose",
+      "compose ui",
+      "compose navigation"
+    ],
+    "kpi_reporting": [
+      "kpi report",
+      "kpi reporting",
+      "monthly kpi",
+      "key performance indicator",
+      "kpi dashboard",
+      "kpi tracking",
+      "performance metric"
+    ],
+    "knowledge_base": [
+      "knowledge base",
+      "handoff",
+      "onenote",
+      "wiki",
+      "confluence",
+      "sharepoint",
+      "knowledge repository",
+      "knowledge management"
+    ],
+    "knowledge_transfer": [
+      "knowledge transfer",
+      "kt session",
+      "handoff session",
+      "hand-off documentation",
+      "transition document",
+      "cross-training",
+      {
+        "all_of": [
+          "transferred",
+          "knowledge"
+        ]
+      },
+      {
+        "all_of": [
+          "knowledge",
+          "handoff"
+        ]
+      }
+    ],
+    "license_administration": [
+      "license administration",
+      "license allocation",
+      "license allocations",
+      "managed licenses",
+      "license management",
+      "software license management",
+      "license provisioning",
+      "license assignment",
+      "license assignments",
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "license allocations",
+          "licenses",
+          "software licenses"
+        ]
+      },
+      {
+        "all_of": [
+          "allocated"
+        ],
+        "any_of": [
+          "licenses",
+          "license seats",
+          "software licenses"
+        ]
+      },
+      {
+        "all_of": [
+          "provisioned"
+        ],
+        "any_of": [
+          "licenses",
+          "software licenses"
+        ]
+      },
+      {
+        "all_of": [
+          "assigned"
+        ],
+        "any_of": [
+          "licenses",
+          "software licenses"
+        ]
+      }
+    ],
+    "llm": [
+      "llm",
+      "model output",
+      "model responses",
+      "large language model",
+      "language model",
+      "token limit",
+      "context window",
+      "fine-tuning",
+      "inference call",
+      "model citations",
+      "citation validation",
+      "evidence snapshots",
+      "prefix matching",
+      "durable memory",
+      "reasoning tokens"
+    ],
+    "markdown": [
+      "markdown",
+      "frontmatter",
+      ".md file",
+      "markdown format",
+      "commonmark"
+    ],
+    "maximo": [
+      "maximo",
+      "maximo lead",
+      {
+        "all_of": [
+          "maximo"
+        ],
+        "any_of": [
+          "purchase order",
+          "purchase orders",
+          "blanket purchase orders",
+          "goods receipt",
+          "goods and services",
+          "invoice",
+          "invoices"
+        ]
+      },
+      {
+        "all_of": [
+          "validated"
+        ],
+        "any_of": [
+          "maximo",
+          "purchase orders",
+          "invoices",
+          "goods and services"
+        ]
+      }
+    ],
+    "mergers_acquisitions": [
+      "mergers and acquisitions",
+      "m&a",
+      "merger and acquisition",
+      "acquisition target",
+      "acquisition research",
+      "deal screening",
+      "target screening",
+      "m&a research",
+      "acquisition candidates",
+      "buy-side research"
+    ],
+    "metric_definition": [
+      "metric definition",
+      "defined metric",
+      "kpi definition",
+      "measurement criteria",
+      "metric specification"
+    ],
+    "obsidian": [
+      "obsidian",
+      "vault",
+      "obsidian vault",
+      "zettelkasten",
+      "wikilink",
+      "dataview"
+    ],
+    "operational_support": [
+      "hr operations",
+      "post-go-live operations",
+      "day-to-day operations",
+      "operational readiness",
+      "steady state",
+      "business as usual",
+      "bau"
+    ],
+    "payroll": [
+      "payroll",
+      "payroll processing",
+      "pay cycle",
+      "payroll run",
+      "pay period"
+    ],
+    "post_go_live_support": [
+      "post-launch",
+      "post go-live",
+      "after rollout",
+      "post-implementation",
+      "hypercare",
+      "stabilization",
+      "post-deployment",
+      {
+        "all_of": [
+          "support"
+        ],
+        "any_of": [
+          "go-live",
+          "go live",
+          "launch",
+          "post-launch",
+          "post go-live"
+        ]
+      },
+      {
+        "all_of": [
+          "stabilization"
+        ],
+        "any_of": [
+          "post-launch",
+          "post go-live",
+          "post-implementation",
+          "post-deployment"
+        ]
+      },
+      {
+        "all_of": [
+          "after"
+        ],
+        "any_of": [
+          "go-live",
+          "go live",
+          "rollout"
+        ]
+      }
+    ],
+    "power_bi": [
+      "power bi",
+      "powerbi",
+      "dax",
+      "power bi report",
+      "power bi dashboard",
+      "pbix"
+    ],
+    "process_improvement": [
+      "process improvement",
+      "process redesign",
+      "improved the process",
+      "re-engineered",
+      "reengineered",
+      "process enhancement",
+      "efficiency gain",
+      {
+        "all_of": [
+          "improved"
+        ],
+        "any_of": [
+          "process",
+          "workflow",
+          "operations",
+          "reporting"
+        ]
+      },
+      {
+        "all_of": [
+          "streamlined"
+        ],
+        "any_of": [
+          "process",
+          "workflow",
+          "operations",
+          "reporting"
+        ]
+      },
+      {
+        "all_of": [
+          "overhaul"
+        ],
+        "any_of": [
+          "process",
+          "workflow",
+          "operations",
+          "reporting"
+        ]
+      },
+      {
+        "all_of": [
+          "overhauled"
+        ],
+        "any_of": [
+          "process",
+          "workflow",
+          "operations",
+          "reporting"
+        ]
+      },
+      {
+        "all_of": [
+          "consolidated"
+        ],
+        "any_of": [
+          "process",
+          "workflow",
+          "operations",
+          "reporting"
+        ]
+      }
+    ],
+    "process_optimization": [
+      "process optimization",
+      "optimize process",
+      "optimized process",
+      "workflow efficiency",
+      "reduce cycle time",
+      "eliminated waste"
+    ],
+    "process_standardization": [
+      "process standardization",
+      "standardize process",
+      "standardized process",
+      "consistent process",
+      "uniform approach"
+    ],
+    "procurement": [
+      "procurement",
+      "departmental procurement",
+      "purchase order",
+      "purchase orders",
+      "blanket purchase order",
+      "blanket purchase orders",
+      "goods receipt",
+      "goods receipts",
+      "vendor agreements",
+      "vendor communication",
+      {
+        "all_of": [
+          "invoice"
+        ],
+        "any_of": [
+          "coding",
+          "payment processing",
+          "finance department"
+        ]
+      },
+      {
+        "all_of": [
+          "invoices"
+        ],
+        "any_of": [
+          "coding",
+          "payment processing",
+          "finance department"
+        ]
+      },
+      {
+        "all_of": [
+          "receipt"
+        ],
+        "any_of": [
+          "goods",
+          "services",
+          "purchase orders",
+          "invoices",
+          "maximo"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "procurement",
+          "purchase orders",
+          "vendor agreements"
+        ]
+      },
+      {
+        "all_of": [
+          "processed"
+        ],
+        "any_of": [
+          "purchase order",
+          "purchase orders",
+          "blanket purchase orders",
+          "procurement"
+        ]
+      }
+    ],
+    "project_management": [
+      "project",
+      "project management",
+      "project manager",
+      "project plan",
+      "project timeline",
+      "milestone",
+      "gantt",
+      "work breakdown structure",
+      "wbs",
+      "project charter"
+    ],
+    "prompt_engineering": [
+      "prompt template",
+      "prompt templates",
+      "routing prompt",
+      "success criteria",
+      "output format sections",
+      "prompt design",
+      "system prompt",
+      "few-shot",
+      "zero-shot",
+      "chain of thought",
+      "prompt chain",
+      "keyword triggers",
+      "target-signal profiles",
+      "priority buckets",
+      "keyword banks",
+      "promotion/penalty"
+    ],
+    "quality_assurance": [
+      "quality assurance",
+      "qa",
+      "quality gate",
+      "behavioral contracts",
+      "quality check",
+      "quality control",
+      "qa process",
+      "anti-drift",
+      "anomaly detection",
+      "claim boundary",
+      "do-not-imply",
+      "safe verbs",
+      {
+        "all_of": [
+          "ensured",
+          "quality"
+        ]
+      },
+      {
+        "all_of": [
+          "quality",
+          "review"
+        ]
+      },
+      {
+        "all_of": [
+          "performed",
+          "qa"
+        ]
+      }
+    ],
+    "rag": [
+      "retrieval augmented generation",
+      "retrieval-augmented",
+      "rag pipeline",
+      "rag system",
+      "vector search",
+      "vector store",
+      "embedding",
+      "embeddings",
+      "semantic search",
+      "knowledge retrieval",
+      "ambiguity detection",
+      "keyword triggers",
+      "auto-reread",
+      "text chunking",
+      "chunk overlap",
+      "document upserts",
+      "content fingerprinting",
+      "hybrid lexical",
+      "rank-based fusion",
+      "cosine similarity",
+      "top-k candidate",
+      "evidence chunks",
+      "embedder"
+    ],
+    "react": [
+      "react",
+      "usedeferredvalue",
+      "useeffect",
+      "error boundary",
+      "useref",
+      "usestate",
+      "usememo",
+      "jsx",
+      "tsx",
+      "react component",
+      "next.js",
+      "nextjs"
+    ],
+    "report_automation": [
+      "report automation",
+      "refresh cycle",
+      "report refreshes",
+      "automated report",
+      "scheduled report",
+      "report scheduling"
+    ],
+    "report_design": [
+      "report design",
+      "report layout",
+      "report template",
+      "report structure",
+      "designed a report"
+    ],
+    "report_standardization": [
+      "report standardization",
+      "standard report",
+      "report template",
+      "uniform reporting",
+      "reporting standard",
+      "adapted reporting"
+    ],
+    "runtime": [
+      "runtime",
+      "process invocations",
+      "monotonic state",
+      "runtime state",
+      "time-ordered ID generation",
+      "invoking subprocesses",
+      "typed error codes",
+      "symlink escape",
+      "symlink traversal",
+      "path containment",
+      "deny-by-default",
+      "configuration overlays",
+      "configuration precedence",
+      "override levels",
+      "repo-root-relative",
+      "configuration root",
+      "workroot",
+      "relative paths",
+      "filesystem path",
+      "path-anchor",
+      "case-insensitive path",
+      "reason codes",
+      "dirty-state tracking",
+      "regex named capture groups",
+      "prefix parsing",
+      "temporary file staging",
+      "conflict resolution strategies",
+      "numeric suffix",
+      "filename components",
+      "mtime",
+      "snapshot diffing",
+      "repo marker files",
+      "import paths",
+      "host environment metadata",
+      "stdout/stderr",
+      "git state",
+      "race conditions",
+      "security boundary conditions",
+      "safe in-place file operations",
+      "temporary file intermediaries",
+      "reentrancy guard",
+      "bounded tail",
+      "hidden and system folders",
+      "trailing filename characters",
+      "confirmation dialogs",
+      "run identifiers",
+      "path-containment",
+      "health checks",
+      "preflight"
+    ],
+    "process_mapping": [
+      "process mapping",
+      "process map",
+      "workflow",
+      "future state",
+      "current state",
+      "swim lane",
+      "swimlane",
+      "flowchart",
+      "process diagram",
+      "visio",
+      {
+        "all_of": [
+          "mapped",
+          "process"
+        ]
+      },
+      {
+        "all_of": [
+          "documented",
+          "workflow"
+        ]
+      },
+      {
+        "all_of": [
+          "documented",
+          "current state"
+        ]
+      },
+      {
+        "all_of": [
+          "documented",
+          "future state"
+        ]
+      }
+    ],
+    "python": [
+      "python",
+      "pytesseract",
+      "tkinter",
+      "jsonschema",
+      "pyinstaller",
+      "project-career-ledger",
+      "project-local-agent",
+      "project-doc-prefix",
+      "project-init-bootstrap",
+      "project-pdftoolkit",
+      "project-ocr",
+      "pip install",
+      "virtualenv",
+      "venv",
+      "pytest",
+      "flask",
+      "fastapi",
+      "pandas",
+      "numpy",
+      "p-career-ledger",
+      "p-local-agent",
+      "p-doc-prefix",
+      "p-init-bootstrap",
+      "p-pdftoolkit",
+      "p-ocr",
+      "p-yaml-injektr",
+      "argparse",
+      "unittest",
+      "dataclass",
+      "dataclasses",
+      {
+        "all_of": [
+          "python"
+        ],
+        "any_of": [
+          "script",
+          "application",
+          "package",
+          "module",
+          "library",
+          "tool"
+        ]
+      },
+      {
+        "all_of": [
+          "embedding",
+          "CUDA"
+        ]
+      }
+    ],
+    "reporting": [
+      "reporting",
+      "reported",
+      "hr reporting",
+      "headcount reporting",
+      "headcount figures",
+      "turnover reporting",
+      "absence reporting",
+      "vacancy reporting",
+      "recruiting reporting",
+      "reporting outputs",
+      "recurring reporting",
+      "report generation",
+      "analytical report",
+      "presentation",
+      "analytical reports",
+      {
+        "all_of": [
+          "produced"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting",
+          "charts",
+          "summaries",
+          "presentations"
+        ]
+      },
+      {
+        "all_of": [
+          "generated"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting",
+          "charts",
+          "summaries",
+          "presentations"
+        ]
+      },
+      {
+        "all_of": [
+          "prepared"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting",
+          "charts",
+          "summaries",
+          "presentations"
+        ]
+      },
+      {
+        "all_of": [
+          "owned"
+        ],
+        "any_of": [
+          "reporting",
+          "reports",
+          "dashboard"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "reporting",
+          "reporting cycle",
+          "refresh cycle"
+        ]
+      },
+      {
+        "all_of": [
+          "recurring"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting",
+          "charts",
+          "summaries",
+          "presentations"
+        ]
+      },
+      {
+        "all_of": [
+          "developed"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting",
+          "charts",
+          "summaries",
+          "presentations"
+        ]
+      },
+      {
+        "all_of": [
+          "presented"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting",
+          "charts",
+          "summaries",
+          "presentations"
+        ]
+      },
+      {
+        "all_of": [
+          "analytical"
+        ],
+        "any_of": [
+          "report",
+          "reports",
+          "reporting"
+        ]
+      }
+    ],
+    "requirements": [
+      "requirements",
+      "discovery workshop",
+      "requirements gathering",
+      "business requirements",
+      "functional requirements",
+      "user requirements",
+      "use case",
+      "user story",
+      "evidence requirement",
+      "question classification",
+      "used by both",
+      "regex-based question classification",
+      {
+        "all_of": [
+          "translated"
+        ],
+        "any_of": [
+          "issues",
+          "user needs",
+          "business needs",
+          "user requirements",
+          "business requirements",
+          "functional requirements",
+          "use cases",
+          "user stories",
+          "requirements",
+          "problems",
+          "questions"
+        ]
+      },
+      {
+        "all_of": [
+          "gathered"
+        ],
+        "any_of": [
+          "requirements",
+          "user input",
+          "business requirements",
+          "functional requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "helped define"
+        ],
+        "any_of": [
+          "requirements",
+          "scope",
+          "use case",
+          "user story"
+        ]
+      },
+      {
+        "all_of": [
+          "defined"
+        ],
+        "any_of": [
+          "requirements",
+          "business requirements",
+          "functional requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "clarified"
+        ],
+        "any_of": [
+          "requirements",
+          "scope",
+          "business requirements",
+          "functional requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "researched"
+        ],
+        "any_of": [
+          "requirements",
+          "use case",
+          "user story"
+        ]
+      },
+      {
+        "all_of": [
+          "discovery"
+        ],
+        "any_of": [
+          "workshop",
+          "session",
+          "sessions"
+        ]
+      }
+    ],
+    "requirements_analysis": [
+      "requirements analysis",
+      "requirements review",
+      "traceability matrix",
+      "requirement prioritization",
+      {
+        "all_of": [
+          "translated"
+        ],
+        "any_of": [
+          "issues",
+          "user needs",
+          "business needs",
+          "user requirements",
+          "business requirements",
+          "functional requirements",
+          "use cases",
+          "user stories",
+          "requirements",
+          "problems",
+          "questions"
+        ]
+      },
+      {
+        "all_of": [
+          "researched",
+          "requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "audience-specific"
+        ],
+        "any_of": [
+          "definitions",
+          "reporting definitions",
+          "requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "resolved"
+        ],
+        "any_of": [
+          "ambiguity",
+          "ambiguities",
+          "differences in definitions",
+          "definition differences"
+        ]
+      },
+      {
+        "all_of": [
+          "audience needs"
+        ],
+        "any_of": [
+          "definitions",
+          "reporting",
+          "requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "analyzed"
+        ],
+        "any_of": [
+          "requirements",
+          "business requirements",
+          "functional requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "reviewed"
+        ],
+        "any_of": [
+          "requirements",
+          "business requirements",
+          "functional requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "prioritized"
+        ],
+        "any_of": [
+          "requirements",
+          "user stories",
+          "backlog"
+        ]
+      }
+    ],
+    "root_cause_analysis": [
+      "root cause analysis",
+      "rca",
+      "five whys",
+      "5 whys",
+      "fishbone diagram",
+      "ishikawa",
+      "causal analysis",
+      "investigation",
+      "investigating",
+      {
+        "all_of": [
+          "analyzed",
+          "root cause"
+        ]
+      },
+      {
+        "all_of": [
+          "identified",
+          "root cause"
+        ]
+      },
+      {
+        "all_of": [
+          "performed",
+          "root cause"
+        ]
+      }
+    ],
+    "rust": [
+      "rust",
+      "#[cfg",
+      "mutex poisoning",
+      "cargo",
+      "crate",
+      "borrow checker",
+      "lifetime",
+      "unsafe block",
+      "tokio",
+      "Arc<Mutex",
+      "Mutex<T>"
+    ],
+    "scripting": [
+      "powershell",
+      "batch scripts",
+      "script orchestration",
+      "script entry points",
+      "bash script",
+      "shell script",
+      "ps1",
+      "bat file",
+      "task scheduler",
+      "fail-closed behavior",
+      "initialization scripts",
+      "stamp-based caching",
+      "build scripts",
+      "application versions"
+    ],
+    "sap_c4c": [
+      "sap c4c",
+      "c4c",
+      "sap cloud for customer",
+      "sap service cloud"
+    ],
+    "solutions_architecture": [
+      "solutions architecture",
+      "solution design",
+      "architecture diagram",
+      "system design",
+      "technical design document"
+    ],
+    "sql": [
+      "sql",
+      "ddl",
+      "pragma",
+      "index placement",
+      "select statement",
+      "stored procedure",
+      "sql query",
+      "joins",
+      "common table expression",
+      "window function"
+    ],
+    "sqlite": [
+      "sqlite",
+      "sqlite-backed",
+      "pragma",
+      "foreign_keys",
+      "check constraints",
+      "sqlite3",
+      "wal mode"
+    ],
+    "stakeholder_coordination": [
+      "stakeholder engagement",
+      "stakeholder communication",
+      "stakeholder buy-in",
+      {
+        "all_of": [
+          "met with",
+          "stakeholders"
+        ]
+      },
+      {
+        "all_of": [
+          "worked with",
+          "stakeholders"
+        ]
+      },
+      {
+        "all_of": [
+          "partnered with",
+          "stakeholders"
+        ]
+      },
+      {
+        "all_of": [
+          "routing"
+        ],
+        "any_of": [
+          "questions",
+          "responses",
+          "inputs",
+          "sme"
+        ]
+      },
+      {
+        "all_of": [
+          "collecting"
+        ],
+        "any_of": [
+          "responses",
+          "inputs",
+          "feedback"
+        ]
+      },
+      {
+        "all_of": [
+          "coordinating"
+        ],
+        "any_of": [
+          "inputs",
+          "feedback",
+          "responses"
+        ]
+      },
+      {
+        "all_of": [
+          "liaison"
+        ],
+        "any_of": [
+          "stakeholders",
+          "teams",
+          "departments",
+          "leadership",
+          "leaders"
+        ]
+      }
+    ],
+    "stakeholder_management": [
+      "stakeholder management",
+      "managed stakeholders",
+      "stakeholder expectations",
+      "stakeholder alignment"
+    ],
+    "subject_matter_expert": [
+      "subject matter expert",
+      "hr sme",
+      "sme",
+      "domain expert",
+      "functional expert",
+      "go-to person"
+    ],
+    "system_administration": [
+      "system administration",
+      "sysadmin",
+      "system admin",
+      "server management",
+      "user provisioning",
+      "access management",
+      "permission management",
+      "superuser",
+      {
+        "all_of": [
+          "administered",
+          "system"
+        ]
+      },
+      {
+        "all_of": [
+          "managed",
+          "system access"
+        ]
+      }
+    ],
+    "system_adoption": [
+      "system adoption",
+      "change management activities",
+      "legacy timekeeping",
+      "system transition",
+      "migration from legacy",
+      {
+        "all_of": [
+          "adopted"
+        ],
+        "any_of": [
+          "system",
+          "platform",
+          "tool"
+        ]
+      },
+      {
+        "all_of": [
+          "transitioned"
+        ],
+        "any_of": [
+          "system",
+          "platform",
+          "tool"
+        ]
+      },
+      {
+        "all_of": [
+          "migrated"
+        ],
+        "any_of": [
+          "from legacy",
+          "legacy system",
+          "legacy timekeeping"
+        ]
+      },
+      {
+        "all_of": [
+          "transitioned",
+          "from legacy"
+        ]
+      }
+    ],
+    "tauri": [
+      "tauri",
+      "system tray",
+      "ipc commands",
+      "project-tauri",
+      "tauri app",
+      "webview"
+    ],
+    "technical_writing": [
+      "technical writing",
+      "troubleshooting guidance",
+      "manual regression checklist",
+      "scope boundaries",
+      "technical documentation",
+      "sop writing",
+      "procedure document",
+      "release notes"
+    ],
+    "test_case_design": [
+      "test case",
+      "test cases",
+      "test scenario",
+      "test script",
+      "test plan",
+      "test data",
+      {
+        "all_of": [
+          "designed",
+          "test cases"
+        ]
+      },
+      {
+        "all_of": [
+          "created",
+          "test cases"
+        ]
+      },
+      {
+        "all_of": [
+          "wrote",
+          "test cases"
+        ]
+      }
+    ],
+    "jira": [
+      "jira",
+      "issue tracking",
+      "defect tracking",
+      "defect management",
+      "jira board",
+      "jira ticket",
+      "jira workflow",
+      "confluence"
+    ],
+    "testing": [
+      "testing",
+      "smoke tests",
+      "regression checklist",
+      "test execution",
+      "test results",
+      "regression testing",
+      "integration testing",
+      "unit testing",
+      "end-to-end testing",
+      "e2e testing",
+      "unittest",
+      "boundary conditions",
+      "synthetic inputs",
+      "in-memory image fixtures",
+      "captured output",
+      "time-dependent tests",
+      "JUnit",
+      "time-dependent",
+      "unit test",
+      "unit tests",
+      "integration test",
+      "integration tests",
+      "test environment",
+      "test environments",
+      "contract test",
+      "contract tests",
+      "contract-stability tests",
+      "helper factories",
+      "mock.patch",
+      "wrote tests",
+      "test isolation"
+    ],
+    "time_and_absence": [
+      "time entry",
+      "absence",
+      "time and absence",
+      "time & absence",
+      "time tracking",
+      "leave management",
+      "time off",
+      "pto",
+      "attendance"
+    ],
+    "training": [
+      "trained",
+      "training",
+      "training program",
+      "training initiative",
+      "training plan",
+      "train the trainer",
+      "learning program",
+      "learning path",
+      {
+        "all_of": [
+          "owned"
+        ],
+        "any_of": [
+          "training",
+          "training program",
+          "training plan"
+        ]
+      },
+      {
+        "all_of": [
+          "coordinated"
+        ],
+        "any_of": [
+          "training",
+          "training plan",
+          "learning path"
+        ]
+      },
+      {
+        "all_of": [
+          "developed"
+        ],
+        "any_of": [
+          "training",
+          "training program",
+          "learning path"
+        ]
+      }
+    ],
+    "training_delivery": [
+      "training delivery",
+      "delivered training",
+      "facilitated training",
+      "conducted training",
+      "classroom training",
+      "virtual training",
+      "training session",
+      "training sessions",
+      "educational session",
+      "educational sessions",
+      "orientation session",
+      "new hire orientation",
+      "new hire orientations",
+      "onboarding orientation",
+      "instructor-led training",
+      {
+        "all_of": [
+          "delivered"
+        ],
+        "any_of": [
+          "training",
+          "session",
+          "sessions",
+          "orientation",
+          "orientations",
+          "onboarding",
+          "workshop"
+        ]
+      },
+      {
+        "all_of": [
+          "facilitated"
+        ],
+        "any_of": [
+          "training",
+          "session",
+          "sessions",
+          "orientation",
+          "orientations",
+          "onboarding",
+          "workshop"
+        ]
+      },
+      {
+        "all_of": [
+          "conducted"
+        ],
+        "any_of": [
+          "training",
+          "session",
+          "sessions",
+          "orientation",
+          "orientations",
+          "onboarding",
+          "workshop"
+        ]
+      },
+      {
+        "all_of": [
+          "led"
+        ],
+        "any_of": [
+          "session",
+          "sessions",
+          "training",
+          "orientation",
+          "orientations",
+          "onboarding",
+          "workshop"
+        ]
+      },
+      {
+        "all_of": [
+          "educated"
+        ],
+        "any_of": [
+          "new hires",
+          "managers",
+          "employees"
+        ]
+      },
+      {
+        "all_of": [
+          "provided"
+        ],
+        "any_of": [
+          "orientation",
+          "orientations",
+          "onboarding",
+          "onboarding orientation",
+          "policy training",
+          "procedure training"
+        ]
+      }
+    ],
+    "training_design": [
+      "training design",
+      "designed training",
+      "curriculum design",
+      "instructional design",
+      "learning objectives",
+      "training plan",
+      "training materials",
+      "course content",
+      {
+        "all_of": [
+          "designed"
+        ],
+        "any_of": [
+          "curriculum",
+          "training",
+          "training materials",
+          "course content"
+        ]
+      },
+      {
+        "all_of": [
+          "built"
+        ],
+        "any_of": [
+          "curriculum",
+          "training materials",
+          "course content"
+        ]
+      },
+      {
+        "all_of": [
+          "created"
+        ],
+        "any_of": [
+          "training program",
+          "training materials",
+          "course content"
+        ]
+      },
+      {
+        "all_of": [
+          "developed"
+        ],
+        "any_of": [
+          "curriculum",
+          "learning objectives",
+          "training materials",
+          "course content"
+        ]
+      }
+    ],
+    "troubleshooting": [
+      "troubleshooting",
+      "root cause",
+      "discrepanc",
+      "diagnosed",
+      "debugged",
+      "resolved issue",
+      "identified the problem",
+      "workaround",
+      "truncated",
+      {
+        "all_of": [
+          "identified",
+          "issue"
+        ]
+      },
+      {
+        "all_of": [
+          "investigated",
+          "issue"
+        ]
+      }
+    ],
+    "typescript": [
+      "typescript",
+      "node.js",
+      "discriminated unions",
+      "literal types",
+      "ts file",
+      "tsconfig",
+      "type inference",
+      "npm",
+      "yarn",
+      "deno",
+      "promise-based",
+      "modal dialogs",
+      "structured options objects",
+      "dropdown state",
+      "type-safe api",
+      "type narrowing",
+      "electron shell",
+      "esbuild",
+      "spawn with argument arrays",
+      "desktop plugin",
+      "p-pdftoolkit-plugin",
+      "vite"
+    ],
+    "uat": [
+      "uat",
+      "user acceptance testing",
+      "acceptance criteria",
+      "uat script",
+      "uat sign-off",
+      "business validation"
+    ],
+    "uat_management": [
+      "uat management",
+      "managed uat",
+      "uat coordination",
+      "uat cycle",
+      "uat schedule"
+    ],
+    "user_support": [
+      "user support",
+      "end-user support",
+      "help desk",
+      "service desk",
+      "individualized",
+      "tier 1 support",
+      "tier 2 support",
+      "support ticket",
+      "user inquiry",
+      "employee inquiries",
+      "employee inquiry",
+      {
+        "all_of": [
+          "supported"
+        ],
+        "any_of": [
+          "employees",
+          "employee concerns",
+          "employee inquiries"
+        ]
+      },
+      {
+        "all_of": [
+          "advised"
+        ],
+        "any_of": [
+          "employees",
+          "employee concerns",
+          "workplace concerns"
+        ]
+      },
+      {
+        "all_of": [
+          "advisor"
+        ],
+        "any_of": [
+          "employee concerns",
+          "employees"
+        ]
+      },
+      {
+        "all_of": [
+          "responded"
+        ],
+        "any_of": [
+          "employee inquiries",
+          "employee concerns"
+        ]
+      }
+    ],
+    "user_training": [
+      "user training",
+      "user education",
+      "end-user training",
+      "system training",
+      "policy training",
+      "procedure training",
+      {
+        "all_of": [
+          "trained"
+        ],
+        "any_of": [
+          "users",
+          "end users",
+          "employees",
+          "managers",
+          "new hires"
+        ]
+      },
+      {
+        "all_of": [
+          "coached"
+        ],
+        "any_of": [
+          "users",
+          "end users",
+          "employees",
+          "managers"
+        ]
+      },
+      {
+        "all_of": [
+          "educated"
+        ],
+        "any_of": [
+          "users",
+          "employees",
+          "managers",
+          "new hires"
+        ]
+      },
+      {
+        "all_of": [
+          "provided"
+        ],
+        "any_of": [
+          "user training",
+          "end-user training",
+          "system training",
+          "policy guidance",
+          "procedure guidance"
+        ]
+      }
+    ],
+    "variance_analysis": [
+      "variance",
+      "variance drivers",
+      "variance report",
+      "budget variance",
+      "actual vs plan",
+      "actual vs forecast"
+    ],
+    "vendor_coordination": [
+      "vendor coordination",
+      "vendor management",
+      "supplier coordination",
+      "vendor relationship management",
+      "third-party vendor coordination",
+      "third party vendor coordination",
+      "benefits provider",
+      "third-party administrator",
+      "third party administrator",
+      "background check vendor",
+      "background check vendors",
+      "medical testing facility",
+      "medical testing facilities",
+      "vendor representative",
+      "vendor representatives",
+      {
+        "all_of": [
+          "coordinated"
+        ],
+        "any_of": [
+          "vendor",
+          "vendors",
+          "supplier",
+          "suppliers",
+          "provider",
+          "providers",
+          "benefits provider",
+          "benefits providers",
+          "background check vendor",
+          "background check vendors",
+          "medical testing facility",
+          "medical testing facilities",
+          "vendor communications",
+          "third-party vendor",
+          "third party vendor"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "vendor",
+          "vendors",
+          "supplier",
+          "suppliers",
+          "vendor relationship",
+          "vendor relationships",
+          "vendor representatives",
+          "third-party administrator",
+          "third party administrator"
+        ]
+      },
+      {
+        "all_of": [
+          "liaison"
+        ],
+        "any_of": [
+          "vendor",
+          "vendors",
+          "supplier",
+          "suppliers",
+          "provider",
+          "providers",
+          "benefits provider",
+          "benefits providers",
+          "background check vendor",
+          "background check vendors",
+          "medical testing facility",
+          "medical testing facilities",
+          "vendor representative",
+          "vendor representatives",
+          "third-party administrator",
+          "third party administrator"
+        ]
+      },
+      {
+        "all_of": [
+          "escalated"
+        ],
+        "any_of": [
+          "vendor",
+          "vendors",
+          "provider",
+          "providers",
+          "vendor representative",
+          "vendor representatives",
+          "third-party administrator",
+          "third party administrator"
+        ]
+      }
+    ],
+    "version_control": [
+      "version control",
+      "git repo",
+      "git commit",
+      "git branch",
+      "github",
+      "gitlab",
+      "bitbucket",
+      "branching strategy",
+      "pull request",
+      "merge request",
+      "code review",
+      ".editorconfig",
+      ".gitattributes",
+      ".gitignore",
+      "git state"
+    ],
+    "web": [
+      "web development",
+      "web app",
+      "web application",
+      "html",
+      "css",
+      "javascript",
+      "frontend",
+      "front-end",
+      "backend",
+      "back-end",
+      "rest api",
+      "http"
+    ],
+    "win32": [
+      "win32",
+      "colorref",
+      "win32 api",
+      "winapi",
+      "windows sdk"
+    ],
+    "windows_api": [
+      "windows api",
+      "wm_keydown",
+      "window messages",
+      "hwnd",
+      "dllcall",
+      "dwm",
+      "executionpolicy bypass",
+      "registry",
+      "winreg",
+      "com object",
+      "windows reserved device names",
+      "message handler",
+      "clipboard",
+      "hotkey",
+      "hotkeys",
+      "AttachThreadInput"
+    ],
+    "workday": [
+      "workday",
+      "workday hcm",
+      "workday report",
+      "workday module",
+      "workday payroll",
+      "workday time and absence",
+      "workday time & absence",
+      "workday time tracking",
+      "prism analytics",
+      "approved timesheets",
+      "timekeeping",
+      {
+        "all_of": [
+          "configured"
+        ],
+        "any_of": [
+          "workday",
+          "workday payroll",
+          "workday time and absence",
+          "workday time & absence",
+          "schedule",
+          "schedules"
+        ]
+      },
+      {
+        "all_of": [
+          "implemented"
+        ],
+        "any_of": [
+          "workday",
+          "workday payroll",
+          "workday time and absence",
+          "workday time & absence"
+        ]
+      },
+      {
+        "all_of": [
+          "administered"
+        ],
+        "any_of": [
+          "workday",
+          "workday payroll",
+          "workday time and absence",
+          "workday time & absence"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "workday",
+          "workday payroll",
+          "workday time and absence",
+          "workday time & absence"
+        ]
+      }
+    ],
+    "workflow_analysis": [
+      "workflow analysis",
+      "analyzed workflow",
+      "workflow assessment",
+      "workflow review",
+      {
+        "all_of": [
+          "analyzed"
+        ],
+        "any_of": [
+          "workflow",
+          "workflows",
+          "process",
+          "processes"
+        ]
+      },
+      {
+        "all_of": [
+          "identified"
+        ],
+        "any_of": [
+          "bottleneck",
+          "process bottleneck",
+          "workflow bottleneck"
+        ]
+      },
+      {
+        "all_of": [
+          "assessed"
+        ],
+        "any_of": [
+          "workflow",
+          "workflows",
+          "process",
+          "processes"
+        ]
+      },
+      {
+        "all_of": [
+          "reviewed"
+        ],
+        "any_of": [
+          "workflow",
+          "workflows",
+          "process",
+          "processes"
+        ]
+      }
+    ],
+    "workflow_design": [
+      "workflow design",
+      "wizard",
+      "dialog wizard",
+      "forward/back navigation",
+      "designed a workflow",
+      "workflow builder",
+      "approval workflow",
+      {
+        "all_of": [
+          "built",
+          "workflow"
+        ]
+      },
+      {
+        "all_of": [
+          "created",
+          "workflow"
+        ]
+      }
+    ],
+    "workflow_optimization": [
+      "workflow optimization",
+      "optimized workflow",
+      "workflow efficiency",
+      "streamlined workflow",
+      "reduced turnaround",
+      {
+        "all_of": [
+          "optimized",
+          "process"
+        ]
+      },
+      {
+        "all_of": [
+          "optimized",
+          "workflow"
+        ]
+      }
+    ],
+    "workforce_analytics": [
+      "workforce analytics",
+      "workforce planning",
+      "people analytics",
+      "hr analytics",
+      "attrition analysis",
+      "retention analysis",
+      "turnover analysis",
+      "turnover reporting",
+      "absence reporting",
+      "vacancy reporting",
+      "recruiting reporting",
+      "headcount reporting",
+      "demographic reporting",
+      "workforce demographic",
+      "demographics",
+      "demographic"
+    ],
+    "yaml": [
+      "yaml",
+      "frontmatter",
+      ".yml",
+      "yaml config",
+      "yaml manifest"
+    ],
+    "accounting": [
+      "accounting",
+      "accounts payable",
+      "accounts receivable",
+      "general ledger",
+      "journal entry",
+      "month-end close",
+      "year-end close",
+      "trial balance",
+      "chart of accounts"
+    ],
+    "adoption_support": [
+      "adoption support",
+      "user adoption support",
+      "change coaching",
+      "supporting users through change",
+      "end-user adoption",
+      "adoption activities",
+      {
+        "all_of": [
+          "supported",
+          "adoption"
+        ]
+      },
+      {
+        "all_of": [
+          "coaching",
+          "users"
+        ]
+      }
+    ],
+    "bachelor": [
+      "bachelor's degree",
+      "bachelor of",
+      "bsc",
+      "ba degree",
+      "bs degree",
+      "bachelor degree",
+      "four-year degree",
+      "bba"
+    ],
+    "benefits": [
+      "employee benefits",
+      "benefits enrollment",
+      "open enrollment",
+      "health insurance benefits",
+      "dental and vision",
+      "401k",
+      "benefits policies",
+      "plan documents",
+      "policy interpretation",
+      "benefits inquiries",
+      "benefit eligibility",
+      "eligibility questions",
+      "coverage details",
+      "claims resolution",
+      {
+        "all_of": [
+          "benefits"
+        ],
+        "any_of": [
+          "policy",
+          "policies",
+          "plan documents",
+          "eligibility",
+          "coverage",
+          "claims",
+          "enrollment"
+        ]
+      },
+      {
+        "all_of": [
+          "benefits programs"
+        ],
+        "any_of": [
+          "health",
+          "dental",
+          "vision",
+          "life",
+          "pension"
+        ]
+      }
+    ],
+    "business_administration": [
+      "business administration",
+      "mba",
+      "master of business administration",
+      "business admin"
+    ],
+    "crm_administration": [
+      "crm administration",
+      "crm system administration",
+      "crm platform administration",
+      "administered crm",
+      "crm configuration",
+      "crm permissions",
+      "salesforce admin",
+      "dynamics admin",
+      "configured crm",
+      {
+        "all_of": [
+          "configured",
+          "salesforce"
+        ]
+      },
+      {
+        "all_of": [
+          "administered",
+          "crm"
+        ]
+      },
+      {
+        "all_of": [
+          "configured",
+          "dynamics"
+        ]
+      }
+    ],
+    "crm_admin": [
+      "crm admin",
+      "crm administrator",
+      "crm system admin",
+      "crm platform admin"
+    ],
+    "crm_analytics": [
+      "crm analytics",
+      "crm data analysis",
+      "salesforce reporting",
+      "dynamics reporting",
+      "crm dashboard",
+      "crm metrics",
+      "crm insights"
+    ],
+    "crm_reporting": [
+      "crm reporting",
+      "crm reports",
+      "reporting in crm",
+      "crm report builder"
+    ],
+    "current_state": [
+      "current state",
+      "as-is",
+      "as-is process",
+      "current state analysis",
+      "current state documentation",
+      "existing state",
+      "current state mapping"
+    ],
+    "data_quality_assurance": [
+      "data qa",
+      "data quality assurance",
+      "data quality testing",
+      "dqa",
+      {
+        "all_of": [
+          "data",
+          "quality assurance"
+        ]
+      },
+      {
+        "all_of": [
+          "data quality",
+          "testing"
+        ]
+      }
+    ],
+    "defect_tracking": [
+      "defect tracker",
+      "tracking defects",
+      "defect register",
+      "defect log maintenance",
+      "defect status tracking"
+    ],
+    "disability_management": [
+      "disability management",
+      "disability claim",
+      "disability claims",
+      "disability utilization",
+      "disability policies",
+      "short-term disability",
+      "short term disability",
+      "long-term disability",
+      "long term disability",
+      "std/ltd",
+      "std ltd",
+      {
+        "all_of": [
+          "std",
+          "ltd"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "disability claims",
+          "short-term disability",
+          "short term disability",
+          "long-term disability",
+          "long term disability",
+          "std/ltd",
+          "std ltd"
+        ]
+      },
+      {
+        "all_of": [
+          "employer claims"
+        ],
+        "any_of": [
+          "disability",
+          "ltd",
+          "long-term disability",
+          "long term disability"
+        ]
+      },
+      {
+        "all_of": [
+          "disability"
+        ],
+        "any_of": [
+          "policies",
+          "utilization",
+          "eligibility",
+          "benefits"
+        ]
+      }
+    ],
+    "future_state": [
+      "future state",
+      "to-be",
+      "to-be process",
+      "future state design",
+      "target state",
+      "future state mapping",
+      "to-be design",
+      "target operating model"
+    ],
+    "internal_application": [
+      "internal application",
+      "applied internally",
+      "internal candidate",
+      "internal job posting",
+      "internal role",
+      "applied for internal position"
+    ],
+    "internal_mobility": [
+      "internal mobility",
+      "internal transfer",
+      "internal promotion",
+      "lateral move",
+      "internal opportunity",
+      "career development transfer"
+    ],
+    "it_management_monitoring": [
+      "it monitoring",
+      "infrastructure monitoring",
+      "system monitoring",
+      "application health",
+      "uptime monitoring",
+      "system alerts",
+      {
+        "all_of": [
+          "monitoring",
+          "it"
+        ]
+      },
+      {
+        "all_of": [
+          "monitoring",
+          "infrastructure"
+        ]
+      }
+    ],
+    "onboarding": [
+      "new hire onboarding",
+      "onboarding process",
+      "onboarding program",
+      "preboarding",
+      "employee onboarding",
+      "onboarding checklist",
+      "onboarding documentation",
+      "day one setup"
+    ],
+    "payroll_support": [
+      "payroll support",
+      "payroll inquiry",
+      "payroll question",
+      "pay issue",
+      "payroll ticket",
+      "payroll escalation",
+      "payroll issue resolution",
+      {
+        "all_of": [
+          "responded"
+        ],
+        "any_of": [
+          "payroll inquiry",
+          "payroll question",
+          "pay issue"
+        ]
+      },
+      {
+        "all_of": [
+          "resolved"
+        ],
+        "any_of": [
+          "payroll issue",
+          "payroll inquiry",
+          "payroll question",
+          "pay issue"
+        ]
+      },
+      {
+        "all_of": [
+          "supported"
+        ],
+        "any_of": [
+          "payroll",
+          "payroll processing",
+          "pay cycle",
+          "pay period"
+        ]
+      }
+    ],
+    "pre_employment_coordination": [
+      "pre-employment",
+      "pre employment",
+      "background check",
+      "background screening",
+      "reference check",
+      "offer coordination",
+      "employment verification",
+      "pre-hire",
+      "candidate clearance",
+      "candidate status",
+      "screening stages",
+      "pre-employment medical exam",
+      "pre employment medical exam",
+      "medical testing",
+      "candidate communication",
+      "progress updates",
+      "scheduling appointments",
+      "clearance times",
+      {
+        "all_of": [
+          "candidate"
+        ],
+        "any_of": [
+          "clearance",
+          "screening stages",
+          "background check",
+          "medical exam",
+          "progress updates",
+          "scheduling appointments",
+          "status"
+        ]
+      },
+      {
+        "all_of": [
+          "coordinated"
+        ],
+        "any_of": [
+          "candidate communication",
+          "scheduling appointments",
+          "progress updates",
+          "document processing",
+          "background checks",
+          "medical exams"
+        ]
+      },
+      {
+        "all_of": [
+          "managed"
+        ],
+        "any_of": [
+          "background check",
+          "background screening",
+          "medical exam process",
+          "pre-employment process"
+        ]
+      }
+    ],
+    "problem_resolution": [
+      "problem resolution",
+      "issue closure",
+      "solution implemented",
+      {
+        "all_of": [
+          "resolved"
+        ],
+        "any_of": [
+          "problem",
+          "problems",
+          "issue",
+          "issues"
+        ]
+      },
+      {
+        "all_of": [
+          "troubleshot"
+        ],
+        "any_of": [
+          "problem",
+          "issue",
+          "system issue"
+        ]
+      },
+      {
+        "all_of": [
+          "corrected"
+        ],
+        "any_of": [
+          "problem",
+          "issue",
+          "error"
+        ]
+      }
+    ],
+    "reconciliation": [
+      "account reconciliation",
+      "bank reconciliation",
+      "financial reconciliation",
+      "ledger reconciliation",
+      "balance reconciliation",
+      "gl reconciliation"
+    ],
+    "relocation_flexibility": [
+      "open to relocation",
+      "willing to relocate",
+      "relocation available",
+      "geographically flexible"
+    ],
+    "remote_travel_flexibility": [
+      "open to travel",
+      "willing to travel",
+      "remote with travel",
+      "can travel as needed",
+      "travel available"
+    ],
+    "return_to_work": [
+      "return-to-work",
+      "return to work",
+      "return-to-work process",
+      "return to work process",
+      "return-to-work planning",
+      "return to work planning",
+      "modified duties",
+      {
+        "all_of": [
+          "return to work"
+        ],
+        "any_of": [
+          "accommodation",
+          "accommodations",
+          "modified duties",
+          "occupational health"
+        ]
+      },
+      {
+        "all_of": [
+          "return-to-work"
+        ],
+        "any_of": [
+          "accommodation",
+          "accommodations",
+          "modified duties",
+          "occupational health"
+        ]
+      },
+      {
+        "all_of": [
+          "accommodation"
+        ],
+        "any_of": [
+          "return to work",
+          "return-to-work",
+          "modified duties",
+          "occupational health"
+        ]
+      },
+      {
+        "all_of": [
+          "accommodations"
+        ],
+        "any_of": [
+          "return to work",
+          "return-to-work",
+          "temporary",
+          "permanent",
+          "occupational health"
+        ]
+      },
+      {
+        "all_of": [
+          "occupational health"
+        ],
+        "any_of": [
+          "return to work",
+          "return-to-work",
+          "accommodation",
+          "modified duties"
+        ]
+      }
+    ],
+    "requirements_gathering": [
+      "gathered requirements",
+      "elicited requirements",
+      "individualized accommodation",
+      "requirements elicitation",
+      "requirements workshop",
+      "discovery session",
+      "used by both",
+      {
+        "all_of": [
+          "gathered",
+          "requirements"
+        ]
+      },
+      {
+        "all_of": [
+          "elicited",
+          "requirements"
+        ]
+      }
+    ],
+    "retrieval_augmented_generation": [
+      "retrieval augmented generation",
+      "retrieval-augmented generation",
+      "rag pipeline",
+      "rag architecture",
+      "rag system"
+    ],
+    "rollout": [
+      "rollout plan",
+      "rollout strategy",
+      "rollout timeline",
+      "rollout coordination",
+      "rollout activities",
+      "rollout preparation",
+      "feature rollout",
+      "capability rollout",
+      {
+        "all_of": [
+          "coordinated",
+          "rollout"
+        ]
+      },
+      {
+        "all_of": [
+          "led",
+          "rollout"
+        ]
+      },
+      {
+        "all_of": [
+          "planned",
+          "rollout"
+        ]
+      },
+      {
+        "all_of": [
+          "managed",
+          "rollout"
+        ]
+      }
+    ],
+    "stakeholder_alignment": [
+      "stakeholder alignment",
+      "aligned stakeholders",
+      "building stakeholder alignment",
+      "alignment session",
+      "achieving alignment",
+      {
+        "all_of": [
+          "alignment",
+          "stakeholders"
+        ]
+      }
+    ],
+    "superuser": [
+      "superuser",
+      "super user",
+      "superuser role",
+      "system superuser"
+    ],
+    "superuser_administration": [
+      "superuser administration",
+      "superuser admin",
+      "managed superusers",
+      "superuser setup",
+      "super user admin"
+    ],
+    "superuser_support": [
+      "superuser support",
+      "supported superusers",
+      "superuser guidance",
+      "superuser enablement",
+      "superuser coaching"
+    ],
+    "system_owner": [
+      "system owner",
+      "system ownership",
+      "platform owner",
+      "application owner",
+      "owned the system",
+      "accountable system owner"
+    ],
+    "training_enablement": [
+      "enablement program",
+      "enablement initiative",
+      "capability building",
+      "skills enablement",
+      "learning enablement",
+      "enablement strategy",
+      "training enablement",
+      {
+        "all_of": [
+          "training"
+        ],
+        "any_of": [
+          "enablement",
+          "readiness",
+          "adoption"
+        ]
+      },
+      {
+        "all_of": [
+          "end-user"
+        ],
+        "any_of": [
+          "readiness",
+          "enablement"
+        ]
+      },
+      {
+        "all_of": [
+          "end user"
+        ],
+        "any_of": [
+          "readiness",
+          "enablement"
+        ]
+      },
+      {
+        "all_of": [
+          "capability"
+        ],
+        "any_of": [
+          "building",
+          "enablement"
+        ]
+      },
+      {
+        "all_of": [
+          "skills"
+        ],
+        "any_of": [
+          "enablement",
+          "readiness"
+        ]
+      }
+    ]
+  },
+  "delivery_toolkit_metadata": {
+    "confidentiality": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Confidentiality"
+    },
+    "global": {
+      "category": "Reporting & Analytics",
+      "display_label": "Global Reporting Experience"
+    },
+    "accounting": {
+      "category": "Reporting & Analytics",
+      "display_label": "Accounting"
+    },
+    "adoption_support": {
+      "category": "Implementation & Delivery",
+      "display_label": "Adoption Support"
+    },
+    "advanced_excel": {
+      "category": "Systems & Platforms",
+      "display_label": "Advanced Excel"
+    },
+    "agile_methodologies": {
+      "category": "Implementation & Delivery",
+      "display_label": "Agile Methodologies"
+    },
+    "agile_project_management": {
+      "category": "Implementation & Delivery",
+      "display_label": "Agile Project Management"
+    },
+    "ai": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "AI"
+    },
+    "analysis": {
+      "category": "Reporting & Analytics",
+      "display_label": "Analysis"
+    },
+    "analytics_support": {
+      "category": "Reporting & Analytics",
+      "display_label": "Analytics Support"
+    },
+    "android": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Android"
+    },
+    "artifact_creation": {
+      "category": "Training & Documentation",
+      "display_label": "Artifact Creation"
+    },
+    "artificial_intelligence": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Artificial Intelligence"
+    },
+    "autohotkey": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "AutoHotkey"
+    },
+    "automation": {
+      "category": "Implementation & Delivery",
+      "display_label": "Automation"
+    },
+    "azure_devops": {
+      "category": "Systems & Platforms",
+      "display_label": "Azure DevOps"
+    },
+    "bachelor": {
+      "category": "Education & Certifications",
+      "display_label": "BBA/BA"
+    },
+    "degree": {
+      "category": "Education & Certifications",
+      "display_label": "BBA/BA"
+    },
+    "benefits": {
+      "category": "Systems & Platforms",
+      "display_label": "Benefits"
+    },
+    "benefits_administration": {
+      "category": "Systems & Platforms",
+      "display_label": "Benefits Administration"
+    },
+    "bid_coordination": {
+      "category": "Implementation & Delivery",
+      "display_label": "Bid Coordination"
+    },
+    "budgeting": {
+      "category": "Reporting & Analytics",
+      "display_label": "Budgeting"
+    },
+    "business_administration": {
+      "category": "Reporting & Analytics",
+      "display_label": "Business Administration"
+    },
+    "business_analysis": {
+      "category": "Reporting & Analytics",
+      "display_label": "Business Analysis"
+    },
+    "business_intelligence": {
+      "category": "Reporting & Analytics",
+      "display_label": "Business Intelligence"
+    },
+    "business_process": {
+      "category": "Systems & Platforms",
+      "display_label": "Business Process"
+    },
+    "case_management": {
+      "category": "Systems & Platforms",
+      "display_label": "Case Management"
+    },
+    "change_adoption": {
+      "category": "Implementation & Delivery",
+      "display_label": "Change Adoption"
+    },
+    "change_enablement": {
+      "category": "Implementation & Delivery",
+      "display_label": "Change Enablement"
+    },
+    "change_management": {
+      "category": "Implementation & Delivery",
+      "display_label": "Change Management"
+    },
+    "ci_cd": {
+      "category": "Implementation & Delivery",
+      "display_label": "CI/CD"
+    },
+    "cli_tools": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "CLI Tools"
+    },
+    "compliance": {
+      "category": "Reporting & Analytics",
+      "display_label": "Compliance"
+    },
+    "containerization": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Containerization"
+    },
+    "continuous_improvement": {
+      "category": "Implementation & Delivery",
+      "display_label": "Continuous Improvement"
+    },
+    "copilot": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Copilot"
+    },
+    "cost_modeling": {
+      "category": "Reporting & Analytics",
+      "display_label": "Cost Modeling"
+    },
+    "crm": {
+      "category": "Systems & Platforms",
+      "display_label": "CRM"
+    },
+    "crm_admin": {
+      "category": "Systems & Platforms",
+      "display_label": "CRM Administration"
+    },
+    "crm_administration": {
+      "category": "Systems & Platforms",
+      "display_label": "CRM Administration"
+    },
+    "crm_analytics": {
+      "category": "Systems & Platforms",
+      "display_label": "CRM Analytics"
+    },
+    "crm_reporting": {
+      "category": "Systems & Platforms",
+      "display_label": "CRM Reporting"
+    },
+    "cross_functional_collaboration": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Cross-Functional Collaboration"
+    },
+    "cross_platform": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Cross-Platform"
+    },
+    "current_state": {
+      "category": "Implementation & Delivery",
+      "display_label": "Current State"
+    },
+    "dashboarding": {
+      "category": "Reporting & Analytics",
+      "display_label": "Dashboarding"
+    },
+    "data_analysis": {
+      "category": "Reporting & Analytics",
+      "display_label": "Data Analysis"
+    },
+    "data_engineering": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Data Engineering"
+    },
+    "data_governance": {
+      "category": "Reporting & Analytics",
+      "display_label": "Data Governance"
+    },
+    "data_integrity": {
+      "category": "Systems & Platforms",
+      "display_label": "Data Integrity"
+    },
+    "data_interpretation": {
+      "category": "Reporting & Analytics",
+      "display_label": "Data Interpretation"
+    },
+    "data_migration": {
+      "category": "Implementation & Delivery",
+      "display_label": "Data Migration"
+    },
+    "data_processing": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Data Processing"
+    },
+    "data_pipelines": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Data Pipelines"
+    },
+    "data_quality": {
+      "category": "Testing & Quality",
+      "display_label": "Data Quality"
+    },
+    "data_quality_assurance": {
+      "category": "Testing & Quality",
+      "display_label": "Data Quality Assurance"
+    },
+    "data_reconciliation": {
+      "category": "Testing & Quality",
+      "display_label": "Data Reconciliation"
+    },
+    "data_science": {
+      "category": "Reporting & Analytics",
+      "display_label": "Data Science"
+    },
+    "data_storytelling": {
+      "category": "Reporting & Analytics",
+      "display_label": "Data Storytelling"
+    },
+    "data_validation": {
+      "category": "Testing & Quality",
+      "display_label": "Data Validation"
+    },
+    "database_management": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Database Management"
+    },
+    "defect_management": {
+      "category": "Testing & Quality",
+      "display_label": "Defect Management"
+    },
+    "defect_tracking": {
+      "category": "Testing & Quality",
+      "display_label": "Defect Tracking"
+    },
+    "disability_management": {
+      "category": "Systems & Platforms",
+      "display_label": "Disability Management"
+    },
+    "devcontainers": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Dev Containers"
+    },
+    "docker_products": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Docker"
+    },
+    "documentation": {
+      "category": "Training & Documentation",
+      "display_label": "Documentation"
+    },
+    "documentation_authoring": {
+      "category": "Training & Documentation",
+      "display_label": "Documentation Authoring"
+    },
+    "employee_lifecycle_administration": {
+      "category": "Systems & Platforms",
+      "display_label": "Employee Lifecycle Administration"
+    },
+    "end_user_enablement": {
+      "category": "Training & Documentation",
+      "display_label": "End-User Enablement"
+    },
+    "excel": {
+      "category": "Systems & Platforms",
+      "display_label": "Excel"
+    },
+    "excel_modeling": {
+      "category": "Systems & Platforms",
+      "display_label": "Excel Modeling"
+    },
+    "exception_handling": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Exception Handling"
+    },
+    "ffi": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "FFI"
+    },
+    "financial_analysis": {
+      "category": "Reporting & Analytics",
+      "display_label": "Financial Analysis"
+    },
+    "forecasting": {
+      "category": "Reporting & Analytics",
+      "display_label": "Forecasting"
+    },
+    "friction_reduction": {
+      "category": "Implementation & Delivery",
+      "display_label": "Friction Reduction"
+    },
+    "future_state": {
+      "category": "Implementation & Delivery",
+      "display_label": "Future State"
+    },
+    "generative_ai": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Generative AI"
+    },
+    "github_actions": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "GitHub Actions"
+    },
+    "global_reporting": {
+      "category": "Reporting & Analytics",
+      "display_label": "Global Reporting"
+    },
+    "grant_funding": {
+      "category": "Implementation & Delivery",
+      "display_label": "Grant Funding"
+    },
+    "headcount_analysis": {
+      "category": "Reporting & Analytics",
+      "display_label": "Headcount Analysis"
+    },
+    "hris": {
+      "category": "Systems & Platforms",
+      "display_label": "HRIS"
+    },
+    "human_resources": {
+      "category": "Reporting & Analytics",
+      "display_label": "Human Resources"
+    },
+    "implementation": {
+      "category": "Implementation & Delivery",
+      "display_label": "Implementation"
+    },
+    "implementation_support": {
+      "category": "Implementation & Delivery",
+      "display_label": "Implementation Support"
+    },
+    "intelligence_gathering": {
+      "category": "Reporting & Analytics",
+      "display_label": "Intelligence Gathering"
+    },
+    "internal_application": {
+      "category": "Implementation & Delivery",
+      "display_label": "Internal Application"
+    },
+    "internal_mobility": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Internal Mobility"
+    },
+    "investigation": {
+      "category": "Testing & Quality",
+      "display_label": "Investigation"
+    },
+    "issue_triage": {
+      "category": "Testing & Quality",
+      "display_label": "Issue Triage"
+    },
+    "it_service_management": {
+      "category": "Implementation & Delivery",
+      "display_label": "IT Service Management"
+    },
+    "it_management_monitoring": {
+      "category": "Systems & Platforms",
+      "display_label": "IT Management Monitoring"
+    },
+    "jira": {
+      "category": "Systems & Platforms",
+      "display_label": "Jira"
+    },
+    "json": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "JSON"
+    },
+    "knowledge_base": {
+      "category": "Training & Documentation",
+      "display_label": "Knowledge Base"
+    },
+    "knowledge_transfer": {
+      "category": "Training & Documentation",
+      "display_label": "Knowledge Transfer"
+    },
+    "kotlin": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Kotlin"
+    },
+    "kpi_reporting": {
+      "category": "Reporting & Analytics",
+      "display_label": "KPI Reporting"
+    },
+    "license_administration": {
+      "category": "Systems & Platforms",
+      "display_label": "License Administration"
+    },
+    "llm": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "LLM"
+    },
+    "markdown": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Markdown"
+    },
+    "maximo": {
+      "category": "Systems & Platforms",
+      "display_label": "Maximo"
+    },
+    "mergers_acquisitions": {
+      "category": "Reporting & Analytics",
+      "display_label": "M&A Research"
+    },
+    "metric_definition": {
+      "category": "Reporting & Analytics",
+      "display_label": "Metric Definition"
+    },
+    "obsidian": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Obsidian"
+    },
+    "onboarding": {
+      "category": "Training & Documentation",
+      "display_label": "Onboarding"
+    },
+    "operational_support": {
+      "category": "Systems & Platforms",
+      "display_label": "Operational Support"
+    },
+    "payroll": {
+      "category": "Systems & Platforms",
+      "display_label": "Payroll"
+    },
+    "payroll_support": {
+      "category": "Systems & Platforms",
+      "display_label": "Payroll Support"
+    },
+    "post_go_live_support": {
+      "category": "Implementation & Delivery",
+      "display_label": "Post-Go-Live Support"
+    },
+    "power_bi": {
+      "category": "Systems & Platforms",
+      "display_label": "Power BI"
+    },
+    "pre_employment_coordination": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Pre-Employment Coordination"
+    },
+    "problem_resolution": {
+      "category": "Testing & Quality",
+      "display_label": "Problem Resolution"
+    },
+    "process_improvement": {
+      "category": "Implementation & Delivery",
+      "display_label": "Process Improvement"
+    },
+    "process_mapping": {
+      "category": "Implementation & Delivery",
+      "display_label": "Process Mapping"
+    },
+    "process_optimization": {
+      "category": "Implementation & Delivery",
+      "display_label": "Process Optimization"
+    },
+    "process_standardization": {
+      "category": "Implementation & Delivery",
+      "display_label": "Process Standardization"
+    },
+    "procurement": {
+      "category": "Systems & Platforms",
+      "display_label": "Procurement"
+    },
+    "project_management": {
+      "category": "Implementation & Delivery",
+      "display_label": "Project Management"
+    },
+    "prompt_engineering": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Prompt Engineering"
+    },
+    "python": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Python"
+    },
+    "quality_assurance": {
+      "category": "Testing & Quality",
+      "display_label": "Quality Assurance"
+    },
+    "rag": {
+      "category": "Systems & Platforms",
+      "display_label": "RAG"
+    },
+    "react": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "React"
+    },
+    "reconciliation": {
+      "category": "Testing & Quality",
+      "display_label": "Reconciliation"
+    },
+    "relocation_flexibility": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Relocation Flexibility"
+    },
+    "remote_travel_flexibility": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Remote Travel Flexibility"
+    },
+    "return_to_work": {
+      "category": "Systems & Platforms",
+      "display_label": "Return to Work"
+    },
+    "report_automation": {
+      "category": "Reporting & Analytics",
+      "display_label": "Report Automation"
+    },
+    "report_design": {
+      "category": "Reporting & Analytics",
+      "display_label": "Report Design"
+    },
+    "report_standardization": {
+      "category": "Reporting & Analytics",
+      "display_label": "Report Standardization"
+    },
+    "reporting": {
+      "category": "Reporting & Analytics",
+      "display_label": "Reporting"
+    },
+    "requirements": {
+      "category": "Implementation & Delivery",
+      "display_label": "Requirements Gathering"
+    },
+    "requirements_analysis": {
+      "category": "Implementation & Delivery",
+      "display_label": "Requirements Analysis"
+    },
+    "requirements_gathering": {
+      "category": "Implementation & Delivery",
+      "display_label": "Requirements Gathering"
+    },
+    "retrieval_augmented_generation": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Retrieval-Augmented Generation"
+    },
+    "rollout": {
+      "category": "Implementation & Delivery",
+      "display_label": "Rollout"
+    },
+    "root_cause_analysis": {
+      "category": "Testing & Quality",
+      "display_label": "Root Cause Analysis"
+    },
+    "rust": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Rust"
+    },
+    "runtime": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Runtime"
+    },
+    "sap_c4c": {
+      "category": "Systems & Platforms",
+      "display_label": "SAP C4C"
+    },
+    "scripting": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Scripting"
+    },
+    "solutions_architecture": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Solutions Architecture"
+    },
+    "sql": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "SQL"
+    },
+    "sqlite": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "SQLite"
+    },
+    "stakeholder_alignment": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Stakeholder Alignment"
+    },
+    "stakeholder_coordination": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Stakeholder Coordination"
+    },
+    "stakeholder_management": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Stakeholder Management"
+    },
+    "subject_matter_expert": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Subject Matter Expert"
+    },
+    "superuser": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Superuser"
+    },
+    "superuser_administration": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Superuser Administration"
+    },
+    "superuser_support": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Superuser Support"
+    },
+    "system_administration": {
+      "category": "Systems & Platforms",
+      "display_label": "System Administration"
+    },
+    "system_adoption": {
+      "category": "Systems & Platforms",
+      "display_label": "System Adoption"
+    },
+    "system_owner": {
+      "category": "Systems & Platforms",
+      "display_label": "System Owner"
+    },
+    "tauri": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Tauri"
+    },
+    "technical_writing": {
+      "category": "Training & Documentation",
+      "display_label": "Technical Writing"
+    },
+    "test_case_design": {
+      "category": "Testing & Quality",
+      "display_label": "Test Case Design"
+    },
+    "testing": {
+      "category": "Testing & Quality",
+      "display_label": "Testing"
+    },
+    "time_and_absence": {
+      "category": "Systems & Platforms",
+      "display_label": "Time & Absence"
+    },
+    "training": {
+      "category": "Training & Documentation",
+      "display_label": "Training"
+    },
+    "training_delivery": {
+      "category": "Training & Documentation",
+      "display_label": "Training Delivery"
+    },
+    "training_design": {
+      "category": "Training & Documentation",
+      "display_label": "Training Design"
+    },
+    "training_enablement": {
+      "category": "Training & Documentation",
+      "display_label": "Training Enablement"
+    },
+    "troubleshooting": {
+      "category": "Testing & Quality",
+      "display_label": "Troubleshooting"
+    },
+    "typescript": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "TypeScript"
+    },
+    "uat": {
+      "category": "Testing & Quality",
+      "display_label": "User Acceptance Testing (UAT)"
+    },
+    "uat_management": {
+      "category": "Testing & Quality",
+      "display_label": "UAT Management"
+    },
+    "user_support": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "User Support"
+    },
+    "user_training": {
+      "category": "Training & Documentation",
+      "display_label": "User Training"
+    },
+    "variance_analysis": {
+      "category": "Reporting & Analytics",
+      "display_label": "Variance Analysis"
+    },
+    "vendor_coordination": {
+      "category": "Interpersonal & Leadership",
+      "display_label": "Vendor Coordination"
+    },
+    "version_control": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Version Control"
+    },
+    "web": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Web Development"
+    },
+    "win32": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Win32"
+    },
+    "windows_api": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "Windows API"
+    },
+    "workday": {
+      "category": "Systems & Platforms",
+      "display_label": "Workday"
+    },
+    "workflow_analysis": {
+      "category": "Implementation & Delivery",
+      "display_label": "Workflow Analysis"
+    },
+    "workflow_design": {
+      "category": "Implementation & Delivery",
+      "display_label": "Workflow Design"
+    },
+    "workflow_optimization": {
+      "category": "Implementation & Delivery",
+      "display_label": "Workflow Optimization"
+    },
+    "workforce_analytics": {
+      "category": "Reporting & Analytics",
+      "display_label": "Workforce Analytics"
+    },
+    "yaml": {
+      "category": "Technical Skills & Programming Languages",
+      "display_label": "YAML"
+    }
+  }
+}
