@@ -6,8 +6,6 @@ import type {
   DeliveryToolkitCategory,
   LibraryTagRefreshResult,
   LibraryTagSyncStatus,
-  TagInferenceMarker,
-  TagInferenceMarkerInput,
   TaxonomyImportResult,
 } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,22 +21,20 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Plus } from '@phosphor-icons/react/dist/icons/Plus'
 import { Pencil } from '@phosphor-icons/react/dist/icons/Pencil'
 import { Trash } from '@phosphor-icons/react/dist/icons/Trash'
 import { ArrowsClockwise } from '@phosphor-icons/react/dist/icons/ArrowsClockwise'
 import { toast } from 'sonner'
 import TagDialog from '@/components/dialogs/TagDialog'
+import TagInferenceMarkerEditor from '@/components/taxonomy/TagInferenceMarkerEditor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  type TagInferenceMarkerDraft,
+  tagInferenceMarkerDraftsToInputs,
+  tagInferenceMarkersToDrafts,
+} from '@/lib/tag-inference-marker-drafts'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,49 +46,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
-type MarkerForm = {
-  markerKind: 'literal' | 'compound'
-  literalValue: string
-  allOf: string
-  anyOf: string
-}
-
-function parseList(value: string): string[] {
-  return value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function markerToForm(marker: TagInferenceMarker): MarkerForm {
-  const allOf = marker.terms
-    .filter((term) => term.termGroup === 'all_of')
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((term) => term.termValue)
-    .join(', ')
-  const anyOf = marker.terms
-    .filter((term) => term.termGroup === 'any_of')
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((term) => term.termValue)
-    .join(', ')
-
-  return {
-    markerKind: marker.markerKind === 'compound' ? 'compound' : 'literal',
-    literalValue: marker.literalValue ?? '',
-    allOf,
-    anyOf,
-  }
-}
-
-function markerFormToInput(form: MarkerForm): TagInferenceMarkerInput {
-  return {
-    markerKind: form.markerKind,
-    literalValue: form.markerKind === 'literal' ? form.literalValue : null,
-    allOf: form.markerKind === 'compound' ? parseList(form.allOf) : [],
-    anyOf: form.markerKind === 'compound' ? parseList(form.anyOf) : [],
-  }
-}
-
 function formatSyncTimestamp(value: string | null): string {
   return value ?? 'Not yet recorded'
 }
@@ -102,7 +55,7 @@ export default function TaxonomyView() {
   const [canonicalTags, setCanonicalTags] = useState<CanonicalTag[]>([])
   const [categories, setCategories] = useState<DeliveryToolkitCategory[]>([])
   const [selectedTag, setSelectedTag] = useState('')
-  const [markerForms, setMarkerForms] = useState<MarkerForm[]>([])
+  const [markerDrafts, setMarkerDrafts] = useState<TagInferenceMarkerDraft[]>([])
   const [markersLoading, setMarkersLoading] = useState(false)
   const [markerSavePending, setMarkerSavePending] = useState(false)
   const [categoryDraft, setCategoryDraft] = useState('')
@@ -144,17 +97,17 @@ export default function TaxonomyView() {
 
   const loadMarkers = async (tag: string) => {
     if (!tag) {
-      setMarkerForms([])
+      setMarkerDrafts([])
       return
     }
 
     setMarkersLoading(true)
     try {
       const markers = await careerService.getTagInferenceMarkers(tag)
-      setMarkerForms(markers.map(markerToForm))
+      setMarkerDrafts(tagInferenceMarkersToDrafts(markers))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load markers')
-      setMarkerForms([])
+      setMarkerDrafts([])
     } finally {
       setMarkersLoading(false)
     }
@@ -277,30 +230,6 @@ export default function TaxonomyView() {
     setTagDialogOpen(false)
   }
 
-  const updateMarkerForm = (index: number, patch: Partial<MarkerForm>) => {
-    setMarkerForms((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item))
-    )
-  }
-
-  const addLiteralMarker = () => {
-    setMarkerForms((current) => [
-      ...current,
-      { markerKind: 'literal', literalValue: '', allOf: '', anyOf: '' },
-    ])
-  }
-
-  const addCompoundMarker = () => {
-    setMarkerForms((current) => [
-      ...current,
-      { markerKind: 'compound', literalValue: '', allOf: '', anyOf: '' },
-    ])
-  }
-
-  const removeMarker = (index: number) => {
-    setMarkerForms((current) => current.filter((_, itemIndex) => itemIndex !== index))
-  }
-
   const handleSaveMarkers = async () => {
     if (!selectedTag) {
       return
@@ -310,9 +239,9 @@ export default function TaxonomyView() {
     try {
       const updated = await careerService.replaceTagInferenceMarkers(
         selectedTag,
-        markerForms.map(markerFormToInput)
+        tagInferenceMarkerDraftsToInputs(markerDrafts)
       )
-      setMarkerForms(updated.map(markerToForm))
+      setMarkerDrafts(tagInferenceMarkersToDrafts(updated))
       await loadLibraryTagSyncStatus()
       toast.success(`Markers updated for "${selectedTag}"`)
     } catch (error) {
@@ -752,98 +681,15 @@ export default function TaxonomyView() {
                     <Alert>
                       <AlertDescription>Loading markers…</AlertDescription>
                     </Alert>
-                  ) : markerForms.length === 0 ? (
+                  ) : markerDrafts.length === 0 ? (
                     <Alert>
                       <AlertDescription>No markers loaded for the selected tag.</AlertDescription>
                     </Alert>
                   ) : (
-                    markerForms.map((marker, index) => (
-                      <div key={`${selectedTag}-${index}`} className="space-y-3 rounded-lg border p-4">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline">Marker {index + 1}</Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeMarker(index)}
-                            disabled={markerForms.length === 1}
-                          >
-                            <Trash />
-                          </Button>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Marker Type</Label>
-                          <Select
-                            value={marker.markerKind}
-                            onValueChange={(value) =>
-                              updateMarkerForm(index, {
-                                markerKind: value as 'literal' | 'compound',
-                                literalValue: value === 'literal' ? marker.literalValue : '',
-                                allOf: value === 'compound' ? marker.allOf : '',
-                                anyOf: value === 'compound' ? marker.anyOf : '',
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="literal">Literal</SelectItem>
-                              <SelectItem value="compound">Compound</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {marker.markerKind === 'literal' ? (
-                          <div className="space-y-2">
-                            <Label>Literal Value</Label>
-                            <Input
-                              value={marker.literalValue}
-                              onChange={(event) =>
-                                updateMarkerForm(index, { literalValue: event.target.value })
-                              }
-                              placeholder="workday"
-                            />
-                          </div>
-                        ) : (
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label>All Of Terms</Label>
-                              <Textarea
-                                value={marker.allOf}
-                                onChange={(event) =>
-                                  updateMarkerForm(index, { allOf: event.target.value })
-                                }
-                                placeholder="time, absence"
-                                rows={3}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Any Of Terms</Label>
-                              <Textarea
-                                value={marker.anyOf}
-                                onChange={(event) =>
-                                  updateMarkerForm(index, { anyOf: event.target.value })
-                                }
-                                placeholder="report, reporting"
-                                rows={3}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
+                    <TagInferenceMarkerEditor drafts={markerDrafts} onChange={setMarkerDrafts} />
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={addLiteralMarker}>
-                      <Plus className="mr-2" />
-                      Add Literal Marker
-                    </Button>
-                    <Button variant="outline" onClick={addCompoundMarker}>
-                      <Plus className="mr-2" />
-                      Add Compound Marker
-                    </Button>
                     <Button
                       onClick={() => void handleSaveMarkers()}
                       disabled={markerSavePending || !selectedTag}

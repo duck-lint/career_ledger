@@ -1585,7 +1585,6 @@ pub fn update_canonical_tag(
                 &normalized_new_tag,
             )?;
         }
-        rewrite_tag_inference_markers_to_defaults(conn, &normalized_new_tag)?;
         mark_taxonomy_changed(conn).map(|_| ())
     })?;
 
@@ -1994,7 +1993,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_tag_rename_rewrites_markers_to_new_defaults() {
+    fn canonical_tag_update_preserves_existing_markers() {
         let conn = setup_conn();
         ensure_runtime_taxonomy_seeded(&conn).unwrap();
 
@@ -2025,8 +2024,25 @@ mod tests {
             .iter()
             .filter_map(|marker| marker.literal_value.clone())
             .collect::<Vec<_>>();
-        assert!(literals.contains(&"python platform".to_string()));
-        assert!(!literals.contains(&"py scripting".to_string()));
+        assert!(literals.contains(&"py scripting".to_string()));
+        assert!(!literals.contains(&"python platform".to_string()));
+
+        update_canonical_tag(
+            &conn,
+            "python_platform".to_string(),
+            "python_platform".to_string(),
+            Some("Updated description".to_string()),
+            "Technical Skills & Programming Languages".to_string(),
+            "Python Platform".to_string(),
+        )
+        .unwrap();
+
+        let markers_after_metadata_update = get_tag_inference_markers(&conn, "python_platform").unwrap();
+        let literals_after_metadata_update = markers_after_metadata_update
+            .iter()
+            .filter_map(|marker| marker.literal_value.clone())
+            .collect::<Vec<_>>();
+        assert!(literals_after_metadata_update.contains(&"py scripting".to_string()));
     }
 
     #[test]

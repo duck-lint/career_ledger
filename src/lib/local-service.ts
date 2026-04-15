@@ -1487,18 +1487,12 @@ class LocalCareerService implements CareerService {
       kvSet(EVIDENCE_KEY, evidenceObj)
 
       const markerStore = kvGet<Record<string, TagInferenceMarker[]>>(TAG_INFERENCE_MARKERS_KEY) ?? {}
+      const existingMarkers = markerStore[oldTag] ?? []
       delete markerStore[oldTag]
-      markerStore[normalized] = materializeTagInferenceMarkers(
-        normalized,
-        defaultTagInferenceMarkerInputs(normalized)
-      )
-      kvSet(TAG_INFERENCE_MARKERS_KEY, markerStore)
-    } else {
-      const markerStore = kvGet<Record<string, TagInferenceMarker[]>>(TAG_INFERENCE_MARKERS_KEY) ?? {}
-      markerStore[normalized] = materializeTagInferenceMarkers(
-        normalized,
-        defaultTagInferenceMarkerInputs(normalized)
-      )
+      markerStore[normalized] = existingMarkers.map((marker) => ({
+        ...marker,
+        canonicalTag: normalized,
+      }))
       kvSet(TAG_INFERENCE_MARKERS_KEY, markerStore)
     }
 
