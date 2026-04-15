@@ -520,6 +520,13 @@ export type DeliveryToolkitCategory = {
   sort_order: number
 }
 
+export type TagDialogCreateDraft = {
+  tagValue: string
+  description: string
+  displayLabel: string
+  categoryName: string | null
+}
+
 export type TagInferenceMarkerTerm = {
   id: string
   termGroup: string
@@ -701,6 +708,9 @@ export interface CareerService {
   getCanonicalTags(): Promise<CanonicalTag[]>
   getCanonicalTag(tag: string): Promise<CanonicalTag | undefined>
   getDeliveryToolkitCategories(): Promise<DeliveryToolkitCategory[]>
+  createDeliveryToolkitCategory(name: string): Promise<DeliveryToolkitCategory>
+  renameDeliveryToolkitCategory(currentName: string, nextName: string): Promise<DeliveryToolkitCategory>
+  deleteDeliveryToolkitCategory(name: string): Promise<void>
   importTaxonomy(path: string): Promise<TaxonomyImportResult>
   exportTaxonomy(path: string): Promise<string>
   resetTaxonomyToStarter(): Promise<TaxonomyImportResult>

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { careerService } from '@/lib/service'
 import type {
   CanonicalTag,
+  DeliveryToolkitCategory,
   LibraryTagRefreshResult,
   LibraryTagSyncStatus,
   TagInferenceMarker,
@@ -99,10 +100,14 @@ function formatSyncTimestamp(value: string | null): string {
 export default function TaxonomyView() {
   const isTauri = '__TAURI_INTERNALS__' in window
   const [canonicalTags, setCanonicalTags] = useState<CanonicalTag[]>([])
+  const [categories, setCategories] = useState<DeliveryToolkitCategory[]>([])
   const [selectedTag, setSelectedTag] = useState('')
   const [markerForms, setMarkerForms] = useState<MarkerForm[]>([])
   const [markersLoading, setMarkersLoading] = useState(false)
   const [markerSavePending, setMarkerSavePending] = useState(false)
+  const [categoryDraft, setCategoryDraft] = useState('')
+  const [editingCategoryName, setEditingCategoryName] = useState<string | null>(null)
+  const [categoryPending, setCategoryPending] = useState(false)
   const [tagDialogOpen, setTagDialogOpen] = useState(false)
   const [editingTag, setEditingTag] = useState<CanonicalTag | null>(null)
   const [taxonomyOpPending, setTaxonomyOpPending] = useState(false)
@@ -117,10 +122,14 @@ export default function TaxonomyView() {
   >(null)
 
   const loadTaxonomyData = async (): Promise<string> => {
-    const tagsData = await careerService.getCanonicalTags()
+    const [tagsData, categoryData] = await Promise.all([
+      careerService.getCanonicalTags(),
+      careerService.getDeliveryToolkitCategories(),
+    ])
     let nextSelectedTag = ''
 
     setCanonicalTags(tagsData)
+    setCategories(categoryData)
     setSelectedTag((current) => {
       if (current && tagsData.some((tag) => tag.tag === current)) {
         nextSelectedTag = current
@@ -173,7 +182,77 @@ export default function TaxonomyView() {
     void loadMarkers(selectedTag)
   }, [selectedTag])
 
+  const categoryUsageCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    canonicalTags.forEach((tag) => {
+      const categoryName = tag.category?.trim()
+      if (!categoryName) {
+        return
+      }
+
+      counts.set(categoryName, (counts.get(categoryName) ?? 0) + 1)
+    })
+    return counts
+  }, [canonicalTags])
+
+  const resetCategoryEditor = () => {
+    setCategoryDraft('')
+    setEditingCategoryName(null)
+  }
+
+  const handleSaveCategory = async () => {
+    const normalizedCategory = categoryDraft.trim()
+    if (!normalizedCategory) {
+      toast.error('Category name is required')
+      return
+    }
+
+    setCategoryPending(true)
+    try {
+      if (editingCategoryName) {
+        await careerService.renameDeliveryToolkitCategory(editingCategoryName, normalizedCategory)
+        toast.success(`Category renamed to "${normalizedCategory}"`)
+      } else {
+        await careerService.createDeliveryToolkitCategory(normalizedCategory)
+        toast.success(`Category "${normalizedCategory}" created`)
+      }
+
+      await refreshTaxonomySurface()
+      resetCategoryEditor()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save category')
+    } finally {
+      setCategoryPending(false)
+    }
+  }
+
+  const handleEditCategory = (category: DeliveryToolkitCategory) => {
+    setEditingCategoryName(category.name)
+    setCategoryDraft(category.name)
+  }
+
+  const handleDeleteCategory = async (category: DeliveryToolkitCategory) => {
+    setCategoryPending(true)
+    try {
+      await careerService.deleteDeliveryToolkitCategory(category.name)
+      await refreshTaxonomySurface()
+      if (editingCategoryName === category.name) {
+        resetCategoryEditor()
+      }
+      toast.success(`Category "${category.name}" deleted`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete category')
+    } finally {
+      setCategoryPending(false)
+    }
+  }
+
   const handleCreateTag = () => {
+    if (categories.length === 0) {
+      toast.error('Create a delivery toolkit category before creating the first canonical tag.')
+      return
+    }
+
     setEditingTag(null)
     setTagDialogOpen(true)
   }
@@ -186,7 +265,7 @@ export default function TaxonomyView() {
   const handleDeleteTag = async (tag: CanonicalTag) => {
     try {
       await careerService.deleteCanonicalTag(tag.tag)
-      await loadTaxonomyData()
+      await refreshTaxonomySurface()
       toast.success(`Tag "${tag.tag}" deleted`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete tag')
@@ -468,6 +547,86 @@ export default function TaxonomyView() {
         </Card>
       )}
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Delivery Toolkit Categories ({categories.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="space-y-2">
+              <Label htmlFor="taxonomy-category-name">
+                {editingCategoryName ? 'Rename Category' : 'New Category'}
+              </Label>
+              <Input
+                id="taxonomy-category-name"
+                value={categoryDraft}
+                onChange={(event) => setCategoryDraft(event.target.value)}
+                placeholder="Delivery toolkit category name"
+                disabled={categoryPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                Categories are explicit taxonomy data now. Create the first category here before you create the first canonical tag.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => void handleSaveCategory()} disabled={categoryPending}>
+                {editingCategoryName ? 'Rename Category' : 'Create Category'}
+              </Button>
+              {editingCategoryName && (
+                <Button variant="outline" onClick={resetCategoryEditor} disabled={categoryPending}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {categories.length === 0 ? (
+            <Alert>
+              <AlertDescription>
+                No delivery toolkit categories exist yet. Create one here, then create the first canonical tag.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Sort Order</TableHead>
+                  <TableHead>Tags Using</TableHead>
+                  <TableHead className="w-24">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categories.map((category) => (
+                  <TableRow key={category.name}>
+                    <TableCell>
+                      <Badge variant="secondary">{category.name}</Badge>
+                    </TableCell>
+                    <TableCell>{category.sort_order}</TableCell>
+                    <TableCell>{categoryUsageCounts.get(category.name) ?? 0}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditCategory(category)}>
+                          <Pencil />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void handleDeleteCategory(category)}
+                          disabled={categoryPending}
+                        >
+                          <Trash />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="tags" className="space-y-4">
         <TabsList>
           <TabsTrigger value="tags">Canonical Tags</TabsTrigger>
@@ -476,7 +635,7 @@ export default function TaxonomyView() {
 
         <TabsContent value="tags" className="space-y-4">
           <div className="flex justify-end">
-            <Button onClick={handleCreateTag}>
+            <Button onClick={handleCreateTag} disabled={categories.length === 0}>
               <Plus className="mr-2" />
               New Canonical Tag
             </Button>
@@ -485,7 +644,9 @@ export default function TaxonomyView() {
           {canonicalTags.length === 0 ? (
             <Alert>
               <AlertDescription>
-                No canonical tags defined. Create your first tag to get started.
+                {categories.length === 0
+                  ? 'No categories exist yet. Create your first delivery toolkit category above, then create the first canonical tag.'
+                  : 'No canonical tags defined. Create your first tag to get started.'}
               </AlertDescription>
             </Alert>
           ) : (
@@ -701,6 +862,7 @@ export default function TaxonomyView() {
         open={tagDialogOpen}
         onOpenChange={setTagDialogOpen}
         tag={editingTag}
+        draft={null}
         onSave={handleSaveTag}
       />
 

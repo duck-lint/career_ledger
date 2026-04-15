@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import TagDialog from '@/components/dialogs/TagDialog'
 import { careerService } from '@/lib/service'
 import type {
   Anomaly,
@@ -32,7 +33,17 @@ import type {
   RequirementAnalysis,
   ResumeArtifactFile,
   ResumePipelineResult,
+  TagDialogCreateDraft,
 } from '@/lib/types'
+
+function formatSuggestedDisplayLabel(term: string): string {
+  return term
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
+    .join(' ')
+}
 
 type SummaryLine = {
   label: string
@@ -261,6 +272,9 @@ export default function ResumeGenerationView() {
   const [buildPolicySaving, setBuildPolicySaving] = useState(false)
   const [buildPolicyError, setBuildPolicyError] = useState<string | null>(null)
   const [buildPolicyDraft, setBuildPolicyDraft] = useState<BuildPolicy | null>(null)
+  const [tagDialogOpen, setTagDialogOpen] = useState(false)
+  const [tagDialogDraft, setTagDialogDraft] = useState<TagDialogCreateDraft | null>(null)
+  const [showTaxonomyChangeNotice, setShowTaxonomyChangeNotice] = useState(false)
   const [resumeTab, setResumeTab] = useState('generate')
   const [detailTab, setDetailTab] = useState('preview')
 
@@ -406,6 +420,35 @@ export default function ResumeGenerationView() {
   )
 
   const analysisClusters = useMemo(() => analysisResult?.clusters ?? [], [analysisResult])
+
+  const handleOpenSuggestedTermDraft = (term: string) => {
+    const trimmedTerm = term.trim()
+    if (!trimmedTerm) {
+      return
+    }
+
+    setTagDialogDraft({
+      tagValue: careerService.normalizeTag(trimmedTerm),
+      description: '',
+      displayLabel: formatSuggestedDisplayLabel(trimmedTerm),
+      categoryName: null,
+    })
+    setTagDialogOpen(true)
+  }
+
+  const handleTagDialogOpenChange = (open: boolean) => {
+    setTagDialogOpen(open)
+    if (!open) {
+      setTagDialogDraft(null)
+    }
+  }
+
+  const handleSuggestedTermSaved = async () => {
+    setTagDialogOpen(false)
+    setTagDialogDraft(null)
+    setShowTaxonomyChangeNotice(true)
+    await handleAnalyzePosting()
+  }
 
   const pipelineSummaryCards = useMemo(() => {
     if (!pipelineResult) {
@@ -881,6 +924,14 @@ export default function ResumeGenerationView() {
                 </Alert>
               ) : (
                 <>
+                  {showTaxonomyChangeNotice && (
+                    <Alert>
+                      <AlertDescription>
+                        Resume just changed the taxonomy. Existing library evidence tags and record context tags stay as-is until you run Taxonomy &gt; Re-infer Library Tags.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
                     {analysisSummaryCards.map((card) => (
                       <SummaryCard key={card.title} title={card.title} lines={card.lines} />
@@ -891,7 +942,7 @@ export default function ResumeGenerationView() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Suggested Taxonomy Terms</CardTitle>
                       <CardDescription>
-                        Repeated posting terms that are not already recognized by the current taxonomy.
+                        Repeated posting terms that are not already recognized by the current taxonomy. Click one to open a prefilled tag draft.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -904,12 +955,19 @@ export default function ResumeGenerationView() {
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {suggestedTerms.map((term) => (
-                            <Badge key={term.term} variant="secondary" className="gap-2">
+                            <Button
+                              key={term.term}
+                              type="button"
+                              variant="secondary"
+                              className="h-auto gap-2 px-3 py-2"
+                              onClick={() => handleOpenSuggestedTermDraft(term.term)}
+                              disabled={isAnalyzing || isSubmitting}
+                            >
                               <span className="mono">{term.term}</span>
                               <span className="text-[10px] text-muted-foreground">
                                 x{term.count}
                               </span>
-                            </Badge>
+                            </Button>
                           ))}
                         </div>
                       )}
@@ -1784,6 +1842,14 @@ export default function ResumeGenerationView() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <TagDialog
+        open={tagDialogOpen}
+        onOpenChange={handleTagDialogOpenChange}
+        tag={null}
+        draft={tagDialogDraft}
+        onSave={handleSuggestedTermSaved}
+      />
     </div>
   )
 }

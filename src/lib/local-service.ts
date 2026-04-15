@@ -39,6 +39,7 @@ import type {
 const RECORDS_KEY = 'career-ledger-records'
 const EVIDENCE_KEY = 'career-ledger-evidence'
 const CANONICAL_TAGS_KEY = 'career-ledger-canonical-tags'
+const DELIVERY_TOOLKIT_CATEGORIES_KEY = 'career-ledger-delivery-toolkit-categories'
 const TAG_INFERENCE_MARKERS_KEY = 'career-ledger-tag-inference-markers'
 const CANDIDATE_PROFILE_KEY = 'career-ledger-candidate-profile'
 const ANOMALIES_KEY = 'career-ledger-anomalies'
@@ -46,15 +47,6 @@ const GENERATION_MANIFESTS_KEY = 'career-ledger-generation-manifests'
 const INIT_KEY = 'career-ledger-initialized'
 const EXPORT_SCHEMA_VERSION = '2.0'
 const OPEN_ENDED_DATE_MARKERS = new Set(['present', 'current', 'ongoing', 'now'])
-
-const DEFAULT_DELIVERY_TOOLKIT_CATEGORIES: DeliveryToolkitCategory[] = [
-  { name: 'Data & Storage', sort_order: 100 },
-  { name: 'HR Systems', sort_order: 200 },
-  { name: 'Delivery & Operations', sort_order: 300 },
-  { name: 'Reporting & Analytics', sort_order: 400 },
-  { name: 'Knowledge & Enablement', sort_order: 500 },
-  { name: 'Technical Foundations', sort_order: 600 },
-]
 
 function kvGet<T>(key: string): T | null {
   const raw = localStorage.getItem(key)
@@ -69,25 +61,47 @@ function kvDelete(key: string): void {
   localStorage.removeItem(key)
 }
 
-function getDeliveryToolkitCategoriesFromTags(
+function sortDeliveryToolkitCategories(
+  categories: DeliveryToolkitCategory[]
+): DeliveryToolkitCategory[] {
+  return [...categories].sort(
+    (left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name)
+  )
+}
+
+function deriveStoredDeliveryToolkitCategories(
   tagsObj: Record<string, CanonicalTag>
 ): DeliveryToolkitCategory[] {
-  const categoryOrder = new Map(
-    DEFAULT_DELIVERY_TOOLKIT_CATEGORIES.map((category) => [category.name, category.sort_order])
+  const seen = new Set<string>()
+  let nextSortOrder = 100
+
+  return sortDeliveryToolkitCategories(
+    Object.values(tagsObj)
+      .map((tag) => normalizeOptionalValue(tag.category))
+      .filter((category): category is string => Boolean(category))
+      .filter((category) => {
+        if (seen.has(category)) {
+          return false
+        }
+        seen.add(category)
+        return true
+      })
+      .map((name) => {
+        const category = { name, sort_order: nextSortOrder }
+        nextSortOrder += 100
+        return category
+      })
   )
+}
 
-  let nextSortOrder = 1000
-  Object.values(tagsObj).forEach((tag) => {
-    const category = tag.category?.trim()
-    if (category && !categoryOrder.has(category)) {
-      categoryOrder.set(category, nextSortOrder)
-      nextSortOrder += 100
-    }
-  })
+function getStoredDeliveryToolkitCategories(): DeliveryToolkitCategory[] {
+  return sortDeliveryToolkitCategories(
+    kvGet<DeliveryToolkitCategory[]>(DELIVERY_TOOLKIT_CATEGORIES_KEY) ?? []
+  )
+}
 
-  return Array.from(categoryOrder.entries())
-    .map(([name, sort_order]) => ({ name, sort_order }))
-    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+function saveStoredDeliveryToolkitCategories(categories: DeliveryToolkitCategory[]): void {
+  kvSet(DELIVERY_TOOLKIT_CATEGORIES_KEY, sortDeliveryToolkitCategories(categories))
 }
 
 function dedupePreserve(values: string[]): string[] {
@@ -444,6 +458,9 @@ class LocalCareerService implements CareerService {
     }
 
     const canonicalTagsObj = kvGet<Record<string, CanonicalTag>>(CANONICAL_TAGS_KEY) ?? {}
+    if (!kvGet<DeliveryToolkitCategory[]>(DELIVERY_TOOLKIT_CATEGORIES_KEY)) {
+      saveStoredDeliveryToolkitCategories(deriveStoredDeliveryToolkitCategories(canonicalTagsObj))
+    }
     if (!kvGet<Record<string, TagInferenceMarker[]>>(TAG_INFERENCE_MARKERS_KEY)) {
       kvSet(TAG_INFERENCE_MARKERS_KEY, buildDefaultTagInferenceMarkerMap(canonicalTagsObj))
     }
@@ -658,8 +675,10 @@ class LocalCareerService implements CareerService {
     ]
 
     const canonicalTags: Record<string, CanonicalTag> = {}
+    const categoryNames = new Set<string>()
     canonicalTagsData.forEach(({ tag, description, category, displayLabel }) => {
       const id = crypto.randomUUID()
+      categoryNames.add(category)
       canonicalTags[tag] = {
         id,
         tag,
@@ -670,6 +689,12 @@ class LocalCareerService implements CareerService {
       }
     })
     kvSet(CANONICAL_TAGS_KEY, canonicalTags)
+    saveStoredDeliveryToolkitCategories(
+      Array.from(categoryNames).map((name, index) => ({
+        name,
+        sort_order: (index + 1) * 100,
+      }))
+    )
 
     const record1: ExperienceRecord = {
       id: '019d2d28-c7c0-71bc-8f73-476d572a33e0',
@@ -1229,8 +1254,101 @@ class LocalCareerService implements CareerService {
   }
 
   async getDeliveryToolkitCategories(): Promise<DeliveryToolkitCategory[]> {
+    return getStoredDeliveryToolkitCategories()
+  }
+
+  async createDeliveryToolkitCategory(name: string): Promise<DeliveryToolkitCategory> {
+    const normalizedName = name.trim()
+    if (!normalizedName) {
+      throw new Error('Category name is required')
+    }
+
+    const categories = getStoredDeliveryToolkitCategories()
+    if (categories.some((category) => category.name === normalizedName)) {
+      throw new Error(`Category "${normalizedName}" already exists`)
+    }
+
+    const nextSortOrder =
+      categories.reduce((max, category) => Math.max(max, category.sort_order), 0) + 100
+    const createdCategory = {
+      name: normalizedName,
+      sort_order: nextSortOrder,
+    }
+
+    saveStoredDeliveryToolkitCategories([...categories, createdCategory])
+    return createdCategory
+  }
+
+  async renameDeliveryToolkitCategory(
+    currentName: string,
+    nextName: string,
+  ): Promise<DeliveryToolkitCategory> {
+    const normalizedCurrentName = currentName.trim()
+    const normalizedNextName = nextName.trim()
+    if (!normalizedCurrentName) {
+      throw new Error('Current category name is required')
+    }
+    if (!normalizedNextName) {
+      throw new Error('Category name is required')
+    }
+
+    const categories = getStoredDeliveryToolkitCategories()
+    const existingCategory = categories.find((category) => category.name === normalizedCurrentName)
+    if (!existingCategory) {
+      throw new Error(`Category "${normalizedCurrentName}" not found`)
+    }
+    if (
+      normalizedCurrentName !== normalizedNextName &&
+      categories.some((category) => category.name === normalizedNextName)
+    ) {
+      throw new Error(`Category "${normalizedNextName}" already exists`)
+    }
+
+    const updatedCategories = categories.map((category) =>
+      category.name === normalizedCurrentName
+        ? { ...category, name: normalizedNextName }
+        : category
+    )
+    saveStoredDeliveryToolkitCategories(updatedCategories)
+
     const tagsObj = kvGet<Record<string, CanonicalTag>>(CANONICAL_TAGS_KEY) ?? {}
-    return getDeliveryToolkitCategoriesFromTags(tagsObj)
+    Object.values(tagsObj).forEach((tag) => {
+      if (tag.category === normalizedCurrentName) {
+        tag.category = normalizedNextName
+      }
+    })
+    kvSet(CANONICAL_TAGS_KEY, tagsObj)
+
+    return {
+      ...existingCategory,
+      name: normalizedNextName,
+    }
+  }
+
+  async deleteDeliveryToolkitCategory(name: string): Promise<void> {
+    const normalizedName = name.trim()
+    if (!normalizedName) {
+      throw new Error('Category name is required')
+    }
+
+    const categories = getStoredDeliveryToolkitCategories()
+    if (!categories.some((category) => category.name === normalizedName)) {
+      throw new Error(`Category "${normalizedName}" not found`)
+    }
+
+    const tagsObj = kvGet<Record<string, CanonicalTag>>(CANONICAL_TAGS_KEY) ?? {}
+    const tagsUsingCategory = Object.values(tagsObj).filter(
+      (tag) => tag.category === normalizedName
+    ).length
+    if (tagsUsingCategory > 0) {
+      throw new Error(
+        `Cannot delete category in use by ${tagsUsingCategory} canonical tag(s)`
+      )
+    }
+
+    saveStoredDeliveryToolkitCategories(
+      categories.filter((category) => category.name !== normalizedName)
+    )
   }
 
   async importTaxonomy(_path: string): Promise<TaxonomyImportResult> {
@@ -1274,6 +1392,11 @@ class LocalCareerService implements CareerService {
 
     if (!normalizedCategory) {
       throw new Error('Category is required')
+    }
+
+    const categories = getStoredDeliveryToolkitCategories()
+    if (!categories.some((item) => item.name === normalizedCategory)) {
+      throw new Error(`Category "${normalizedCategory}" does not exist`)
     }
 
     if (!normalizedDisplayLabel) {
@@ -1329,6 +1452,11 @@ class LocalCareerService implements CareerService {
 
     if (!normalizedCategory) {
       throw new Error('Category is required')
+    }
+
+    const categories = getStoredDeliveryToolkitCategories()
+    if (!categories.some((item) => item.name === normalizedCategory)) {
+      throw new Error(`Category "${normalizedCategory}" does not exist`)
     }
 
     if (!normalizedDisplayLabel) {
@@ -1459,6 +1587,7 @@ class LocalCareerService implements CareerService {
     kvDelete(RECORDS_KEY)
     kvDelete(EVIDENCE_KEY)
     kvDelete(CANONICAL_TAGS_KEY)
+    kvDelete(DELIVERY_TOOLKIT_CATEGORIES_KEY)
     kvDelete(TAG_INFERENCE_MARKERS_KEY)
     kvDelete(CANDIDATE_PROFILE_KEY)
     kvDelete(ANOMALIES_KEY)

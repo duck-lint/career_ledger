@@ -237,6 +237,21 @@ class TauriCareerService implements CareerService {
     return invoke('get_delivery_toolkit_categories')
   }
 
+  async createDeliveryToolkitCategory(name: string): Promise<DeliveryToolkitCategory> {
+    return invoke('create_delivery_toolkit_category', { name })
+  }
+
+  async renameDeliveryToolkitCategory(
+    currentName: string,
+    nextName: string,
+  ): Promise<DeliveryToolkitCategory> {
+    return invoke('rename_delivery_toolkit_category', { currentName, nextName })
+  }
+
+  async deleteDeliveryToolkitCategory(name: string): Promise<void> {
+    return invoke('delete_delivery_toolkit_category', { name })
+  }
+
   async importTaxonomy(path: string): Promise<TaxonomyImportResult> {
     return invoke('import_taxonomy', { taxonomyPath: path })
   }

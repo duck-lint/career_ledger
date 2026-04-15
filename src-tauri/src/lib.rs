@@ -1162,6 +1162,37 @@ fn get_delivery_toolkit_categories(
 }
 
 #[tauri::command]
+fn create_delivery_toolkit_category(
+    state: tauri::State<DbState>,
+    name: String,
+) -> Result<DeliveryToolkitCategory, String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    taxonomy::create_delivery_toolkit_category(conn, name)
+}
+
+#[tauri::command]
+fn rename_delivery_toolkit_category(
+    state: tauri::State<DbState>,
+    current_name: String,
+    next_name: String,
+) -> Result<DeliveryToolkitCategory, String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    taxonomy::rename_delivery_toolkit_category(conn, current_name, next_name)
+}
+
+#[tauri::command]
+fn delete_delivery_toolkit_category(
+    state: tauri::State<DbState>,
+    name: String,
+) -> Result<(), String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    taxonomy::delete_delivery_toolkit_category(conn, name)
+}
+
+#[tauri::command]
 fn import_taxonomy(
     state: tauri::State<DbState>,
     taxonomy_path: String,
@@ -1308,6 +1339,9 @@ pub fn run() {
             update_canonical_tag,
             delete_canonical_tag,
             get_delivery_toolkit_categories,
+            create_delivery_toolkit_category,
+            rename_delivery_toolkit_category,
+            delete_delivery_toolkit_category,
             import_taxonomy,
             export_taxonomy,
             reset_taxonomy_to_starter,

@@ -186,6 +186,40 @@
     "workforce_analytics",
     "yaml"
   ],
+  "delivery_toolkit_categories": [
+    {
+      "name": "Systems & Platforms",
+      "sort_order": 0
+    },
+    {
+      "name": "Implementation & Delivery",
+      "sort_order": 1
+    },
+    {
+      "name": "Testing & Quality",
+      "sort_order": 2
+    },
+    {
+      "name": "Training & Documentation",
+      "sort_order": 3
+    },
+    {
+      "name": "Interpersonal & Leadership",
+      "sort_order": 4
+    },
+    {
+      "name": "Reporting & Analytics",
+      "sort_order": 5
+    },
+    {
+      "name": "Technical Skills & Programming Languages",
+      "sort_order": 6
+    },
+    {
+      "name": "Education & Certifications",
+      "sort_order": 7
+    }
+  ],
   "tag_inference_markers": {
     "analysis": [
       "structured analysis",

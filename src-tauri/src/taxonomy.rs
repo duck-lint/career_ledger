@@ -11,17 +11,6 @@ use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-const DEFAULT_DELIVERY_TOOLKIT_CATEGORY_ORDER: [&str; 8] = [
-    "Systems & Platforms",
-    "Implementation & Delivery",
-    "Testing & Quality",
-    "Training & Documentation",
-    "Interpersonal & Leadership",
-    "Reporting & Analytics",
-    "Technical Skills & Programming Languages",
-    "Education & Certifications",
-];
-
 const CANONICAL_TAG_SELECT: &str = "
     SELECT ct.id, ct.tag, ct.description, dtm.category_name, dtm.display_label, ct.created_at
     FROM canonical_tags ct
@@ -127,9 +116,17 @@ struct TaxonomySeed {
     version: Option<String>,
     canonical_tags: Vec<String>,
     #[serde(default)]
+    delivery_toolkit_categories: Vec<DeliveryToolkitCategorySeed>,
+    #[serde(default)]
     delivery_toolkit_metadata: BTreeMap<String, DeliveryToolkitMetadataSeed>,
     #[serde(default)]
     tag_inference_markers: BTreeMap<String, Vec<MarkerSeed>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct DeliveryToolkitCategorySeed {
+    name: String,
+    sort_order: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -428,33 +425,49 @@ fn normalize_canonical_tags(seed: &TaxonomySeed) -> Result<Vec<String>, String> 
     Ok(normalized)
 }
 
-fn load_category_rows(seed: &TaxonomySeed) -> Result<Vec<(String, i64)>, String> {
+fn normalize_delivery_toolkit_categories(
+    seed: &TaxonomySeed,
+) -> Result<Vec<DeliveryToolkitCategory>, String> {
     let mut categories = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen_names = HashSet::new();
+    let mut seen_sort_orders = HashSet::new();
 
-    for (index, category) in DEFAULT_DELIVERY_TOOLKIT_CATEGORY_ORDER.iter().enumerate() {
-        categories.push((category.to_string(), index as i64));
-        seen.insert(category.to_string());
-    }
-
-    let mut extras = BTreeSet::new();
-    for entry in seed.delivery_toolkit_metadata.values() {
-        let category = normalize_required_text(
-            Some(entry.category.as_str()),
-            "delivery_toolkit_metadata.category",
+    for entry in &seed.delivery_toolkit_categories {
+        let name = normalize_required_text(
+            Some(entry.name.as_str()),
+            "delivery_toolkit_categories.name",
         )?;
-        if !seen.contains(&category) {
-            extras.insert(category);
+
+        if !seen_names.insert(name.clone()) {
+            return Err(format!(
+                "delivery_toolkit_categories contains duplicate category {name:?}."
+            ));
         }
+
+        if entry.sort_order < 0 {
+            return Err(format!(
+                "delivery_toolkit_categories sort_order for {name:?} must be non-negative."
+            ));
+        }
+
+        if !seen_sort_orders.insert(entry.sort_order) {
+            return Err(format!(
+                "delivery_toolkit_categories contains duplicate sort_order {:?}.",
+                entry.sort_order
+            ));
+        }
+
+        categories.push(DeliveryToolkitCategory {
+            name,
+            sort_order: entry.sort_order,
+        });
     }
 
-    let mut next_index = categories.len() as i64;
-    for category in extras {
-        categories.push((category.clone(), next_index));
-        seen.insert(category);
-        next_index += 1;
-    }
-
+    categories.sort_by(|left, right| {
+        left.sort_order
+            .cmp(&right.sort_order)
+            .then_with(|| left.name.cmp(&right.name))
+    });
     Ok(categories)
 }
 
@@ -463,6 +476,11 @@ fn seed_taxonomy_contents_from_seed(conn: &Connection, seed: &TaxonomySeed) -> R
         normalize_optional_text(seed.version.as_deref()).unwrap_or_else(|| "2.0".to_string());
     let canonical_tags = normalize_canonical_tags(seed)?;
     let canonical_tag_set: HashSet<String> = canonical_tags.iter().cloned().collect();
+    let delivery_toolkit_categories = normalize_delivery_toolkit_categories(seed)?;
+    let delivery_toolkit_category_set: HashSet<String> = delivery_toolkit_categories
+        .iter()
+        .map(|category| category.name.clone())
+        .collect();
 
     for tag in &canonical_tags {
         conn.execute(
@@ -472,11 +490,10 @@ fn seed_taxonomy_contents_from_seed(conn: &Connection, seed: &TaxonomySeed) -> R
         .map_err(|e| e.to_string())?;
     }
 
-    let category_rows = load_category_rows(seed)?;
-    for (category, sort_order) in category_rows {
+    for category in &delivery_toolkit_categories {
         conn.execute(
             "INSERT INTO delivery_toolkit_categories (name, sort_order) VALUES (?1, ?2)",
-            params![category, sort_order],
+            params![category.name, category.sort_order],
         )
         .map_err(|e| e.to_string())?;
     }
@@ -510,6 +527,11 @@ fn seed_taxonomy_contents_from_seed(conn: &Connection, seed: &TaxonomySeed) -> R
             Some(entry.category.as_str()),
             "delivery_toolkit_metadata.category",
         )?;
+        if !delivery_toolkit_category_set.contains(&category) {
+            return Err(format!(
+                "delivery_toolkit_metadata for canonical tag {canonical_tag:?} references unknown category {category:?}."
+            ));
+        }
         let display_label = normalize_required_text(
             Some(entry.display_label.as_str()),
             "delivery_toolkit_metadata.display_label",
@@ -635,6 +657,13 @@ fn export_runtime_taxonomy_document(conn: &Connection) -> Result<TaxonomySeed, S
     ensure_runtime_taxonomy_seeded(conn)?;
 
     let version = Some(get_runtime_taxonomy_version(conn)?);
+    let delivery_toolkit_categories = get_delivery_toolkit_categories(conn)?
+        .into_iter()
+        .map(|category| DeliveryToolkitCategorySeed {
+            name: category.name,
+            sort_order: category.sort_order,
+        })
+        .collect::<Vec<_>>();
     let canonical_tags = get_canonical_tags(conn)?;
     let all_markers = get_all_tag_inference_markers(conn)?;
     let mut tag_inference_markers = BTreeMap::new();
@@ -703,6 +732,7 @@ fn export_runtime_taxonomy_document(conn: &Connection) -> Result<TaxonomySeed, S
     Ok(TaxonomySeed {
         version,
         canonical_tags: canonical_tag_names,
+        delivery_toolkit_categories,
         delivery_toolkit_metadata,
         tag_inference_markers,
     })
@@ -1104,6 +1134,121 @@ pub fn get_delivery_toolkit_categories(
         .map_err(|e| e.to_string())
 }
 
+fn query_delivery_toolkit_category(
+    conn: &Connection,
+    name: &str,
+) -> Result<Option<DeliveryToolkitCategory>, String> {
+    conn.query_row(
+        "SELECT name, sort_order FROM delivery_toolkit_categories WHERE name = ?1 LIMIT 1",
+        params![name],
+        |row| {
+            Ok(DeliveryToolkitCategory {
+                name: row.get(0)?,
+                sort_order: row.get(1)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+fn next_delivery_toolkit_category_sort_order(conn: &Connection) -> Result<i64, String> {
+    let max_sort_order = conn
+        .query_row(
+            "SELECT COALESCE(MAX(sort_order), 0) FROM delivery_toolkit_categories",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(max_sort_order + 100)
+}
+
+fn count_tags_using_category(conn: &Connection, name: &str) -> Result<i64, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM delivery_toolkit_metadata WHERE category_name = ?1",
+        params![name],
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+pub fn create_delivery_toolkit_category(
+    conn: &Connection,
+    name: String,
+) -> Result<DeliveryToolkitCategory, String> {
+    let normalized_name = normalize_required_text(Some(name.as_str()), "category")?;
+    if query_delivery_toolkit_category(conn, &normalized_name)?.is_some() {
+        return Err(format!("Category {normalized_name:?} already exists"));
+    }
+
+    let sort_order = next_delivery_toolkit_category_sort_order(conn)?;
+    conn.execute(
+        "INSERT INTO delivery_toolkit_categories (name, sort_order) VALUES (?1, ?2)",
+        params![normalized_name, sort_order],
+    )
+    .map_err(|e| e.to_string())?;
+
+    query_delivery_toolkit_category(conn, &normalized_name)?.ok_or_else(|| {
+        format!("Delivery toolkit category {normalized_name:?} not found after create.")
+    })
+}
+
+pub fn rename_delivery_toolkit_category(
+    conn: &Connection,
+    current_name: String,
+    next_name: String,
+) -> Result<DeliveryToolkitCategory, String> {
+    let normalized_current_name =
+        normalize_required_text(Some(current_name.as_str()), "current_category")?;
+    let normalized_next_name = normalize_required_text(Some(next_name.as_str()), "category")?;
+
+    if query_delivery_toolkit_category(conn, &normalized_current_name)?.is_none() {
+        return Err(format!(
+            "Delivery toolkit category {normalized_current_name:?} not found"
+        ));
+    }
+    if normalized_current_name != normalized_next_name
+        && query_delivery_toolkit_category(conn, &normalized_next_name)?.is_some()
+    {
+        return Err(format!("Category {normalized_next_name:?} already exists"));
+    }
+
+    conn.execute(
+        "UPDATE delivery_toolkit_categories SET name = ?1 WHERE name = ?2",
+        params![normalized_next_name, normalized_current_name],
+    )
+    .map_err(|e| e.to_string())?;
+
+    query_delivery_toolkit_category(conn, &normalized_next_name)?.ok_or_else(|| {
+        format!(
+            "Delivery toolkit category {normalized_next_name:?} not found after rename."
+        )
+    })
+}
+
+pub fn delete_delivery_toolkit_category(conn: &Connection, name: String) -> Result<(), String> {
+    let normalized_name = normalize_required_text(Some(name.as_str()), "category")?;
+    if query_delivery_toolkit_category(conn, &normalized_name)?.is_none() {
+        return Err(format!(
+            "Delivery toolkit category {normalized_name:?} not found"
+        ));
+    }
+
+    let tags_using_category = count_tags_using_category(conn, &normalized_name)?;
+    if tags_using_category > 0 {
+        return Err(format!(
+            "Cannot delete category in use by {tags_using_category} canonical tag(s)"
+        ));
+    }
+
+    conn.execute(
+        "DELETE FROM delivery_toolkit_categories WHERE name = ?1",
+        params![normalized_name],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn query_marker_terms(
     conn: &Connection,
     marker_id: &str,
@@ -1289,15 +1434,7 @@ pub fn replace_tag_inference_markers(
     get_tag_inference_markers(conn, &normalized_tag)
 }
 fn ensure_category_exists(conn: &Connection, category: &str) -> Result<(), String> {
-    let exists = conn
-        .query_row(
-            "SELECT 1 FROM delivery_toolkit_categories WHERE name = ?1 LIMIT 1",
-            params![category],
-            |_| Ok(()),
-        )
-        .optional()
-        .map_err(|e| e.to_string())?;
-    if exists.is_none() {
+    if query_delivery_toolkit_category(conn, category)?.is_none() {
         return Err(format!(
             "Delivery toolkit category {category:?} does not exist."
         ));
@@ -1747,6 +1884,103 @@ mod tests {
             result.unknown_candidate_profile_signal_tags,
             vec!["unknown_custom_tag".to_string()]
         );
+    }
+
+    #[test]
+    fn category_crud_is_user_owned_and_delete_is_blocked_while_in_use() {
+        let conn = setup_conn();
+        let empty_seed = parse_taxonomy_json_str(
+            r#"{
+  "version": "1.0",
+  "canonical_tags": [],
+  "delivery_toolkit_categories": [],
+  "tag_inference_markers": {},
+  "delivery_toolkit_metadata": {}
+}"#,
+        )
+        .unwrap();
+        import_taxonomy_seed_inner(&conn, &empty_seed).unwrap();
+
+        let created =
+            create_delivery_toolkit_category(&conn, "Field Operations".to_string()).unwrap();
+        assert_eq!(created.name, "Field Operations");
+        assert!(get_delivery_toolkit_categories(&conn)
+            .unwrap()
+            .iter()
+            .any(|category| category.name == "Field Operations"));
+
+        create_canonical_tag(
+            &conn,
+            "field_enablement".to_string(),
+            None,
+            "Field Operations".to_string(),
+            "Field Enablement".to_string(),
+        )
+        .unwrap();
+
+        let renamed = rename_delivery_toolkit_category(
+            &conn,
+            "Field Operations".to_string(),
+            "Field Delivery".to_string(),
+        )
+        .unwrap();
+        assert_eq!(renamed.name, "Field Delivery");
+        assert_eq!(
+            get_canonical_tag(&conn, "field_enablement")
+                .unwrap()
+                .unwrap()
+                .category,
+            Some("Field Delivery".to_string())
+        );
+
+        let delete_error = delete_delivery_toolkit_category(&conn, "Field Delivery".to_string())
+            .unwrap_err();
+        assert!(delete_error.contains("Cannot delete category in use"));
+
+        delete_canonical_tag(&conn, "field_enablement".to_string()).unwrap();
+        delete_delivery_toolkit_category(&conn, "Field Delivery".to_string()).unwrap();
+        assert!(get_delivery_toolkit_categories(&conn)
+            .unwrap()
+            .iter()
+            .all(|category| category.name != "Field Delivery"));
+    }
+
+    #[test]
+    fn empty_taxonomy_import_keeps_categories_empty() {
+        let conn = setup_conn();
+        let empty_seed = parse_taxonomy_json_str(
+            r#"{
+  "version": "1.0",
+  "canonical_tags": [],
+  "delivery_toolkit_categories": [],
+  "tag_inference_markers": {},
+  "delivery_toolkit_metadata": {}
+}"#,
+        )
+        .unwrap();
+
+        let result = import_taxonomy_seed_inner(&conn, &empty_seed).unwrap();
+        assert_eq!(result.imported_taxonomy_version, "1.0");
+        assert!(get_canonical_tags(&conn).unwrap().is_empty());
+        assert!(get_delivery_toolkit_categories(&conn).unwrap().is_empty());
+        assert_eq!(get_runtime_taxonomy_version(&conn).unwrap(), "1.0");
+    }
+
+    #[test]
+    fn taxonomy_export_includes_explicit_category_rows() {
+        let conn = setup_conn();
+        ensure_runtime_taxonomy_seeded(&conn).unwrap();
+
+        let exported = export_runtime_taxonomy_document(&conn).unwrap();
+        assert!(!exported.delivery_toolkit_categories.is_empty());
+        assert!(exported
+            .delivery_toolkit_categories
+            .iter()
+            .all(|category| category.sort_order >= 0));
+        assert!(exported.delivery_toolkit_metadata.values().all(|metadata| exported
+            .delivery_toolkit_categories
+            .iter()
+            .any(|category| category.name == metadata.category)));
     }
 
     #[test]

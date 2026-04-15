@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { careerService } from '@/lib/service'
-import type { CanonicalTag, DeliveryToolkitCategory } from '@/lib/types'
+import type {
+  CanonicalTag,
+  DeliveryToolkitCategory,
+  TagDialogCreateDraft,
+} from '@/lib/types'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
 import { Warning } from '@phosphor-icons/react/dist/icons/Warning'
 
@@ -28,10 +33,11 @@ type TagDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   tag: CanonicalTag | null
+  draft?: TagDialogCreateDraft | null
   onSave: () => Promise<void> | void
 }
 
-export default function TagDialog({ open, onOpenChange, tag, onSave }: TagDialogProps) {
+export default function TagDialog({ open, onOpenChange, tag, draft = null, onSave }: TagDialogProps) {
   const [tagValue, setTagValue] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
@@ -74,6 +80,12 @@ export default function TagDialog({ open, onOpenChange, tag, onSave }: TagDialog
       setCategory(tag.category || '')
       setDisplayLabel(tag.display_label || '')
       setNormalizedPreview(tag.tag)
+    } else if (draft) {
+      setTagValue(draft.tagValue)
+      setDescription(draft.description)
+      setCategory(draft.categoryName ?? '')
+      setDisplayLabel(draft.displayLabel)
+      setNormalizedPreview(careerService.normalizeTag(draft.tagValue))
     } else {
       setTagValue('')
       setDescription('')
@@ -82,13 +94,27 @@ export default function TagDialog({ open, onOpenChange, tag, onSave }: TagDialog
       setNormalizedPreview('')
     }
     setErrors({})
-  }, [tag, open])
+  }, [tag, draft, open])
 
   useEffect(() => {
-    if (open && !tag && !category && categories.length > 0) {
-      setCategory(categories[0].name)
+    if (!open || tag || categories.length === 0) {
+      return
     }
-  }, [open, tag, category, categories])
+
+    const currentCategoryExists = categories.some((item) => item.name === category)
+    if (currentCategoryExists) {
+      return
+    }
+
+    const draftCategory = draft?.categoryName?.trim() ?? ''
+    const nextCategory = categories.some((item) => item.name === draftCategory)
+      ? draftCategory
+      : categories[0].name
+
+    if (nextCategory) {
+      setCategory(nextCategory)
+    }
+  }, [open, tag, draft, category, categories])
 
   useEffect(() => {
     if (tagValue) {
@@ -106,7 +132,9 @@ export default function TagDialog({ open, onOpenChange, tag, onSave }: TagDialog
       newErrors.tag = 'Tag is required'
     }
 
-    if (!category) {
+    if (categories.length === 0) {
+      newErrors.category = 'Create a delivery toolkit category in Taxonomy before creating tags'
+    } else if (!category) {
       newErrors.category = 'Category is required'
     }
 
@@ -211,18 +239,29 @@ export default function TagDialog({ open, onOpenChange, tag, onSave }: TagDialog
               <Label htmlFor="category">
                 Delivery Toolkit Category <span className="text-destructive">*</span>
               </Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger id="category" className={errors.category ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((item) => (
-                    <SelectItem key={item.name} value={item.name}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {categories.length === 0 ? (
+                <Alert>
+                  <AlertDescription>
+                    No categories exist yet. Create the first delivery toolkit category in Taxonomy before you create a tag here.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger id="category" className={errors.category ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((item) => (
+                      <SelectItem key={item.name} value={item.name}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Categories are managed from Taxonomy and reused here.
+              </p>
               {errors.category && (
                 <p className="text-sm text-destructive flex items-center gap-1">
                   <Warning className="h-3 w-3" />
@@ -256,7 +295,9 @@ export default function TagDialog({ open, onOpenChange, tag, onSave }: TagDialog
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>{tag ? 'Update' : 'Create'}</Button>
+          <Button onClick={handleSave} disabled={!tag && categories.length === 0}>
+            {tag ? 'Update' : 'Create'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
