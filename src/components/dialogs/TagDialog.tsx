@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
-import { AlertTriangle as Warning } from 'lucide-react'
+import { AlertTriangle as Warning, Plus } from 'lucide-react'
 
 type TagDialogProps = {
   open: boolean
@@ -61,6 +61,8 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
   const [markersExpanded, setMarkersExpanded] = useState(false)
   const [markersLoading, setMarkersLoading] = useState(false)
   const [categories, setCategories] = useState<DeliveryToolkitCategory[]>([])
+  const [creatingCategory, setCreatingCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [normalizedPreview, setNormalizedPreview] = useState('')
 
@@ -129,6 +131,8 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
     }
 
     setMarkersExpanded(false)
+    setCreatingCategory(false)
+    setNewCategoryName('')
     setErrors({})
   }, [tag, draft, open])
 
@@ -217,6 +221,20 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
     } else {
       setMarkerBaseline(nextDefaults)
       setMarkerSyncMode('auto')
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim()
+    if (!name) return
+    try {
+      const created = await careerService.createDeliveryToolkitCategory(name)
+      setCategories((prev) => [...prev, created])
+      setCategory(created.name)
+      setCreatingCategory(false)
+      setNewCategoryName('')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create category')
     }
   }
 
@@ -361,29 +379,69 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
               <Label htmlFor="category">
                 Delivery Toolkit Category <span className="text-destructive">*</span>
               </Label>
-              {categories.length === 0 ? (
-                <Alert>
-                  <AlertDescription>
-                    No categories exist yet. Create the first delivery toolkit category in Taxonomy before you create a tag here.
-                  </AlertDescription>
-                </Alert>
+              {creatingCategory || categories.length === 0 ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder={categories.length === 0 ? 'First category name' : 'New category name'}
+                    className={errors.category ? 'border-destructive' : ''}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        void handleCreateCategory()
+                      } else if (e.key === 'Escape' && categories.length > 0) {
+                        setCreatingCategory(false)
+                        setNewCategoryName('')
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void handleCreateCategory()}
+                    disabled={!newCategoryName.trim()}
+                  >
+                    Add
+                  </Button>
+                  {categories.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setCreatingCategory(false); setNewCategoryName('') }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
               ) : (
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger id="category" className={errors.category ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((item) => (
-                      <SelectItem key={item.name} value={item.name}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger id="category" className={errors.category ? 'border-destructive' : ''}>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((item) => (
+                        <SelectItem key={item.name} value={item.name}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setCreatingCategory(true)}
+                    title="New category"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Categories are managed from Taxonomy and reused here.
-              </p>
               {errors.category && (
                 <p className="text-sm text-destructive flex items-center gap-1">
                   <Warning className="h-3 w-3" />

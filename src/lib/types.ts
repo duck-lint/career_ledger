@@ -714,6 +714,7 @@ export interface CareerService {
   importTaxonomy(path: string): Promise<TaxonomyImportResult>
   exportTaxonomy(path: string): Promise<string>
   resetTaxonomyToStarter(): Promise<TaxonomyImportResult>
+  clearTaxonomy(): Promise<TaxonomyImportResult>
   getLibraryTagSyncStatus(): Promise<LibraryTagSyncStatus>
   reInferLibraryTags(): Promise<LibraryTagRefreshResult>
   createCanonicalTag(

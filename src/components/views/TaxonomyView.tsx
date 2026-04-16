@@ -68,7 +68,7 @@ export default function TaxonomyView() {
   const [libraryTagRefreshPending, setLibraryTagRefreshPending] = useState(false)
   const [confirmState, setConfirmState] = useState<
     | { kind: 'import'; path: string }
-    | { kind: 'reset' }
+    | { kind: 'clear' }
     | null
   >(null)
   const [tagPendingDelete, setTagPendingDelete] = useState<CanonicalTag | null>(null)
@@ -200,11 +200,6 @@ export default function TaxonomyView() {
   }
 
   const handleCreateTag = () => {
-    if (categories.length === 0) {
-      toast.error('Create a delivery toolkit category before creating the first canonical tag.')
-      return
-    }
-
     setEditingTag(null)
     setTagDialogOpen(true)
   }
@@ -303,7 +298,7 @@ export default function TaxonomyView() {
       const result =
         confirmState.kind === 'import'
           ? await careerService.importTaxonomy(confirmState.path)
-          : await careerService.resetTaxonomyToStarter()
+          : await careerService.clearTaxonomy()
 
       await refreshTaxonomySurface()
       setTaxonomyImportResult(result)
@@ -312,7 +307,7 @@ export default function TaxonomyView() {
       toast.success(
         confirmState.kind === 'import'
           ? 'Taxonomy imported and runtime tags rebuilt'
-          : 'Starter taxonomy restored and runtime tags rebuilt'
+          : 'Taxonomy cleared — all tags and categories removed'
       )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Taxonomy update failed')
@@ -351,8 +346,8 @@ export default function TaxonomyView() {
           <Button variant="outline" onClick={() => void handleExportTaxonomy()} disabled={taxonomyOpPending}>
             Export Taxonomy
           </Button>
-          <Button variant="outline" onClick={() => setConfirmState({ kind: 'reset' })} disabled={taxonomyOpPending}>
-            Reset to Starter
+          <Button variant="outline" onClick={() => setConfirmState({ kind: 'clear' })} disabled={taxonomyOpPending}>
+            Clear Taxonomy
           </Button>
           <Button
             variant="outline"
@@ -361,10 +356,6 @@ export default function TaxonomyView() {
           >
             <ArrowsClockwise className="mr-2" />
             {libraryTagRefreshPending ? 'Re-inferring...' : 'Re-infer Library Tags'}
-          </Button>
-          <Button variant="outline" onClick={() => void refreshTaxonomySurface()} disabled={taxonomyOpPending}>
-            <ArrowsClockwise className="mr-2" />
-            Refresh
           </Button>
         </div>
       </div>
@@ -714,12 +705,12 @@ export default function TaxonomyView() {
             <AlertDialogTitle>
               {confirmState?.kind === 'import'
                 ? 'Import taxonomy and rebuild runtime tags?'
-                : 'Reset taxonomy to starter and rebuild runtime tags?'}
+                : 'Clear all taxonomy data?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmState?.kind === 'import'
                 ? 'This replaces the current canonical taxonomy, re-infers every evidence tag, rebuilds each record context tag set, and may leave candidate-profile signal tags orphaned until you update them manually.'
-                : 'This restores the bundled starter taxonomy, re-infers every evidence tag, rebuilds each record context tag set, and may leave candidate-profile signal tags orphaned until you update them manually.'}
+                : 'This removes all canonical tags, categories, and inference markers. Evidence tags and record context tags will be cleared. You can rebuild from scratch or import a taxonomy file afterward.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

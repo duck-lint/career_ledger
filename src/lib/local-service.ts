@@ -1362,6 +1362,10 @@ class LocalCareerService implements CareerService {
     throw new Error('Taxonomy reset is available only in the Tauri desktop runtime.')
   }
 
+  async clearTaxonomy(): Promise<TaxonomyImportResult> {
+    throw new Error('Taxonomy clear is available only in the Tauri desktop runtime.')
+  }
+
   async getLibraryTagSyncStatus(): Promise<LibraryTagSyncStatus> {
     return {
       requiresReinference: false,

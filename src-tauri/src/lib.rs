@@ -1222,6 +1222,15 @@ fn reset_taxonomy_to_starter(
 }
 
 #[tauri::command]
+fn clear_taxonomy(
+    state: tauri::State<DbState>,
+) -> Result<TaxonomyImportResult, String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    taxonomy::clear_runtime_taxonomy(conn)
+}
+
+#[tauri::command]
 fn get_library_tag_sync_status(
     state: tauri::State<DbState>,
 ) -> Result<LibraryTagSyncStatus, String> {
@@ -1345,6 +1354,7 @@ pub fn run() {
             import_taxonomy,
             export_taxonomy,
             reset_taxonomy_to_starter,
+            clear_taxonomy,
             get_library_tag_sync_status,
             re_infer_library_tags,
             get_tag_inference_markers,

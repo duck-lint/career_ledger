@@ -1039,6 +1039,11 @@ pub fn reset_runtime_taxonomy_to_starter(conn: &Connection) -> Result<TaxonomyIm
     with_transaction(conn, |conn| import_taxonomy_seed_inner(conn, &seed))
 }
 
+pub fn clear_runtime_taxonomy(conn: &Connection) -> Result<TaxonomyImportResult, String> {
+    let seed = parse_taxonomy_json_str(crate::embedded_assets::EMPTY_TAXONOMY_JSON)?;
+    with_transaction(conn, |conn| import_taxonomy_seed_inner(conn, &seed))
+}
+
 fn query_canonical_set(conn: &Connection) -> Result<HashSet<String>, String> {
     let mut stmt = conn
         .prepare("SELECT tag FROM canonical_tags")

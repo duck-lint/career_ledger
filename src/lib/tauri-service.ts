@@ -264,6 +264,10 @@ class TauriCareerService implements CareerService {
     return invoke('reset_taxonomy_to_starter')
   }
 
+  async clearTaxonomy(): Promise<TaxonomyImportResult> {
+    return invoke('clear_taxonomy')
+  }
+
   async getLibraryTagSyncStatus(): Promise<LibraryTagSyncStatus> {
     return invoke('get_library_tag_sync_status')
   }
