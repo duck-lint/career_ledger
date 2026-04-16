@@ -33,7 +33,7 @@ The taxonomy — canonical tags, inference markers, and delivery categories — 
 │  ┌───────────────┐  ┌────────────────┐  │
 │  │ React 19 + TS │  │ Rust Backend   │  │
 │  │ Vite, Tailwind│◄►│ rusqlite       │  │
-│  │ shadcn/ui     │  │ (bundled SQLite)│  │
+│  │ shadcn/ui     │  │(bundled SQLite)│  │
 │  └───────────────┘  └────────────────┘  │
 │         Frontend IPC ◄► Tauri Commands  │
 └─────────────────────────────────────────┘
@@ -167,4 +167,4 @@ cargo test --lib
 
 ## License
 
-<!-- TODO: Choose and add license -->
+This project is licensed under the [GNU General Public License v3.0](LICENSE) — you're free to use, modify, and distribute it, but derivative works must also be open-sourced under GPL v3.

@@ -473,7 +473,7 @@ fn normalize_delivery_toolkit_categories(
 
 fn seed_taxonomy_contents_from_seed(conn: &Connection, seed: &TaxonomySeed) -> Result<String, String> {
     let version =
-        normalize_optional_text(seed.version.as_deref()).unwrap_or_else(|| "2.0".to_string());
+        normalize_optional_text(seed.version.as_deref()).unwrap_or_else(|| "1.0".to_string());
     let canonical_tags = normalize_canonical_tags(seed)?;
     let canonical_tag_set: HashSet<String> = canonical_tags.iter().cloned().collect();
     let delivery_toolkit_categories = normalize_delivery_toolkit_categories(seed)?;

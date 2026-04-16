@@ -370,7 +370,7 @@ mod tests {
             export_type: "career_library_extract".to_string(),
             experience_records: records,
             export_meta: CareerLibraryExportMeta {
-                schema_version: "2.0".to_string(),
+                schema_version: "1.0".to_string(),
                 exported_at: "2024-01-01T00:00:00Z".to_string(),
                 taxonomy_version: "1.0".to_string(),
                 source_db_name: "career.db".to_string(),

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-const SCHEMA_VERSION: &str = "2.0";
+const SCHEMA_VERSION: &str = "1.0";
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CareerLibraryExport {
@@ -261,7 +261,7 @@ mod tests {
         let serialized = serde_json::to_value(&payload).unwrap();
 
         assert_eq!(payload.export_type, "career_library_extract");
-        assert_eq!(payload.export_meta.schema_version, "2.0");
+        assert_eq!(payload.export_meta.schema_version, "1.0");
         assert_eq!(payload.export_meta.source_db_name, "career.db");
         assert!(!payload.export_meta.taxonomy_version.trim().is_empty());
         assert!(payload.export_meta.exported_at.ends_with('Z'));
