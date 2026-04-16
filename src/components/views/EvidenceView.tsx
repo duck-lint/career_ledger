@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { careerService } from '@/lib/service'
 import type { Evidence, ExperienceRecord } from '@/lib/types'
 import { Card, CardHeader } from '@/components/ui/card'
@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+type EvidenceSortKey = 'updated_at' | 'claim' | 'date_range'
+
 type EvidenceViewProps = {
   selectedRecordId: string | null
   onRecordSelect: (recordId: string | null) => void
@@ -32,6 +34,12 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   const [searchQuery, setSearchQuery] = useState('')
   const [hasLoaded, setHasLoaded] = useState(false)
   const [evidencePendingDelete, setEvidencePendingDelete] = useState<Evidence | null>(null)
+  const [sortKey, setSortKey] = useState<EvidenceSortKey>('updated_at')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false)
+
+  const multiSelectActive = selectedIds.size > 0
 
   useEffect(() => {
     loadData()
@@ -69,8 +77,20 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
       )
     }
 
+    filtered.sort((a, b) => {
+      switch (sortKey) {
+        case 'claim':
+          return a.claim.localeCompare(b.claim)
+        case 'date_range':
+          return (a.date_range ?? '').localeCompare(b.date_range ?? '')
+        case 'updated_at':
+        default:
+          return b.updated_at.localeCompare(a.updated_at)
+      }
+    })
+
     return filtered
-  }, [evidence, selectedRecordId, searchQuery])
+  }, [evidence, selectedRecordId, searchQuery, sortKey])
 
   const handleCreate = () => {
     setEditingEvidence(null)
@@ -91,6 +111,33 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   const handleSave = async () => {
     await loadData()
     setDialogOpen(false)
+  }
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleBulkDelete = async () => {
+    setBulkDeleteSubmitting(true)
+    try {
+      for (const id of selectedIds) {
+        await careerService.deleteEvidence(id)
+      }
+      const count = selectedIds.size
+      setSelectedIds(new Set())
+      await loadData()
+      toast.success(`Deleted ${count} evidence item${count === 1 ? '' : 's'}`)
+      setBulkDeleteOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete evidence')
+    } finally {
+      setBulkDeleteSubmitting(false)
+    }
   }
 
   return (
@@ -143,6 +190,24 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
                   </button>
                 )}
               </div>
+              {filteredEvidence.length > 1 && (
+                <Select value={sortKey} onValueChange={(v) => setSortKey(v as EvidenceSortKey)}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="updated_at">Last updated</SelectItem>
+                    <SelectItem value="claim">Claim</SelectItem>
+                    <SelectItem value="date_range">Date range</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {multiSelectActive && (
+                <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete {selectedIds.size}
+                </Button>
+              )}
               <Button onClick={handleCreate}>
                 <Plus className="mr-2" />
                 New Evidence
@@ -230,12 +295,22 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
         ) : (
           <div className="space-y-4">
             {filteredEvidence.map((item) => (
-              <Card key={item.id}>
+              <Card key={item.id} className={selectedIds.has(item.id) ? 'ring-2 ring-primary/40' : ''}>
                 <CardHeader>
                   <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select evidence: ${item.claim.slice(0, 40)}`}
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleSelect(item.id)}
+                      className="mt-1.5 h-4 w-4 rounded border-border accent-primary"
+                    />
                     <FileText className="h-5 w-5 text-primary mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm leading-relaxed">{item.claim}</p>
+                      {item.date_range && (
+                        <p className="mt-1 text-xs text-muted-foreground">{item.date_range}</p>
+                      )}
                       <div className="flex flex-wrap gap-1 mt-3">
                         {item.tags.map((tag) => (
                           <Badge key={tag} variant="mono">
@@ -306,6 +381,16 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
           onSave={handleSave}
         />
       )}
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(next) => !bulkDeleteSubmitting && setBulkDeleteOpen(next)}
+        title={`Delete ${selectedIds.size} evidence item${selectedIds.size === 1 ? '' : 's'}?`}
+        description="This permanently removes the selected evidence items. Records are unaffected."
+        confirmLabel={bulkDeleteSubmitting ? 'Deleting...' : `Delete ${selectedIds.size} item${selectedIds.size === 1 ? '' : 's'}`}
+        destructive
+        onConfirm={handleBulkDelete}
+      />
     </div>
   )
 }

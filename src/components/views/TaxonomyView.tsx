@@ -6,6 +6,7 @@ import type {
   DeliveryToolkitCategory,
   LibraryTagRefreshResult,
   LibraryTagSyncStatus,
+  TestMarkersResult,
   TaxonomyImportResult,
 } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Plus, Pencil, Trash2 as Trash, RefreshCw as ArrowsClockwise } from 'lucide-react'
 import { toast } from 'sonner'
@@ -72,6 +74,9 @@ export default function TaxonomyView() {
     | null
   >(null)
   const [tagPendingDelete, setTagPendingDelete] = useState<CanonicalTag | null>(null)
+  const [markerTestText, setMarkerTestText] = useState('')
+  const [markerTestResult, setMarkerTestResult] = useState<TestMarkersResult | null>(null)
+  const [markerTestPending, setMarkerTestPending] = useState(false)
 
   const loadTaxonomyData = async (): Promise<string> => {
     const [tagsData, categoryData] = await Promise.all([
@@ -238,6 +243,23 @@ export default function TaxonomyView() {
       toast.error(error instanceof Error ? error.message : 'Failed to save markers')
     } finally {
       setMarkerSavePending(false)
+    }
+  }
+
+  const handleTestMarkers = async () => {
+    if (!markerTestText.trim() || markerDrafts.length === 0) return
+    setMarkerTestPending(true)
+    setMarkerTestResult(null)
+    try {
+      const result = await careerService.testMarkers(
+        markerTestText,
+        tagInferenceMarkerDraftsToInputs(markerDrafts)
+      )
+      setMarkerTestResult(result)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Marker test failed')
+    } finally {
+      setMarkerTestPending(false)
     }
   }
 
@@ -683,6 +705,42 @@ export default function TaxonomyView() {
                     >
                       Save Markers
                     </Button>
+                  </div>
+
+                  {/* Marker dry-run test panel */}
+                  <div className="mt-6 space-y-3 border-t pt-4">
+                    <h4 className="text-sm font-semibold">Test markers against sample text</h4>
+                    <Textarea
+                      placeholder="Paste sample evidence text here…"
+                      value={markerTestText}
+                      onChange={(e) => setMarkerTestText(e.target.value)}
+                      rows={3}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleTestMarkers()}
+                      disabled={markerTestPending || !markerTestText.trim() || markerDrafts.length === 0}
+                    >
+                      {markerTestPending ? 'Testing…' : 'Run Test'}
+                    </Button>
+                    {markerTestResult && (
+                      <div className="space-y-2 text-sm">
+                        <p className="text-muted-foreground">
+                          Normalized: <span className="font-mono text-xs">{markerTestResult.normalizedText}</span>
+                        </p>
+                        <ul className="space-y-1">
+                          {markerTestResult.matches.map((m, i) => (
+                            <li key={i} className="flex items-center gap-2">
+                              <Badge variant={m.matched ? 'default' : 'outline'}>
+                                {m.matched ? '✓ match' : '✗ no match'}
+                              </Badge>
+                              <span>Marker #{m.markerIndex + 1}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

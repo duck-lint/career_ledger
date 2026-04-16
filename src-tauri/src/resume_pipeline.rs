@@ -23,6 +23,10 @@ pub struct ResumePipelineRequest {
     pub job_posting_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact_output_dir: Option<String>,
+    /// Custom prefix for artifact filenames. If provided, replaces the auto-generated
+    /// `resume_{role_slug}` prefix. Validated: no path separators, max 100 chars.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_base_name: Option<String>,
     #[serde(default)]
     pub write_bundle_json: bool,
     #[serde(default)]
@@ -93,11 +97,13 @@ pub fn run_resume_pipeline(
         &preflight_result.preflight_report,
     )?;
     let assembly_result = resume_assembler::assemble_resume(&bundle)?;
+    let validated_base_name = validate_artifact_base_name(&request.artifact_base_name)?;
     let generated_artifacts = match normalize_optional_string(&request.artifact_output_dir) {
         Some(output_dir) => Some(write_resume_artifacts(
             &bundle,
             &assembly_result,
             &output_dir,
+            validated_base_name.as_deref(),
             request.write_bundle_json,
             request.render_docx,
         )?),
@@ -142,12 +148,16 @@ fn write_resume_artifacts(
     bundle: &ResumeBundleInput,
     assembly_result: &ResumeAssemblyResult,
     artifact_output_dir: &str,
+    custom_base_name: Option<&str>,
     write_bundle_json: bool,
     render_docx: bool,
 ) -> Result<ResumeGeneratedArtifacts, String> {
     let output_dir = resolve_output_dir(artifact_output_dir)?;
     let output_dir_string = output_dir.display().to_string();
-    let base_stem = artifact_base_stem(&assembly_result.artifact.provenance.target_role_family);
+    let base_stem = match custom_base_name {
+        Some(name) => format!("{name}_{}", Uuid::new_v4().simple()),
+        None => artifact_base_stem(&assembly_result.artifact.provenance.target_role_family),
+    };
 
     let assembled_json = write_json_artifact(
         &output_dir.join(format!("{base_stem}_assembled.json")),
@@ -288,6 +298,27 @@ fn resolve_output_dir(artifact_output_dir: &str) -> Result<PathBuf, String> {
             candidate.display()
         )
     })
+}
+
+fn validate_artifact_base_name(value: &Option<String>) -> Result<Option<String>, String> {
+    let Some(raw) = normalize_optional_string(value) else {
+        return Ok(None);
+    };
+
+    if raw.len() > 100 {
+        return Err("Artifact base name must be 100 characters or fewer.".to_string());
+    }
+    if raw.contains('/') || raw.contains('\\') || raw.contains('\0') {
+        return Err("Artifact base name must not contain path separators.".to_string());
+    }
+
+    // Slugify to a safe filename segment
+    let slugified = slugify_filename_segment(&raw);
+    if slugified.is_empty() {
+        return Err("Artifact base name contains no valid filename characters.".to_string());
+    }
+
+    Ok(Some(slugified))
 }
 
 fn artifact_base_stem(target_role_family: &str) -> String {
@@ -538,6 +569,7 @@ mod tests {
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
                 artifact_output_dir: None,
+                artifact_base_name: None,
                 write_bundle_json: false,
                 render_docx: false,
                 persist_manifest: false,
@@ -571,6 +603,7 @@ mod tests {
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
                 artifact_output_dir: Some(artifact_output_dir.display().to_string()),
+                artifact_base_name: None,
                 write_bundle_json: true,
                 render_docx: false,
                 persist_manifest: true,
@@ -633,6 +666,7 @@ mod tests {
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
                 artifact_output_dir: None,
+                artifact_base_name: None,
                 write_bundle_json: true,
                 render_docx: false,
                 persist_manifest: false,
@@ -658,6 +692,7 @@ mod tests {
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
                 artifact_output_dir: Some(artifact_output_dir.display().to_string()),
+                artifact_base_name: None,
                 write_bundle_json: false,
                 render_docx: true,
                 persist_manifest: false,
@@ -675,5 +710,73 @@ mod tests {
         assert!(rendered_docx.path.ends_with(".docx"));
 
         fs::remove_dir_all(artifact_output_dir).unwrap();
+    }
+
+    #[test]
+    fn run_resume_pipeline_uses_custom_artifact_base_name() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+        let artifact_output_dir = temp_output_dir();
+
+        let result = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                artifact_output_dir: Some(artifact_output_dir.display().to_string()),
+                artifact_base_name: Some("my_custom_prefix".to_string()),
+                write_bundle_json: true,
+                render_docx: false,
+                persist_manifest: false,
+                manifest_notes: None,
+            },
+        )
+        .unwrap();
+
+        let artifacts = result.generated_artifacts.as_ref().unwrap();
+        let assembled_filename = Path::new(&artifacts.assembled_json.path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            assembled_filename.starts_with("my_custom_prefix_"),
+            "Expected custom prefix in filename, got: {assembled_filename}"
+        );
+        assert!(assembled_filename.ends_with("_assembled.json"));
+
+        let bundle_filename = Path::new(&artifacts.bundle_json.as_ref().unwrap().path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(bundle_filename.starts_with("my_custom_prefix_"));
+
+        fs::remove_dir_all(artifact_output_dir).unwrap();
+    }
+
+    #[test]
+    fn validate_artifact_base_name_rejects_path_separators() {
+        assert!(validate_artifact_base_name(&Some("../evil".to_string())).is_err());
+        assert!(validate_artifact_base_name(&Some("foo\\bar".to_string())).is_err());
+    }
+
+    #[test]
+    fn validate_artifact_base_name_rejects_over_100_chars() {
+        let long_name = "a".repeat(101);
+        assert!(validate_artifact_base_name(&Some(long_name)).is_err());
+    }
+
+    #[test]
+    fn validate_artifact_base_name_accepts_valid_input() {
+        let result = validate_artifact_base_name(&Some("My Resume - V2".to_string()));
+        assert_eq!(result.unwrap(), Some("my_resume_v2".to_string()));
+    }
+
+    #[test]
+    fn validate_artifact_base_name_passes_through_none() {
+        assert_eq!(validate_artifact_base_name(&None).unwrap(), None);
     }
 }

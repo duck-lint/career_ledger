@@ -68,7 +68,7 @@ fn is_boundary_char(ch: char, phrase_marker: bool) -> bool {
     ch.is_alphanumeric() || ch == '_' || (phrase_marker && ch == '-')
 }
 
-fn marker_matches_text(marker: &str, text: &str) -> bool {
+pub(crate) fn marker_matches_text(marker: &str, text: &str) -> bool {
     let normalized_marker = normalize_text(marker).to_lowercase();
     if normalized_marker.is_empty() {
         return false;
@@ -92,7 +92,7 @@ fn marker_matches_text(marker: &str, text: &str) -> bool {
     false
 }
 
-fn compound_marker_matches(marker: &TagInferenceMarker, text: &str) -> bool {
+pub(crate) fn compound_marker_matches(marker: &TagInferenceMarker, text: &str) -> bool {
     let all_of = marker
         .terms
         .iter()
@@ -119,7 +119,7 @@ fn compound_marker_matches(marker: &TagInferenceMarker, text: &str) -> bool {
     true
 }
 
-fn tag_marker_matches(marker: &TagInferenceMarker, text: &str) -> bool {
+pub(crate) fn tag_marker_matches(marker: &TagInferenceMarker, text: &str) -> bool {
     match marker.marker_kind.as_str() {
         "literal" => marker
             .literal_value

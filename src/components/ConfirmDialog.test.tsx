@@ -67,6 +67,7 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: /Delete\.\.\./ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
 
-    resolveConfirm?.()
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- TS can't track assignment inside vi.fn callback
+    resolveConfirm!()
   })
 })

@@ -399,6 +399,7 @@ export type ResumeAssemblyResult = {
 export type ResumePipelineRequest = {
   job_posting_text: string
   artifact_output_dir?: string | null
+  artifact_base_name?: string | null
   write_bundle_json?: boolean
   render_docx?: boolean
   persist_manifest?: boolean
@@ -599,6 +600,16 @@ export type ValidationError = {
   message: string
 }
 
+export type MarkerTestResult = {
+  markerIndex: number
+  matched: boolean
+}
+
+export type TestMarkersResult = {
+  matches: MarkerTestResult[]
+  normalizedText: string
+}
+
 export type ExperienceRecordFormData = Omit<ExperienceRecord, 'id' | 'created_at' | 'updated_at'>
 
 export type EvidenceFormData = Omit<Evidence, 'id' | 'experience_record_id' | 'created_at' | 'updated_at'>
@@ -704,6 +715,7 @@ export interface CareerService {
   getGenerationManifests(): Promise<GenerationManifest[]>
   getGenerationManifest(id: string): Promise<GenerationManifest | undefined>
   deleteGenerationManifest(id: string): Promise<void>
+  updateManifestNotes(id: string, notes: string | null): Promise<GenerationManifest>
 
   getCanonicalTags(): Promise<CanonicalTag[]>
   getCanonicalTag(tag: string): Promise<CanonicalTag | undefined>
@@ -737,6 +749,8 @@ export interface CareerService {
     canonicalTag: string,
     markers: TagInferenceMarkerInput[],
   ): Promise<TagInferenceMarker[]>
+
+  testMarkers(text: string, markers: TagInferenceMarkerInput[]): Promise<TestMarkersResult>
 
   importRawIntake(path: string): Promise<RawIntakeImportResult>
 

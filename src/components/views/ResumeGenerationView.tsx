@@ -27,6 +27,12 @@ import { Textarea } from '@/components/ui/textarea'
 import TagDialog from '@/components/dialogs/TagDialog'
 import { ProgressSteps, type ProgressStep } from '@/components/ProgressSteps'
 import { careerService } from '@/lib/service'
+import {
+  getStoredArtifactOutputDir,
+  setStoredArtifactOutputDir,
+  getStoredJobPostingText,
+  setStoredJobPostingText,
+} from '@/lib/runtime-settings'
 import type {
   Anomaly,
   BuildPolicy,
@@ -256,6 +262,7 @@ export default function ResumeGenerationView() {
   const isTauri = '__TAURI_INTERNALS__' in window
   const [jobPostingText, setJobPostingText] = useState('')
   const [artifactOutputDir, setArtifactOutputDir] = useState('')
+  const [artifactBaseName, setArtifactBaseName] = useState('')
   const [writeBundleJson, setWriteBundleJson] = useState(false)
   const [renderDocx, setRenderDocx] = useState(true)
   const [persistManifest, setPersistManifest] = useState(true)
@@ -344,6 +351,14 @@ export default function ResumeGenerationView() {
       cancelled = true
     }
   }, [isTauri])
+
+  // Restore persisted form fields from localStorage
+  useEffect(() => {
+    const storedDir = getStoredArtifactOutputDir()
+    if (storedDir) setArtifactOutputDir(storedDir)
+    const storedText = getStoredJobPostingText()
+    if (storedText) setJobPostingText(storedText)
+  }, [])
 
   const recentManifests = useMemo(
     () => sortByNewest(manifests, (item) => item.createdAt).slice(0, 5),
@@ -665,6 +680,7 @@ export default function ResumeGenerationView() {
 
       if (typeof selected === 'string') {
         setArtifactOutputDir(selected)
+        setStoredArtifactOutputDir(selected)
       }
     } catch (error) {
       const message =
@@ -695,9 +711,14 @@ export default function ResumeGenerationView() {
     setSubmissionError(null)
 
     try {
+      // Persist posting text for next session
+      if (normalizedPostingText) setStoredJobPostingText(normalizedPostingText)
+
+      const normalizedBaseName = artifactBaseName.trim()
       const result = await careerService.runResumePipeline({
         job_posting_text: normalizedPostingText,
         artifact_output_dir: normalizedArtifactOutputDir || null,
+        artifact_base_name: normalizedBaseName || null,
         write_bundle_json: normalizedArtifactOutputDir ? writeBundleJson : false,
         render_docx: normalizedArtifactOutputDir ? renderDocx : false,
         persist_manifest: persistManifest,
@@ -853,7 +874,10 @@ export default function ResumeGenerationView() {
                       <Input
                         id="resume-artifact-output-dir"
                         value={artifactOutputDir}
-                        onChange={(event) => setArtifactOutputDir(event.target.value)}
+                        onChange={(event) => {
+                          setArtifactOutputDir(event.target.value)
+                          if (event.target.value.trim()) setStoredArtifactOutputDir(event.target.value.trim())
+                        }}
                         placeholder="Optional directory for assembled JSON and optional extra artifacts"
                         disabled={isSubmitting}
                         className="flex-1"
@@ -870,6 +894,21 @@ export default function ResumeGenerationView() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Leave this blank for preview-only runs. When a directory is set, the pipeline always writes the assembled JSON artifact there.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="resume-artifact-base-name">Artifact file prefix</Label>
+                    <Input
+                      id="resume-artifact-base-name"
+                      value={artifactBaseName}
+                      onChange={(event) => setArtifactBaseName(event.target.value)}
+                      placeholder="e.g. Acme_SeniorDev (optional — defaults to auto-generated name)"
+                      disabled={isSubmitting}
+                      maxLength={100}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Human-readable prefix for output filenames. A unique suffix is always appended.
                     </p>
                   </div>
 

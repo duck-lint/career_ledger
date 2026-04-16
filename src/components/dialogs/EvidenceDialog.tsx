@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { careerService } from '@/lib/service'
 import type {
   Evidence,
@@ -131,6 +131,9 @@ export default function EvidenceDialog({
   const [decision, setDecision] = useState<EvidenceSaveDecision>({
     tagsSource: 'manual',
   })
+  const snapshotRef = useRef('')
+
+  const formFingerprint = () => JSON.stringify([claim, dateRange, tagsInput, evidenceNote])
 
   const buildFormData = (): EvidenceFormData => ({
     claim: claim.trim(),
@@ -159,7 +162,21 @@ export default function EvidenceDialog({
     setPendingData(null)
     setPendingComparison(null)
     setDecision({ tagsSource: 'manual' })
+    queueMicrotask(() => {
+      snapshotRef.current = evidence
+        ? JSON.stringify([evidence.claim, evidence.date_range || '', evidence.tags.join(', '), evidence.evidence_note || ''])
+        : JSON.stringify(['', '', '', ''])
+    })
   }, [evidence, open])
+
+  const isDirty = () => formFingerprint() !== snapshotRef.current
+
+  const guardedOpenChange = (next: boolean) => {
+    if (!next && isDirty()) {
+      if (!window.confirm('You have unsaved changes. Discard them?')) return
+    }
+    onOpenChange(next)
+  }
 
   useEffect(() => {
     if (!open) {
@@ -285,7 +302,7 @@ export default function EvidenceDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={guardedOpenChange}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{evidence ? 'Edit Evidence' : 'New Evidence'}</DialogTitle>

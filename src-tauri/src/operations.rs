@@ -212,6 +212,24 @@ pub fn delete_generation_manifest(conn: &Connection, id: String) -> Result<(), S
     Ok(())
 }
 
+pub fn update_generation_manifest_notes(
+    conn: &Connection,
+    id: &str,
+    notes: Option<String>,
+) -> Result<GenerationManifest, String> {
+    let affected = conn
+        .execute(
+            "UPDATE generation_manifests SET notes = ?1 WHERE id = ?2",
+            params![notes, id],
+        )
+        .map_err(|error| error.to_string())?;
+    if affected == 0 {
+        return Err(format!("Generation manifest {id} not found."));
+    }
+    get_generation_manifest(conn, id)?
+        .ok_or_else(|| format!("Generation manifest {id} was not found after update."))
+}
+
 pub fn create_generation_manifest(
     conn: &Connection,
     manifest: NewGenerationManifest,
@@ -347,5 +365,57 @@ mod tests {
             Some(json!(["ev-1", "ev-2"]))
         );
         assert_eq!(manifest.notes.as_deref(), Some("preview pipeline"));
+    }
+
+    #[test]
+    fn update_generation_manifest_notes_round_trips() {
+        let conn = setup_conn();
+
+        let manifest = create_generation_manifest(
+            &conn,
+            NewGenerationManifest {
+                artifact_kind: "assembled_resume".to_string(),
+                target_role_family: Some("business_analyst".to_string()),
+                job_posting_path: None,
+                job_posting_sha256: None,
+                build_policy_path: None,
+                build_policy_sha256: None,
+                candidate_profile_path: None,
+                candidate_profile_sha256: None,
+                library_export_path: None,
+                library_export_sha256: None,
+                selected_record_ids: None,
+                selected_evidence_ids: None,
+                gap_report: None,
+                artifact_paths: None,
+                artifact_hashes: None,
+                notes: None,
+            },
+        )
+        .unwrap();
+
+        assert!(manifest.notes.is_none());
+
+        let updated = update_generation_manifest_notes(
+            &conn,
+            &manifest.id,
+            Some("post-hoc annotation".to_string()),
+        )
+        .unwrap();
+        assert_eq!(updated.notes.as_deref(), Some("post-hoc annotation"));
+
+        let cleared = update_generation_manifest_notes(&conn, &manifest.id, None).unwrap();
+        assert!(cleared.notes.is_none());
+    }
+
+    #[test]
+    fn update_generation_manifest_notes_rejects_missing_id() {
+        let conn = setup_conn();
+        let result = update_generation_manifest_notes(
+            &conn,
+            "nonexistent-id",
+            Some("note".to_string()),
+        );
+        assert!(result.is_err());
     }
 }

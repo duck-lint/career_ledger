@@ -33,6 +33,7 @@ import type {
   ExperienceRecordFormData,
   EvidenceFormData,
   CareerService,
+  TestMarkersResult,
 } from './types'
 
 const RECORDS_KEY = 'career-ledger-records'
@@ -1242,6 +1243,15 @@ class LocalCareerService implements CareerService {
     kvSet(GENERATION_MANIFESTS_KEY, manifests)
   }
 
+  async updateManifestNotes(id: string, notes: string | null): Promise<GenerationManifest> {
+    const manifests = kvGet<Record<string, GenerationManifest>>(GENERATION_MANIFESTS_KEY) ?? {}
+    const manifest = manifests[id]
+    if (!manifest) throw new Error(`Manifest ${id} not found`)
+    manifest.notes = notes
+    kvSet(GENERATION_MANIFESTS_KEY, manifests)
+    return manifest
+  }
+
   async getCanonicalTags(): Promise<CanonicalTag[]> {
     const tagsObj = kvGet<Record<string, CanonicalTag>>(CANONICAL_TAGS_KEY) ?? {}
     return Object.values(tagsObj).sort((a, b) => a.tag.localeCompare(b.tag))
@@ -1572,6 +1582,14 @@ class LocalCareerService implements CareerService {
     markerStore[canonicalTag] = normalizedMarkers
     kvSet(TAG_INFERENCE_MARKERS_KEY, markerStore)
     return normalizedMarkers
+  }
+
+  async testMarkers(_text: string, markers: TagInferenceMarkerInput[]): Promise<TestMarkersResult> {
+    // Local service can't run inference — return all-false results
+    return {
+      matches: markers.map((_, i) => ({ markerIndex: i, matched: false })),
+      normalizedText: _text.trim().toLowerCase(),
+    }
   }
 
   async importRawIntake(_path: string): Promise<RawIntakeImportResult> {

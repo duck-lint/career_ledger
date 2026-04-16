@@ -1102,6 +1102,17 @@ fn delete_generation_manifest(state: tauri::State<DbState>, id: String) -> Resul
 }
 
 #[tauri::command]
+fn update_manifest_notes(
+    state: tauri::State<DbState>,
+    id: String,
+    notes: Option<String>,
+) -> Result<GenerationManifest, String> {
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    operations::update_generation_manifest_notes(conn, &id, notes)
+}
+
+#[tauri::command]
 fn get_canonical_tags(state: tauri::State<DbState>) -> Result<Vec<CanonicalTag>, String> {
     let guard = state.0.lock().map_err(|e| e.to_string())?;
     let conn = guard.as_ref().ok_or("Database not initialized")?;
@@ -1279,6 +1290,85 @@ fn normalize_tags(
     taxonomy::normalize_tags(conn, &tags)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkerTestResult {
+    pub marker_index: usize,
+    pub matched: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestMarkersResult {
+    pub matches: Vec<MarkerTestResult>,
+    pub normalized_text: String,
+}
+
+#[tauri::command]
+fn test_markers(
+    text: String,
+    markers: Vec<TagInferenceMarkerInput>,
+) -> Result<TestMarkersResult, String> {
+    let normalized_text = text.trim().to_lowercase();
+    if normalized_text.is_empty() {
+        return Ok(TestMarkersResult {
+            matches: markers
+                .iter()
+                .enumerate()
+                .map(|(i, _)| MarkerTestResult {
+                    marker_index: i,
+                    matched: false,
+                })
+                .collect(),
+            normalized_text,
+        });
+    }
+
+    let results = markers
+        .iter()
+        .enumerate()
+        .map(|(index, input)| {
+            // Build a synthetic TagInferenceMarker from the input for testing
+            let mut terms = Vec::new();
+            for (sort_order, term_value) in input.all_of.iter().enumerate() {
+                terms.push(crate::taxonomy::TagInferenceMarkerTerm {
+                    id: String::new(),
+                    term_group: "all_of".to_string(),
+                    term_value: term_value.clone(),
+                    sort_order: sort_order as i64,
+                });
+            }
+            for (sort_order, term_value) in input.any_of.iter().enumerate() {
+                terms.push(crate::taxonomy::TagInferenceMarkerTerm {
+                    id: String::new(),
+                    term_group: "any_of".to_string(),
+                    term_value: term_value.clone(),
+                    sort_order: sort_order as i64,
+                });
+            }
+
+            let synthetic_marker = TagInferenceMarker {
+                id: String::new(),
+                canonical_tag: String::new(),
+                marker_kind: input.marker_kind.clone(),
+                literal_value: input.literal_value.clone(),
+                terms,
+                created_at: String::new(),
+            };
+
+            MarkerTestResult {
+                marker_index: index,
+                matched: inference::tag_marker_matches(&synthetic_marker, &normalized_text),
+            }
+        })
+        .collect();
+
+    Ok(TestMarkersResult {
+        matches: results,
+        normalized_text,
+    })
+}
+
 #[tauri::command]
 fn import_raw_intake(
     state: tauri::State<DbState>,
@@ -1342,6 +1432,7 @@ pub fn run() {
             get_generation_manifests,
             get_generation_manifest,
             delete_generation_manifest,
+            update_manifest_notes,
             get_canonical_tags,
             get_canonical_tag,
             create_canonical_tag,
@@ -1360,6 +1451,7 @@ pub fn run() {
             get_tag_inference_markers,
             replace_tag_inference_markers,
             normalize_tags,
+            test_markers,
             import_raw_intake,
         ])
         .run(tauri::generate_context!())

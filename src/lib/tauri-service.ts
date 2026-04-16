@@ -29,6 +29,7 @@ import type {
   ExperienceRecordFormData,
   EvidenceFormData,
   CareerService,
+  TestMarkersResult,
 } from './types'
 
 class TauriCareerService implements CareerService {
@@ -223,6 +224,10 @@ class TauriCareerService implements CareerService {
     return invoke('delete_generation_manifest', { id })
   }
 
+  async updateManifestNotes(id: string, notes: string | null): Promise<GenerationManifest> {
+    return invoke('update_manifest_notes', { id, notes })
+  }
+
   // ── CanonicalTag ───────────────────────────────────────────────────────────
 
   async getCanonicalTags(): Promise<CanonicalTag[]> {
@@ -319,6 +324,10 @@ class TauriCareerService implements CareerService {
     markers: TagInferenceMarkerInput[],
   ): Promise<TagInferenceMarker[]> {
     return invoke('replace_tag_inference_markers', { canonicalTag, markers })
+  }
+
+  async testMarkers(text: string, markers: TagInferenceMarkerInput[]): Promise<TestMarkersResult> {
+    return invoke('test_markers', { text, markers })
   }
 
   async importRawIntake(path: string): Promise<RawIntakeImportResult> {

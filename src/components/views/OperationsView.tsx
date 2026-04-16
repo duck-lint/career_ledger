@@ -4,8 +4,10 @@ import type { Anomaly, Evidence, ExperienceRecord, GenerationManifest } from '@/
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -14,8 +16,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { EmptyState } from '@/components/EmptyState'
+import { AlertTriangle, FileText, Search as MagnifyingGlass, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+
+type AnomalyStatusFilter = 'all' | 'open' | 'resolved'
+type AnomalySeverityFilter = 'all' | 'error' | 'warning' | 'info'
 
 type AnomalyAuditTarget =
   | {
@@ -59,6 +73,47 @@ export default function OperationsView() {
   const [auditTarget, setAuditTarget] = useState<AnomalyAuditTarget | null>(null)
   const [loading, setLoading] = useState(true)
   const [auditLoading, setAuditLoading] = useState(false)
+  const [anomalyStatusFilter, setAnomalyStatusFilter] = useState<AnomalyStatusFilter>('all')
+  const [anomalySeverityFilter, setAnomalySeverityFilter] = useState<AnomalySeverityFilter>('all')
+  const [anomalySearch, setAnomalySearch] = useState('')
+  const [manifestSearch, setManifestSearch] = useState('')
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesDraft, setNotesDraft] = useState('')
+  const [notesSaving, setNotesSaving] = useState(false)
+
+  const filteredAnomalies = useMemo(() => {
+    let filtered = anomalies
+
+    if (anomalyStatusFilter === 'open') filtered = filtered.filter((a) => !a.resolvedAt)
+    else if (anomalyStatusFilter === 'resolved') filtered = filtered.filter((a) => a.resolvedAt)
+
+    if (anomalySeverityFilter !== 'all') {
+      filtered = filtered.filter((a) => a.severity === anomalySeverityFilter)
+    }
+
+    if (anomalySearch.trim()) {
+      const q = anomalySearch.toLowerCase()
+      filtered = filtered.filter(
+        (a) =>
+          a.message.toLowerCase().includes(q) ||
+          a.anomalyCode.toLowerCase().includes(q) ||
+          a.entityType.toLowerCase().includes(q)
+      )
+    }
+
+    return filtered
+  }, [anomalies, anomalyStatusFilter, anomalySeverityFilter, anomalySearch])
+
+  const filteredManifests = useMemo(() => {
+    if (!manifestSearch.trim()) return manifests
+    const q = manifestSearch.toLowerCase()
+    return manifests.filter(
+      (m) =>
+        (m.targetRoleFamily && m.targetRoleFamily.toLowerCase().includes(q)) ||
+        m.artifactKind.toLowerCase().includes(q) ||
+        (m.notes && m.notes.toLowerCase().includes(q))
+    )
+  }, [manifests, manifestSearch])
 
   const selectedAnomaly = useMemo(
     () => anomalies.find((item) => item.id === selectedAnomalyId) ?? null,
@@ -218,6 +273,27 @@ export default function OperationsView() {
     }
   }
 
+  const handleStartEditNotes = () => {
+    setNotesDraft(selectedManifest?.notes ?? '')
+    setEditingNotes(true)
+  }
+
+  const handleSaveNotes = async () => {
+    if (!selectedManifest) return
+    setNotesSaving(true)
+    try {
+      const trimmed = notesDraft.trim()
+      await careerService.updateManifestNotes(selectedManifest.id, trimmed || null)
+      await loadData()
+      setEditingNotes(false)
+      toast.success('Notes updated')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save notes')
+    } finally {
+      setNotesSaving(false)
+    }
+  }
+
   const renderAuditTarget = () => {
     if (auditLoading) {
       return (
@@ -335,15 +411,68 @@ export default function OperationsView() {
             </AlertDescription>
           </Alert>
 
+          {anomalies.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={anomalyStatusFilter} onValueChange={(v) => setAnomalyStatusFilter(v as AnomalyStatusFilter)}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={anomalySeverityFilter} onValueChange={(v) => setAnomalySeverityFilter(v as AnomalySeverityFilter)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All severities</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+                <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search anomalies..."
+                  value={anomalySearch}
+                  onChange={(e) => setAnomalySearch(e.target.value)}
+                  className="pl-9 pr-9"
+                />
+                {anomalySearch && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setAnomalySearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Current Anomalies</CardTitle>
             </CardHeader>
             <CardContent>
               {anomalies.length === 0 ? (
-                <Alert>
-                  <AlertDescription>No anomalies recorded.</AlertDescription>
-                </Alert>
+                <EmptyState
+                  icon={AlertTriangle}
+                  title="No anomalies detected"
+                  description="System anomalies appear here after import and assembly workflows flag data-quality issues."
+                />
+              ) : filteredAnomalies.length === 0 ? (
+                <EmptyState
+                  icon={AlertTriangle}
+                  title="No matching anomalies"
+                  description="Try adjusting your filters or clearing the search."
+                />
               ) : (
                 <Table>
                   <TableHeader>
@@ -357,7 +486,7 @@ export default function OperationsView() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {anomalies.map((item) => (
+                    {filteredAnomalies.map((item) => (
                       <TableRow
                         key={item.id}
                         className={cn('cursor-pointer', selectedAnomalyId === item.id && 'bg-muted/40')}
@@ -448,15 +577,47 @@ export default function OperationsView() {
         </TabsContent>
 
         <TabsContent value="manifests" className="mt-0 space-y-6">
+          {manifests.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-[320px]">
+                <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search manifests..."
+                  value={manifestSearch}
+                  onChange={(e) => setManifestSearch(e.target.value)}
+                  className="pl-9 pr-9"
+                />
+                {manifestSearch && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setManifestSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Generation Manifests</CardTitle>
             </CardHeader>
             <CardContent>
               {manifests.length === 0 ? (
-                <Alert>
-                  <AlertDescription>No generation manifests stored yet.</AlertDescription>
-                </Alert>
+                <EmptyState
+                  icon={FileText}
+                  title="No generation manifests"
+                  description="Manifests are created each time you run the resume pipeline with persistence enabled."
+                />
+              ) : filteredManifests.length === 0 ? (
+                <EmptyState
+                  icon={FileText}
+                  title="No matching manifests"
+                  description="Try adjusting your search query."
+                />
               ) : (
                 <Table>
                   <TableHeader>
@@ -468,7 +629,7 @@ export default function OperationsView() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {manifests.map((item) => (
+                    {filteredManifests.map((item) => (
                       <TableRow
                         key={item.id}
                         className={cn('cursor-pointer', selectedManifestId === item.id && 'bg-muted/40')}
@@ -524,11 +685,43 @@ export default function OperationsView() {
                   </div>
                 </div>
 
-                {selectedManifest.notes && (
+                {selectedManifest.notes && !editingNotes && (
                   <div>
-                    <div className="font-medium">Notes</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">Notes</div>
+                      <Button variant="ghost" size="sm" onClick={handleStartEditNotes}>
+                        Edit
+                      </Button>
+                    </div>
                     <div className="mt-1 rounded-md border bg-muted/30 p-3 text-muted-foreground">
                       {selectedManifest.notes}
+                    </div>
+                  </div>
+                )}
+
+                {!selectedManifest.notes && !editingNotes && (
+                  <Button variant="outline" size="sm" onClick={handleStartEditNotes}>
+                    Add notes
+                  </Button>
+                )}
+
+                {editingNotes && (
+                  <div className="space-y-2">
+                    <div className="font-medium">Notes</div>
+                    <Textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      rows={3}
+                      placeholder="Add notes about this generation run..."
+                      disabled={notesSaving}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void handleSaveNotes()} disabled={notesSaving}>
+                        {notesSaving ? 'Saving...' : 'Save'}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setEditingNotes(false)} disabled={notesSaving}>
+                        Cancel
+                      </Button>
                     </div>
                   </div>
                 )}

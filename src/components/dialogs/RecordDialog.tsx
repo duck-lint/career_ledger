@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { careerService } from '@/lib/service'
 import type { ExperienceRecord, RecordType } from '@/lib/types'
 import {
@@ -45,6 +45,11 @@ export default function RecordDialog({ open, onOpenChange, record, onSave }: Rec
     normalized: string[]
     unknown: string[]
   } | null>(null)
+  const snapshotRef = useRef('')
+
+  // Serialize current form state for dirty checking
+  const formFingerprint = () =>
+    JSON.stringify([slug, recordType, organization, title, startDate, endDate, location, employmentType, contextTagsInput])
 
   useEffect(() => {
     if (record) {
@@ -71,7 +76,22 @@ export default function RecordDialog({ open, onOpenChange, record, onSave }: Rec
       setTagValidation(null)
     }
     setErrors({})
+    // Snapshot is set after render via a microtask so state has flushed
+    queueMicrotask(() => {
+      snapshotRef.current = record
+        ? JSON.stringify([record.slug, record.record_type, record.organization, record.title, record.start_date, record.end_date, record.location || '', record.employment_type || '', record.context_tags.join(', ')])
+        : JSON.stringify(['', 'employment', '', '', '', '', '', '', ''])
+    })
   }, [record, open])
+
+  const isDirty = () => formFingerprint() !== snapshotRef.current
+
+  const guardedOpenChange = (next: boolean) => {
+    if (!next && isDirty()) {
+      if (!window.confirm('You have unsaved changes. Discard them?')) return
+    }
+    onOpenChange(next)
+  }
 
   useEffect(() => {
     const normalizeTags = async () => {
@@ -148,7 +168,7 @@ export default function RecordDialog({ open, onOpenChange, record, onSave }: Rec
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={guardedOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{record ? 'Edit Record' : 'New Record'}</DialogTitle>

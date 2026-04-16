@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { careerService } from '@/lib/service'
 import type {
   CandidateCertificationEntry,
@@ -198,13 +198,19 @@ export default function CandidateProfileView() {
   const [certificationTagPreviews, setCertificationTagPreviews] = useState<SignalTagPreviewMap>({})
   const [signalTagPreviewLoading, setSignalTagPreviewLoading] = useState(false)
   const [signalTagPreviewError, setSignalTagPreviewError] = useState<string | null>(null)
+  const snapshotRef = useRef('')
+
+  const formFingerprint = useCallback(() => JSON.stringify(form), [form])
+  const isDirty = formFingerprint() !== snapshotRef.current
 
   const loadProfile = async () => {
     setLoading(true)
     try {
       const profile = await careerService.getCandidateProfile()
-      setForm(profile ? profileToForm(profile) : createEmptyForm())
+      const nextForm = profile ? profileToForm(profile) : createEmptyForm()
+      setForm(nextForm)
       setHasPersistedProfile(Boolean(profile))
+      snapshotRef.current = JSON.stringify(nextForm)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load candidate profile')
     } finally {
@@ -214,6 +220,19 @@ export default function CandidateProfileView() {
 
   useEffect(() => {
     void loadProfile()
+  }, [])
+
+  // Ctrl+S keyboard shortcut to save
+  const handleSaveRef = useRef<() => Promise<void>>(null)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        void handleSaveRef.current?.()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   useEffect(() => {
@@ -306,7 +325,9 @@ export default function CandidateProfileView() {
     setSaving(true)
     try {
       const saved = await careerService.replaceCandidateProfile(formToProfile(form))
-      setForm(profileToForm(saved))
+      const nextForm = profileToForm(saved)
+      setForm(nextForm)
+      snapshotRef.current = JSON.stringify(nextForm)
       setHasPersistedProfile(true)
       toast.success('Candidate profile saved')
     } catch (error) {
@@ -315,6 +336,7 @@ export default function CandidateProfileView() {
       setSaving(false)
     }
   }
+  handleSaveRef.current = handleSave
 
   const handleDelete = async () => {
     if (!hasPersistedProfile) {
@@ -405,7 +427,7 @@ export default function CandidateProfileView() {
             onClick={() => void handleSave()}
             disabled={loading || saving || signalTagPreviewLoading || hasUnknownSignalTags}
           >
-            Save Profile
+            {isDirty ? '● ' : ''}Save Profile{isDirty ? ' (Ctrl+S)' : ''}
           </Button>
         </div>
       </div>
