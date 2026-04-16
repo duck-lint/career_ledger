@@ -13,9 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Plus } from '@phosphor-icons/react/dist/icons/Plus'
-import { Trash } from '@phosphor-icons/react/dist/icons/Trash'
-import { ArrowsClockwise } from '@phosphor-icons/react/dist/icons/ArrowsClockwise'
+import { Plus, Trash2 as Trash, RefreshCw as ArrowsClockwise } from 'lucide-react'
 import { toast } from 'sonner'
 
 type CandidateEducationForm = {

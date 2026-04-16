@@ -13,7 +13,6 @@ import type {
   ExperienceRecord,
   Evidence,
   CandidateProfile,
-  CandidateIdentity,
   CandidateContact,
   CandidateEducationEntry,
   CandidateCertificationEntry,

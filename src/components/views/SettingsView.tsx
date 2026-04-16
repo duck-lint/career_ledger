@@ -8,9 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Warning } from '@phosphor-icons/react/dist/icons/Warning'
-import { ArrowClockwise } from '@phosphor-icons/react/dist/icons/ArrowClockwise'
-import { FolderOpen } from '@phosphor-icons/react/dist/icons/FolderOpen'
+import { AlertTriangle as Warning, RefreshCw as ArrowClockwise, FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
 
 function formatSkipReason(reason: RawIntakeImportSkipReason): string {

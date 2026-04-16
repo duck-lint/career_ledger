@@ -22,10 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus } from '@phosphor-icons/react/dist/icons/Plus'
-import { Pencil } from '@phosphor-icons/react/dist/icons/Pencil'
-import { Trash } from '@phosphor-icons/react/dist/icons/Trash'
-import { ArrowsClockwise } from '@phosphor-icons/react/dist/icons/ArrowsClockwise'
+import { Plus, Pencil, Trash2 as Trash, RefreshCw as ArrowsClockwise } from 'lucide-react'
 import { toast } from 'sonner'
 import TagDialog from '@/components/dialogs/TagDialog'
 import TagInferenceMarkerEditor from '@/components/taxonomy/TagInferenceMarkerEditor'
@@ -45,6 +42,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 function formatSyncTimestamp(value: string | null): string {
   return value ?? 'Not yet recorded'
@@ -73,6 +71,7 @@ export default function TaxonomyView() {
     | { kind: 'reset' }
     | null
   >(null)
+  const [tagPendingDelete, setTagPendingDelete] = useState<CanonicalTag | null>(null)
 
   const loadTaxonomyData = async (): Promise<string> => {
     const [tagsData, categoryData] = await Promise.all([
@@ -216,13 +215,9 @@ export default function TaxonomyView() {
   }
 
   const handleDeleteTag = async (tag: CanonicalTag) => {
-    try {
-      await careerService.deleteCanonicalTag(tag.tag)
-      await refreshTaxonomySurface()
-      toast.success(`Tag "${tag.tag}" deleted`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete tag')
-    }
+    await careerService.deleteCanonicalTag(tag.tag)
+    await refreshTaxonomySurface()
+    toast.success(`Tag "${tag.tag}" deleted`)
   }
 
   const handleSaveTag = async () => {
@@ -615,7 +610,8 @@ export default function TaxonomyView() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => void handleDeleteTag(tag)}
+                              onClick={() => setTagPendingDelete(tag)}
+                              aria-label={`Delete tag ${tag.tag}`}
                             >
                               <Trash />
                             </Button>
@@ -734,6 +730,31 @@ export default function TaxonomyView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfirmDialog
+        open={tagPendingDelete !== null}
+        onOpenChange={(next) => !next && setTagPendingDelete(null)}
+        title="Delete canonical tag?"
+        description={
+          tagPendingDelete ? (
+            <span>
+              This removes <span className="mono text-foreground">{tagPendingDelete.tag}</span> from the taxonomy.
+              Any evidence currently tagged with it keeps the string but will no longer match canonical lookups.
+            </span>
+          ) : undefined
+        }
+        confirmLabel="Delete tag"
+        destructive
+        onConfirm={async () => {
+          if (!tagPendingDelete) return
+          try {
+            await handleDeleteTag(tagPendingDelete)
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to delete tag')
+            throw error
+          }
+        }}
+      />
     </div>
   )
 }

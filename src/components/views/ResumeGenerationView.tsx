@@ -8,7 +8,7 @@ import {
   type FormEvent,
 } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
-import { FolderOpen } from '@phosphor-icons/react/dist/icons/FolderOpen'
+import { FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import TagDialog from '@/components/dialogs/TagDialog'
+import { ProgressSteps, type ProgressStep } from '@/components/ProgressSteps'
 import { careerService } from '@/lib/service'
 import type {
   Anomaly,
@@ -511,6 +512,71 @@ export default function ResumeGenerationView() {
       },
     ]
   }, [pipelineResult])
+
+  const pipelineSteps = useMemo<ProgressStep[]>(() => {
+    const hasResult = pipelineResult !== null
+    const recordCount = pipelineResult?.career_library_export.experience_records.length ?? 0
+    const evidenceCount = pipelineResult?.career_library_export.experience_records.reduce(
+      (count, record) => count + record.evidence.length,
+      0,
+    ) ?? 0
+    const atomCount = pipelineResult?.requirement_analysis.atoms.length ?? 0
+    const clusterCount = pipelineResult?.requirement_analysis.clusters.length ?? 0
+    const keptRecords = pipelineResult?.preflight_result.preflight_report.kept_counts.records ?? 0
+    const keptEvidence = pipelineResult?.preflight_result.preflight_report.kept_counts.evidence ?? 0
+    const selectedRecords = pipelineResult?.assembly_result.selected_record_ids.length ?? 0
+    const selectedEvidence = pipelineResult?.assembly_result.selected_evidence_ids.length ?? 0
+    const hasArtifacts = pipelineResult?.generated_artifacts !== undefined
+      && pipelineResult?.generated_artifacts !== null
+
+    const pendingOrDone = (base: string): ProgressStep['status'] => {
+      if (hasResult) return 'done'
+      if (isSubmitting) return base === 'first' ? 'active' : 'pending'
+      return 'pending'
+    }
+
+    return [
+      {
+        id: 'export',
+        label: 'Export library',
+        status: pendingOrDone('first'),
+        detail: hasResult ? `${recordCount} records · ${evidenceCount} evidence` : undefined,
+      },
+      {
+        id: 'analyze',
+        label: 'Analyze posting',
+        status: pendingOrDone('next'),
+        detail: hasResult ? `${clusterCount} clusters · ${atomCount} atoms` : undefined,
+      },
+      {
+        id: 'preflight',
+        label: 'Preflight filter',
+        status: pendingOrDone('next'),
+        detail: hasResult ? `${keptRecords} / ${recordCount} records kept · ${keptEvidence} evidence` : undefined,
+      },
+      {
+        id: 'assemble',
+        label: 'Assemble resume',
+        status: pendingOrDone('next'),
+        detail: hasResult ? `${selectedRecords} records · ${selectedEvidence} evidence` : undefined,
+      },
+      {
+        id: 'artifacts',
+        label: 'Write artifacts',
+        status: hasResult ? (hasArtifacts ? 'done' : 'pending') : isSubmitting ? 'pending' : 'pending',
+        detail: hasResult
+          ? hasArtifacts
+            ? (() => {
+                const ga = pipelineResult?.generated_artifacts
+                if (!ga) return undefined
+                const files = [ga.assembled_json, ga.bundle_json, ga.rendered_docx].filter(Boolean)
+                return `${files.length} file(s) written`
+              })()
+            : 'Preview only — no output directory'
+          : undefined,
+      },
+    ]
+  }, [pipelineResult, isSubmitting])
 
   const updateBuildPolicyDraft = (updater: (current: BuildPolicy) => BuildPolicy) => {
     setBuildPolicyDraft((current) => (current ? updater(current) : current))
@@ -1267,6 +1333,8 @@ export default function ResumeGenerationView() {
         </TabsContent>
 
         <TabsContent value="pipeline" className="mt-0 space-y-6">
+          <ProgressSteps steps={pipelineSteps} />
+
           {!pipelineResult ? (
             <Alert>
               <AlertDescription>

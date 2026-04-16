@@ -11,8 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { TagInferenceMarkerDraft } from '@/lib/tag-inference-marker-drafts'
-import { Plus } from '@phosphor-icons/react/dist/icons/Plus'
-import { Trash } from '@phosphor-icons/react/dist/icons/Trash'
+import { Plus, Trash2 as Trash } from 'lucide-react'
 
 type TagInferenceMarkerEditorProps = {
   drafts: TagInferenceMarkerDraft[]

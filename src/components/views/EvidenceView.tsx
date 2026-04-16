@@ -1,19 +1,16 @@
 import { useState, useMemo, useEffect } from 'react'
 import { careerService } from '@/lib/service'
 import type { Evidence, ExperienceRecord } from '@/lib/types'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Plus } from '@phosphor-icons/react/dist/icons/Plus'
-import { FileText } from '@phosphor-icons/react/dist/icons/FileText'
-import { Pencil } from '@phosphor-icons/react/dist/icons/Pencil'
-import { Trash } from '@phosphor-icons/react/dist/icons/Trash'
-import { MagnifyingGlass } from '@phosphor-icons/react/dist/icons/MagnifyingGlass'
-import { Warning } from '@phosphor-icons/react/dist/icons/Warning'
+import { Plus, FileText, Pencil, Trash2 as Trash, Search as MagnifyingGlass, AlertTriangle as Warning, X } from 'lucide-react'
 import { toast } from 'sonner'
 import EvidenceDialog from '@/components/dialogs/EvidenceDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { EmptyState } from '@/components/EmptyState'
 import {
   Select,
   SelectContent,
@@ -34,6 +31,7 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   const [editingEvidence, setEditingEvidence] = useState<Evidence | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [hasLoaded, setHasLoaded] = useState(false)
+  const [evidencePendingDelete, setEvidencePendingDelete] = useState<Evidence | null>(null)
 
   useEffect(() => {
     loadData()
@@ -85,13 +83,9 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   }
 
   const handleDelete = async (item: Evidence) => {
-    try {
-      await careerService.deleteEvidence(item.id)
-      await loadData()
-      toast.success('Evidence deleted')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete evidence')
-    }
+    await careerService.deleteEvidence(item.id)
+    await loadData()
+    toast.success('Evidence deleted')
   }
 
   const handleSave = async () => {
@@ -130,8 +124,24 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
                   placeholder="Search evidence..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-64"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && searchQuery) {
+                      e.preventDefault()
+                      setSearchQuery('')
+                    }
+                  }}
+                  className="pl-9 pr-9 w-64"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
               <Button onClick={handleCreate}>
                 <Plus className="mr-2" />
@@ -196,13 +206,27 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
 
       {selectedRecord && (
         filteredEvidence.length === 0 ? (
-          <Alert>
-            <AlertDescription>
-              {searchQuery
-                ? 'No evidence items match your search.'
-                : 'No evidence items for this record. Create your first evidence item to get started.'}
-            </AlertDescription>
-          </Alert>
+          <EmptyState
+            icon={FileText}
+            title={searchQuery ? 'No matches' : 'No evidence yet'}
+            description={
+              searchQuery
+                ? 'No evidence items match your search. Try a different query or clear the filter.'
+                : 'Add your first evidence item for this record to capture claims, tags, and notes.'
+            }
+            action={
+              searchQuery ? (
+                <Button variant="outline" size="sm" onClick={() => setSearchQuery('')}>
+                  Clear search
+                </Button>
+              ) : (
+                <Button size="sm" onClick={handleCreate}>
+                  <Plus className="mr-2" />
+                  New evidence
+                </Button>
+              )
+            }
+          />
         ) : (
           <div className="space-y-4">
             {filteredEvidence.map((item) => (
@@ -214,7 +238,7 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
                       <p className="text-sm leading-relaxed">{item.claim}</p>
                       <div className="flex flex-wrap gap-1 mt-3">
                         {item.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="mono text-xs">
+                          <Badge key={tag} variant="mono">
                             {tag}
                           </Badge>
                         ))}
@@ -226,10 +250,10 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
                       )}
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} aria-label="Edit evidence">
                         <Pencil />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+                      <Button variant="ghost" size="icon" onClick={() => setEvidencePendingDelete(item)} aria-label="Delete evidence">
                         <Trash />
                       </Button>
                     </div>
@@ -240,6 +264,38 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
           </div>
         )
       )}
+
+      <ConfirmDialog
+        open={evidencePendingDelete !== null}
+        onOpenChange={(next) => !next && setEvidencePendingDelete(null)}
+        title="Delete evidence item?"
+        description={
+          <span>
+            This permanently removes the evidence entry
+            {evidencePendingDelete?.claim ? (
+              <>
+                {' '}&mdash;{' '}
+                <span className="mono text-xs text-foreground">
+                  {evidencePendingDelete.claim.slice(0, 80)}
+                  {evidencePendingDelete.claim.length > 80 ? '\u2026' : ''}
+                </span>
+              </>
+            ) : null}
+            . Records and other evidence are unaffected.
+          </span>
+        }
+        confirmLabel="Delete evidence"
+        destructive
+        onConfirm={async () => {
+          if (!evidencePendingDelete) return
+          try {
+            await handleDelete(evidencePendingDelete)
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to delete evidence')
+            throw error
+          }
+        }}
+      />
 
       {selectedRecord && (
         <EvidenceDialog

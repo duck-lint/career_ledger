@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
-import { Warning } from '@phosphor-icons/react/dist/icons/Warning'
+import { AlertTriangle as Warning } from 'lucide-react'
 
 type TagDialogProps = {
   open: boolean

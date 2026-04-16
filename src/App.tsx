@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Info } from '@phosphor-icons/react/dist/icons/Info'
+import { MinWidthGuard } from '@/components/MinWidthGuard'
 import LibraryView from '@/components/views/LibraryView'
 import TaxonomyView from '@/components/views/TaxonomyView'
 import ResumeGenerationView from '@/components/views/ResumeGenerationView'
@@ -11,11 +11,35 @@ import { careerService } from '@/lib/service'
 import { clearStoredDbPath, getStoredDbPath } from '@/lib/runtime-settings'
 import { Toaster } from 'sonner'
 
+const TAB_STORAGE_KEY = 'career-ledger:active-tab'
+const VALID_TABS = ['library', 'taxonomy', 'resume', 'operations', 'settings'] as const
+
+function readInitialTab(): string {
+  if (typeof window === 'undefined') return 'library'
+  try {
+    const stored = window.sessionStorage.getItem(TAB_STORAGE_KEY)
+    if (stored && (VALID_TABS as readonly string[]).includes(stored)) {
+      return stored
+    }
+  } catch {
+    // sessionStorage may be unavailable (sandboxed, private mode); fall through.
+  }
+  return 'library'
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState('library')
+  const [activeTab, setActiveTab] = useState<string>(readInitialTab)
   const [isInitialized, setIsInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   const isTauri = '__TAURI_INTERNALS__' in window
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(TAB_STORAGE_KEY, activeTab)
+    } catch {
+      // ignore quota/availability errors; persistence is best-effort.
+    }
+  }, [activeTab])
 
   useEffect(() => {
     let cancelled = false
@@ -73,61 +97,71 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Toaster />
-      <div className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Career Ledger
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                SQLite-backed library, taxonomy, resume generation, operations, and import management
-              </p>
+    <MinWidthGuard>
+      <div className="min-h-screen bg-background">
+        <Toaster />
+        <div className="border-b border-border bg-card">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                  Career Ledger
+                </h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  SQLite-backed library, taxonomy, resume generation, operations, and import management
+                </p>
+              </div>
+              <span
+                className="mono inline-flex items-center gap-2 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground"
+                title={isTauri ? 'Running in the Tauri desktop shell with SQLite persistence.' : 'Running in the browser; data is stored in localStorage.'}
+              >
+                <span
+                  aria-hidden
+                  className={
+                    isTauri
+                      ? 'inline-block size-1.5 rounded-full bg-accent'
+                      : 'inline-block size-1.5 rounded-full bg-muted-foreground'
+                  }
+                />
+                {isTauri ? 'Tauri · SQLite' : 'Browser fallback'}
+              </span>
             </div>
-            <Alert className="w-auto border-accent/30 bg-accent/5">
-              <Info className="h-4 w-4 text-accent-foreground" />
-              <AlertDescription className="text-xs text-accent-foreground font-medium">
-                {isTauri ? 'Tauri + SQLite runtime' : 'Browser fallback store'}
-              </AlertDescription>
-            </Alert>
           </div>
         </div>
+
+        <div className="container mx-auto px-6 py-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-5 mb-6">
+              <TabsTrigger value="library">Library</TabsTrigger>
+              <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
+              <TabsTrigger value="resume">Resume</TabsTrigger>
+              <TabsTrigger value="operations">Operations</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="library" className="mt-0">
+              <LibraryView />
+            </TabsContent>
+
+            <TabsContent value="taxonomy" className="mt-0">
+              <TaxonomyView />
+            </TabsContent>
+
+            <TabsContent value="resume" className="mt-0">
+              <ResumeGenerationView />
+            </TabsContent>
+
+            <TabsContent value="operations" className="mt-0">
+              <OperationsView />
+            </TabsContent>
+
+            <TabsContent value="settings" className="mt-0">
+              <SettingsView />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
-
-      <div className="container mx-auto px-6 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 mb-6">
-            <TabsTrigger value="library">Library</TabsTrigger>
-            <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
-            <TabsTrigger value="resume">Resume</TabsTrigger>
-            <TabsTrigger value="operations">Operations</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="library" className="mt-0">
-            <LibraryView />
-          </TabsContent>
-
-          <TabsContent value="taxonomy" className="mt-0">
-            <TaxonomyView />
-          </TabsContent>
-
-          <TabsContent value="resume" className="mt-0">
-            <ResumeGenerationView />
-          </TabsContent>
-
-          <TabsContent value="operations" className="mt-0">
-            <OperationsView />
-          </TabsContent>
-
-          <TabsContent value="settings" className="mt-0">
-            <SettingsView />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+    </MinWidthGuard>
   )
 }
 

@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Warning } from '@phosphor-icons/react/dist/icons/Warning'
+import { AlertTriangle as Warning } from 'lucide-react'
 
 type RecordDialogProps = {
   open: boolean

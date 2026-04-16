@@ -31,7 +31,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toast } from 'sonner'
-import { Warning } from '@phosphor-icons/react/dist/icons/Warning'
+import { AlertTriangle as Warning } from 'lucide-react'
 
 type EvidenceDialogProps = {
   open: boolean

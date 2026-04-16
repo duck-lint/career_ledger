@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
 import { careerService } from '@/lib/service'
 import type { ExperienceRecord } from '@/lib/types'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus } from '@phosphor-icons/react/dist/icons/Plus'
-import { Briefcase } from '@phosphor-icons/react/dist/icons/Briefcase'
-import { FolderOpen } from '@phosphor-icons/react/dist/icons/FolderOpen'
-import { Pencil } from '@phosphor-icons/react/dist/icons/Pencil'
-import { Trash } from '@phosphor-icons/react/dist/icons/Trash'
+import { Plus, Briefcase, FolderOpen, Pencil, Trash2 as Trash } from 'lucide-react'
 import { toast } from 'sonner'
 import RecordDialog from '@/components/dialogs/RecordDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -22,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 
 type RecordsViewProps = {
@@ -143,11 +140,17 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
       </div>
 
       {records.length === 0 ? (
-        <Alert>
-          <AlertDescription>
-            No records found. Create your first experience record to get started.
-          </AlertDescription>
-        </Alert>
+        <EmptyState
+          icon={Briefcase}
+          title="No experience records yet"
+          description="Add your first employment or project record to start building a claim-backed career library."
+          action={
+            <Button size="sm" onClick={handleCreate}>
+              <Plus className="mr-2" />
+              New record
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-4">
           {records.map((record) => (
@@ -173,7 +176,7 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
                       <CardTitle className="text-base mb-1">{record.title}</CardTitle>
                       <p className="text-sm text-muted-foreground">{record.organization}</p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="mono text-xs">
+                        <Badge variant="mono">
                           {record.slug}
                         </Badge>
                         <span>•</span>
@@ -196,7 +199,7 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
                       {record.context_tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-3">
                           {record.context_tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="mono text-xs">
+                            <Badge key={tag} variant="secondary" className="mono">
                               {tag}
                             </Badge>
                           ))}

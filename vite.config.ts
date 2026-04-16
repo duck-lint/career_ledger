@@ -18,10 +18,6 @@ export default defineConfig({
             return
           }
 
-          if (id.includes('@phosphor-icons/react')) {
-            return 'phosphor-icons'
-          }
-
           if (id.includes('lucide-react')) {
             return 'lucide-icons'
           }
