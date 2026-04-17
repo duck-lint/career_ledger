@@ -182,6 +182,10 @@ pub struct RequirementAnalysis {
 struct RuntimeTaxonomyAnalysisContext {
     canonical_tag_set: HashSet<String>,
     markers_by_tag: Vec<(String, Vec<TagInferenceMarker>)>,
+    /// Normalized surface forms of all inference marker terms (literal values
+    /// and compound all_of/any_of terms). Used to suppress suggested-term
+    /// prompts for surface strings already captured by the marker inventory.
+    marker_term_set: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -249,9 +253,31 @@ fn load_runtime_taxonomy_analysis_context(
     let canonical_tags = get_canonical_tags(conn)?;
     let mut canonical_tag_set = HashSet::new();
     let mut markers_by_tag = Vec::new();
+    let mut marker_term_set = HashSet::new();
     let markers = get_all_tag_inference_markers(conn)?;
     let mut grouped_markers: HashMap<String, Vec<TagInferenceMarker>> = HashMap::new();
     for marker in markers {
+        // Collect normalized surface forms of every marker term so we can
+        // suppress them from the "suggested taxonomy terms" list later.
+        match marker.marker_kind.as_str() {
+            "literal" => {
+                if let Some(literal) = &marker.literal_value {
+                    let normalized = normalize_surface_term(literal);
+                    if !normalized.is_empty() {
+                        marker_term_set.insert(normalized);
+                    }
+                }
+            }
+            "compound" => {
+                for term in &marker.terms {
+                    let normalized = normalize_surface_term(&term.term_value);
+                    if !normalized.is_empty() {
+                        marker_term_set.insert(normalized);
+                    }
+                }
+            }
+            _ => {}
+        }
         grouped_markers
             .entry(marker.canonical_tag.clone())
             .or_default()
@@ -268,6 +294,7 @@ fn load_runtime_taxonomy_analysis_context(
     Ok(RuntimeTaxonomyAnalysisContext {
         canonical_tag_set,
         markers_by_tag,
+        marker_term_set,
     })
 }
 
@@ -405,6 +432,7 @@ fn collect_unrecognized_notable_terms(
         for value in &atom.normalized_terms {
             if value.is_empty()
                 || taxonomy.canonical_tag_set.contains(value)
+                || taxonomy.marker_term_set.contains(value)
                 || is_member(GENERIC_SURFACE_TERMS, value)
             {
                 continue;
@@ -1466,5 +1494,91 @@ mod tests {
             // If they didn't merge (different cluster keys), the first still has a subject.
             assert!(atom.subject.is_some(), "expected subject to be present");
         }
+    }
+
+    // --- marker_term_set filtering tests ---
+
+    fn make_stub_atom(normalized_terms: Vec<&str>) -> RequirementAtom {
+        RequirementAtom {
+            requirement_id: "req_stub".to_string(),
+            cluster_id: "cluster_stub".to_string(),
+            text: String::new(),
+            kind: "must_have".to_string(),
+            priority_rank: 0,
+            source_order: 0,
+            normalized_terms: normalized_terms.into_iter().map(String::from).collect(),
+            matched_tags: Vec::new(),
+            experience_years: None,
+            has_quantifier: false,
+            subject: None,
+            merged_from: None,
+        }
+    }
+
+    fn make_taxonomy_context(
+        canonical_tags: Vec<&str>,
+        marker_terms: Vec<&str>,
+    ) -> RuntimeTaxonomyAnalysisContext {
+        RuntimeTaxonomyAnalysisContext {
+            canonical_tag_set: canonical_tags.into_iter().map(String::from).collect(),
+            markers_by_tag: Vec::new(),
+            marker_term_set: marker_terms.into_iter().map(String::from).collect(),
+        }
+    }
+
+    #[test]
+    fn literal_marker_term_excluded_from_suggested_terms() {
+        // "k8s" is a literal inference marker for "kubernetes" — should not
+        // appear as a suggested term even though it isn't a canonical tag.
+        let atoms = vec![
+            make_stub_atom(vec!["k8s", "terraform"]),
+            make_stub_atom(vec!["k8s", "terraform"]),
+        ];
+        let taxonomy = make_taxonomy_context(vec!["kubernetes"], vec!["k8s"]);
+        let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
+        let terms: Vec<&str> = suggestions.iter().map(|s| s.term.as_str()).collect();
+        assert!(
+            !terms.contains(&"k8s"),
+            "k8s should be excluded (covered by inference marker)"
+        );
+        assert!(
+            terms.contains(&"terraform"),
+            "terraform should still appear (not in markers or tags)"
+        );
+    }
+
+    #[test]
+    fn compound_marker_terms_excluded_from_suggested_terms() {
+        // A compound marker for "docker_compose" has all_of terms "docker"
+        // and "compose" — both should be suppressed from suggestions.
+        let atoms = vec![
+            make_stub_atom(vec!["docker", "compose", "ansible"]),
+            make_stub_atom(vec!["docker", "compose", "ansible"]),
+        ];
+        let taxonomy = make_taxonomy_context(vec![], vec!["docker", "compose"]);
+        let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
+        let terms: Vec<&str> = suggestions.iter().map(|s| s.term.as_str()).collect();
+        assert!(!terms.contains(&"docker"), "docker should be excluded");
+        assert!(!terms.contains(&"compose"), "compose should be excluded");
+        assert!(
+            terms.contains(&"ansible"),
+            "ansible should still appear (not in markers or tags)"
+        );
+    }
+
+    #[test]
+    fn terms_not_in_markers_still_surfaced() {
+        // Ensure the filter does not over-suppress: terms with no marker or
+        // tag coverage should still appear when they meet the count threshold.
+        let atoms = vec![
+            make_stub_atom(vec!["grafana", "prometheus", "loki"]),
+            make_stub_atom(vec!["grafana", "prometheus", "loki"]),
+        ];
+        let taxonomy = make_taxonomy_context(vec![], vec![]);
+        let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
+        let terms: Vec<&str> = suggestions.iter().map(|s| s.term.as_str()).collect();
+        assert!(terms.contains(&"grafana"));
+        assert!(terms.contains(&"prometheus"));
+        assert!(terms.contains(&"loki"));
     }
 }
