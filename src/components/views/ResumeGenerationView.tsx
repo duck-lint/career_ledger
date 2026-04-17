@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import AdoptTagDialog from '@/components/dialogs/AdoptTagDialog'
 import TagDialog from '@/components/dialogs/TagDialog'
 import { ProgressSteps, type ProgressStep } from '@/components/ProgressSteps'
 import { careerService } from '@/lib/service'
@@ -282,6 +283,9 @@ export default function ResumeGenerationView() {
   const [buildPolicyDraft, setBuildPolicyDraft] = useState<BuildPolicy | null>(null)
   const [tagDialogOpen, setTagDialogOpen] = useState(false)
   const [tagDialogDraft, setTagDialogDraft] = useState<TagDialogCreateDraft | null>(null)
+  const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
+  const [adoptDialogTerm, setAdoptDialogTerm] = useState<string | null>(null)
+  const [adoptDialogClusterTags, setAdoptDialogClusterTags] = useState<string[]>([])
   const [showTaxonomyChangeNotice, setShowTaxonomyChangeNotice] = useState(false)
   const [resumeTab, setResumeTab] = useState('generate')
   const [detailTab, setDetailTab] = useState('preview')
@@ -437,16 +441,52 @@ export default function ResumeGenerationView() {
 
   const analysisClusters = useMemo(() => analysisResult?.clusters ?? [], [analysisResult])
 
-  const handleOpenSuggestedTermDraft = (term: string) => {
-    const trimmedTerm = term.trim()
-    if (!trimmedTerm) {
-      return
+  const analysisAtoms = useMemo(() => analysisResult?.atoms ?? [], [analysisResult])
+
+  const clusterSuggestedTerms = useMemo(() => {
+    const result = new Map<string, string[]>()
+    if (analysisClusters.length === 0 || suggestedTerms.length === 0) return result
+
+    const unrecognizedSet = new Set(suggestedTerms.map((t) => t.term))
+
+    for (const cluster of analysisClusters) {
+      const matchedSet = new Set(cluster.matched_tags)
+      const clusterAtoms = analysisAtoms.filter((a) => a.cluster_id === cluster.cluster_id)
+      const seen = new Set<string>()
+      const terms: string[] = []
+
+      for (const atom of clusterAtoms) {
+        for (const term of atom.normalized_terms) {
+          if (unrecognizedSet.has(term) && !matchedSet.has(term) && !seen.has(term)) {
+            seen.add(term)
+            terms.push(term)
+          }
+        }
+      }
+
+      if (terms.length > 0) {
+        result.set(cluster.cluster_id, terms)
+      }
     }
 
+    return result
+  }, [analysisClusters, analysisAtoms, suggestedTerms])
+
+  // Opens the adopt-or-create triage dialog for a suggested term
+  const handleSuggestedTermClick = (term: string, clusterMatchedTags?: string[]) => {
+    const trimmedTerm = term.trim()
+    if (!trimmedTerm) return
+    setAdoptDialogTerm(trimmedTerm)
+    setAdoptDialogClusterTags(clusterMatchedTags ?? [])
+    setAdoptDialogOpen(true)
+  }
+
+  // Falls through from adopt dialog to create a new canonical tag
+  const handleOpenTagDialog = (term: string) => {
     setTagDialogDraft({
-      tagValue: careerService.normalizeTag(trimmedTerm),
+      tagValue: careerService.normalizeTag(term),
       description: '',
-      displayLabel: formatSuggestedDisplayLabel(trimmedTerm),
+      displayLabel: formatSuggestedDisplayLabel(term),
       categoryName: null,
     })
     setTagDialogOpen(true)
@@ -464,6 +504,18 @@ export default function ResumeGenerationView() {
     setTagDialogDraft(null)
     setShowTaxonomyChangeNotice(true)
     await handleAnalyzePosting()
+  }
+
+  const handleAdoptDialogAdopt = async () => {
+    setAdoptDialogOpen(false)
+    setShowTaxonomyChangeNotice(true)
+    await handleAnalyzePosting()
+  }
+
+  const handleAdoptDialogCreate = () => {
+    const term = adoptDialogTerm
+    setAdoptDialogOpen(false)
+    if (term) handleOpenTagDialog(term)
   }
 
   const pipelineSummaryCards = useMemo(() => {
@@ -1065,7 +1117,7 @@ export default function ResumeGenerationView() {
                               type="button"
                               variant="secondary"
                               className="h-auto gap-2 px-3 py-2"
-                              onClick={() => handleOpenSuggestedTermDraft(term.term)}
+                              onClick={() => handleSuggestedTermClick(term.term)}
                               disabled={isAnalyzing || isSubmitting}
                             >
                               <span className="mono">{term.term}</span>
@@ -1134,12 +1186,30 @@ export default function ResumeGenerationView() {
                                 <Badge variant="outline">{cluster.atom_ids.length} atoms</Badge>
                               </div>
                             </div>
-                            {cluster.matched_tags.length > 0 && (
+                            {(cluster.matched_tags.length > 0 ||
+                              (clusterSuggestedTerms.get(cluster.cluster_id)?.length ?? 0) >
+                                0) && (
                               <div className="flex flex-wrap gap-2">
                                 {cluster.matched_tags.map((tag) => (
-                                  <Badge key={`${cluster.cluster_id}-${tag}`} variant="outline" className="mono">
+                                  <Badge
+                                    key={`${cluster.cluster_id}-${tag}`}
+                                    variant="outline"
+                                    className="mono border-green-600/40 text-green-700 dark:border-green-500/40 dark:text-green-400"
+                                  >
                                     {tag}
                                   </Badge>
+                                ))}
+                                {clusterSuggestedTerms.get(cluster.cluster_id)?.map((term) => (
+                                  <Button
+                                    key={`${cluster.cluster_id}-suggest-${term}`}
+                                    type="button"
+                                    variant="secondary"
+                                    className="h-auto px-2 py-1 text-xs"
+                                    onClick={() => handleSuggestedTermClick(term, cluster.matched_tags)}
+                                    disabled={isAnalyzing || isSubmitting}
+                                  >
+                                    <span className="mono">{term}</span>
+                                  </Button>
                                 ))}
                               </div>
                             )}
@@ -1949,6 +2019,15 @@ export default function ResumeGenerationView() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AdoptTagDialog
+        open={adoptDialogOpen}
+        onOpenChange={setAdoptDialogOpen}
+        term={adoptDialogTerm}
+        clusterMatchedTags={adoptDialogClusterTags}
+        onAdopt={handleAdoptDialogAdopt}
+        onCreate={handleAdoptDialogCreate}
+      />
 
       <TagDialog
         open={tagDialogOpen}

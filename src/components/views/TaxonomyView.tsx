@@ -647,8 +647,8 @@ export default function TaxonomyView() {
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-              <Card>
+            <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+              <Card className="min-w-0">
                 <CardHeader>
                   <CardTitle>Canonical Tags</CardTitle>
                 </CardHeader>
@@ -664,10 +664,8 @@ export default function TaxonomyView() {
                       }`}
                       onClick={() => setSelectedTag(tag.tag)}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge className="mono">{tag.tag}</Badge>
-                        <span className="text-xs text-muted-foreground">{tag.display_label}</span>
-                      </div>
+                      <span className="mono block truncate text-xs font-medium">{tag.tag}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{tag.display_label}</span>
                     </button>
                   ))}
                 </CardContent>

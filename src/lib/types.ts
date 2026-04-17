@@ -118,11 +118,12 @@ export type RequirementAtom = {
   matched_tags: string[]
   experience_years: ExperienceYears | null
   has_quantifier: boolean
+  subject?: string | null
   merged_from?: string[]
 }
 
 export type RequirementAnalysis = {
-  analysis_version: '1.0'
+  analysis_version: '1.0' | '1.1'
   source: RequirementAnalysisSource
   clusters: RequirementCluster[]
   atoms: RequirementAtom[]

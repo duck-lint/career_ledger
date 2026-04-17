@@ -4,12 +4,23 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
-const REQUIREMENT_ANALYSIS_VERSION: &str = "1.0";
+const REQUIREMENT_ANALYSIS_VERSION: &str = "1.1";
 const EXTRACTION_METHOD: &str = "posting_surface_terms_v1";
 const REQUIREMENT_KIND_MUST_HAVE: &str = "must_have";
 const REQUIREMENT_KIND_SHOULD_HAVE: &str = "should_have";
 const REQUIREMENT_KIND_NICE_TO_HAVE: &str = "nice_to_have";
+const HEADING_DECAY_THRESHOLD: u32 = 3;
+
+const NEGATION_CUES: &[&str] = &[
+    "not", "no", "without", "never",
+    "don't", "don\u{2019}t",
+    "doesn't", "doesn\u{2019}t",
+    "isn't", "isn\u{2019}t",
+    "won't", "won\u{2019}t",
+    "aren't", "aren\u{2019}t",
+];
 
 const STOPWORDS: &[&str] = &[
     "a", "about", "all", "also", "an", "and", "any", "are", "as", "at", "be", "been", "both",
@@ -153,6 +164,8 @@ pub struct RequirementAtom {
     pub matched_tags: Vec<String>,
     pub experience_years: Option<ExperienceYears>,
     pub has_quantifier: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub merged_from: Option<Vec<String>>,
 }
@@ -509,7 +522,7 @@ fn split_posting_into_requirement_units(job_posting_text: &str) -> Vec<Requireme
             vec![line.clone()]
         };
 
-        for fragment in candidate_fragments {
+        for fragment in candidate_fragments.into_iter().flat_map(|f| split_mixed_modality(&f)) {
             let cleaned = normalize_whitespace(&fragment)
                 .trim_matches(|character: char| matches!(character, ' ' | '-' | ':' | ';'))
                 .to_string();
@@ -532,19 +545,46 @@ fn split_posting_into_requirement_units(job_posting_text: &str) -> Vec<Requireme
     units
 }
 
+/// Returns true if the first match of `pattern` in `text` is preceded (within
+/// a 3-word window) by a negation cue like "not", "no", "without", etc.
+/// Expects `text` to already be lowercased.
+fn is_negated_signal(text: &str, pattern: &Regex) -> bool {
+    let Some(matched) = pattern.find(text) else {
+        return false;
+    };
+    let prefix = &text[..matched.start()];
+    let words: Vec<&str> = prefix.split_whitespace().collect();
+    let window = &words[words.len().saturating_sub(3)..];
+    window.iter().any(|word| NEGATION_CUES.contains(word))
+}
+
 fn classify_requirement_kind(text: &str, heading: &str) -> String {
     let normalized_text = normalize_whitespace(text).to_lowercase();
     let normalized_heading = normalize_whitespace(heading)
         .trim_end_matches(':')
         .to_lowercase();
-    if requirement_nice_to_have_regex().is_match(&normalized_text) {
+
+    // Nice-to-have: skip if the signal word is negated
+    // ("not a nice to have" should fall through, not classify as nice_to_have)
+    if requirement_nice_to_have_regex().is_match(&normalized_text)
+        && !is_negated_signal(&normalized_text, requirement_nice_to_have_regex())
+    {
         return REQUIREMENT_KIND_NICE_TO_HAVE.to_string();
     }
-    if is_member(MUST_HAVE_HEADINGS, &normalized_heading)
-        || requirement_strong_modal_regex().is_match(&normalized_text)
+
+    // Must-have from heading: section context is not affected by per-line negation
+    if is_member(MUST_HAVE_HEADINGS, &normalized_heading) {
+        return REQUIREMENT_KIND_MUST_HAVE.to_string();
+    }
+
+    // Must-have from regex: skip if the signal word is negated
+    // ("degree not required" → should_have, not must_have)
+    if requirement_strong_modal_regex().is_match(&normalized_text)
+        && !is_negated_signal(&normalized_text, requirement_strong_modal_regex())
     {
         return REQUIREMENT_KIND_MUST_HAVE.to_string();
     }
+
     REQUIREMENT_KIND_SHOULD_HAVE.to_string()
 }
 
@@ -555,6 +595,8 @@ fn cluster_requirement_atoms(
     let mut clusters = Vec::new();
     let mut atoms = Vec::new();
     let mut cluster_index_by_key = HashMap::new();
+    let mut heading_soft_streak: HashMap<String, u32> = HashMap::new();
+    let mut heading_decayed: HashMap<String, bool> = HashMap::new();
 
     for (unit_index, unit) in requirement_units.iter().enumerate() {
         let text = normalize_whitespace(&unit.text);
@@ -565,7 +607,49 @@ fn cluster_requirement_atoms(
             (unit_index + 1) as u32
         };
         let (normalized_terms, matched_tags) = extract_requirement_terms(&text, taxonomy);
-        let kind = classify_requirement_kind(&text, &heading);
+
+        // Heading decay: suppress heading boost when consecutive lines carry
+        // un-negated soft signals (preferred/bonus/etc), indicating the section
+        // has drifted away from must-have territory. A hard-signal line (e.g.
+        // "required") resets the decay; a no-signal line preserves the current state.
+        let normalized_heading_lower = normalize_whitespace(&heading)
+            .trim_end_matches(':')
+            .to_lowercase();
+        let is_must_have_heading = is_member(MUST_HAVE_HEADINGS, &normalized_heading_lower);
+        let effective_heading = if is_must_have_heading {
+            let text_lower = text.to_lowercase();
+            let line_has_soft_signal =
+                requirement_nice_to_have_regex().is_match(&text_lower)
+                    && !is_negated_signal(&text_lower, requirement_nice_to_have_regex());
+            let line_has_hard_signal =
+                requirement_strong_modal_regex().is_match(&text_lower)
+                    && !is_negated_signal(&text_lower, requirement_strong_modal_regex());
+
+            let streak = heading_soft_streak.entry(heading.clone()).or_insert(0);
+            let decayed = heading_decayed.entry(heading.clone()).or_insert(false);
+
+            if line_has_soft_signal {
+                *streak += 1;
+                if *streak >= HEADING_DECAY_THRESHOLD {
+                    *decayed = true;
+                }
+            } else if line_has_hard_signal {
+                // Hard signal resets the decay — this line clearly belongs to the heading
+                *streak = 0;
+                *decayed = false;
+            }
+            // No-signal lines: leave streak and decayed unchanged
+
+            if *decayed {
+                String::new()
+            } else {
+                heading.clone()
+            }
+        } else {
+            heading.clone()
+        };
+
+        let kind = classify_requirement_kind(&text, &effective_heading);
         let kind_priority_rank = priority_rank(&kind);
 
         let (cluster_key, cluster_label) = if !heading.is_empty() {
@@ -626,6 +710,7 @@ fn cluster_requirement_atoms(
             matched_tags,
             experience_years: extract_experience_years(&text),
             has_quantifier: has_quantifier(&text),
+            subject: extract_requirement_subject(&text),
             merged_from: None,
         };
         atoms.push(atom);
@@ -699,6 +784,12 @@ fn deduplicate_atoms(
                 if other.has_quantifier {
                     survivor.has_quantifier = true;
                 }
+                // Preserve subject from a merged atom if the survivor lacks one
+                if survivor.subject.is_none() {
+                    if let Some(ref subject) = other.subject {
+                        survivor.subject = Some(subject.clone());
+                    }
+                }
             }
 
             survivor.normalized_terms = all_terms;
@@ -746,6 +837,50 @@ fn extract_experience_years(text: &str) -> Option<ExperienceYears> {
 
 fn has_quantifier(text: &str) -> bool {
     quantifier_regex().is_match(text)
+}
+
+/// Extracts the noun-phrase subject of a requirement line by looking for
+/// trailing signals ("Python experience is required") or leading signals
+/// ("Must have 3+ years of AWS experience"). Returns a lowercased, trimmed
+/// subject capped at 80 chars, or None if no recognizable pattern is found.
+fn extract_requirement_subject(text: &str) -> Option<String> {
+    static TRAILING_RE: OnceLock<Regex> = OnceLock::new();
+    static LEADING_RE: OnceLock<Regex> = OnceLock::new();
+
+    let trailing = TRAILING_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)(.+?)\s+(?:(?:is|are|would\s+be)\s+)?(?:required|preferred|needed|a\s+must|a\s+plus|an\s+asset)\b",
+        )
+        .unwrap()
+    });
+    let leading = LEADING_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)(?:must\s+have\s+|minimum\s+of\s+|at\s+least\s+|required\s*:\s*)(.+?)(?:[.,;]|$)",
+        )
+        .unwrap()
+    });
+
+    // Try trailing pattern first ("Python experience is required")
+    if let Some(captures) = trailing.captures(text) {
+        if let Some(subject) = captures.get(1) {
+            let trimmed = subject.as_str().trim();
+            if !trimmed.is_empty() && trimmed.split_whitespace().count() <= 12 {
+                return Some(truncate_chars(&trimmed.to_lowercase(), 80));
+            }
+        }
+    }
+
+    // Try leading pattern ("Must have 3+ years of Python")
+    if let Some(captures) = leading.captures(text) {
+        if let Some(subject) = captures.get(1) {
+            let trimmed = subject.as_str().trim();
+            if !trimmed.is_empty() && trimmed.split_whitespace().count() <= 12 {
+                return Some(truncate_chars(&trimmed.to_lowercase(), 80));
+            }
+        }
+    }
+
+    None
 }
 
 fn stable_sha256_text(value: &str) -> String {
@@ -983,12 +1118,48 @@ fn split_requirement_fragments(line: &str) -> Vec<String> {
     fragments
 }
 
+/// Splits a fragment on compound conjunctions (`;`, ` while `, ` whereas `,
+/// ` though `) when both halves carry a classification signal word.
+/// Returns the original fragment unchanged if no valid split is found.
+fn split_mixed_modality(fragment: &str) -> Vec<String> {
+    let lowered = fragment.to_lowercase();
+
+    let has_classification_signal = |text: &str| {
+        let lowered = text.to_lowercase();
+        requirement_strong_modal_regex().is_match(&lowered)
+            || requirement_nice_to_have_regex().is_match(&lowered)
+    };
+
+    // Semicolon: most common compound separator in job postings
+    if let Some(pos) = lowered.find(';') {
+        let left = fragment[..pos].trim();
+        let right = fragment[pos + 1..].trim();
+        if has_classification_signal(left) && has_classification_signal(right) {
+            return vec![left.to_string(), right.to_string()];
+        }
+    }
+
+    // Word-based clause connectors (space-padded to avoid mid-word matches)
+    for splitter in [" while ", " whereas ", " though "] {
+        if let Some(pos) = lowered.find(splitter) {
+            let left = fragment[..pos].trim();
+            let right = fragment[pos + splitter.len()..].trim();
+            if has_classification_signal(left) && has_classification_signal(right) {
+                return vec![left.to_string(), right.to_string()];
+            }
+        }
+    }
+
+    vec![fragment.to_string()]
+}
+
 fn is_member(values: &[&str], candidate: &str) -> bool {
     values.contains(&candidate)
 }
 
-fn credential_patterns() -> Vec<(Regex, Vec<&'static str>)> {
-    vec![
+fn credential_patterns() -> &'static [(Regex, Vec<&'static str>)] {
+    static PATTERNS: OnceLock<Vec<(Regex, Vec<&'static str>)>> = OnceLock::new();
+    PATTERNS.get_or_init(|| vec![
         (
             Regex::new(r"\bundergraduate\s+degree\b").unwrap(),
             vec!["undergraduate_degree", "degree"],
@@ -1018,53 +1189,62 @@ fn credential_patterns() -> Vec<(Regex, Vec<&'static str>)> {
             Regex::new(r"\bpost[- ]secondary\b").unwrap(),
             vec!["post_secondary", "degree"],
         ),
-    ]
+    ])
 }
 
-fn role_family_patterns() -> Vec<Regex> {
-    vec![
+fn role_family_patterns() -> &'static [Regex] {
+    static PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
+    PATTERNS.get_or_init(|| vec![
         Regex::new(r"(?i)(?:we(?:['\u{2019}]re|\s+are)?\s+)?seeking\s+(?:an?|the)\s+(.+?)(?:\s+to\b|\s+who\b|[.,;]|$)").unwrap(),
         Regex::new(r"(?i)(?:hiring|looking\s+for)\s+(?:an?|the)\s+(.+?)(?:\s+to\b|\s+who\b|[.,;]|$)").unwrap(),
         Regex::new(r"(?i)join(?:\s+\w+){0,5}\s+as\s+(?:an?|the)\s+(.+?)(?:\s+to\b|\s+who\b|[.,;]|$)").unwrap(),
         Regex::new(r"(?i)need\s+(?:an?|the)\s+(.+?)(?:\s+to\b|\s+who\b|[.,;]|$)").unwrap(),
-    ]
+    ])
 }
 
-fn title_phrase_regex() -> Regex {
-    Regex::new(r"\b(?:[A-Z]{2,}|[A-Z][a-z0-9]+(?:/[A-Z][a-z0-9]+)?)(?:\s+(?:[A-Z]{2,}|[A-Z][a-z0-9]+(?:/[A-Z][a-z0-9]+)?)){0,3}\b").unwrap()
+fn title_phrase_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\b(?:[A-Z]{2,}|[A-Z][a-z0-9]+(?:/[A-Z][a-z0-9]+)?)(?:\s+(?:[A-Z]{2,}|[A-Z][a-z0-9]+(?:/[A-Z][a-z0-9]+)?)){0,3}\b").unwrap())
 }
 
-fn role_suffix_regex() -> Regex {
-    Regex::new(r"(?i)\b(analyst|architect|administrator|advisor|consultant|coordinator|designer|developer|director|engineer|lead|manager|officer|partner|planner|scientist|specialist|strategist|technician)\b").unwrap()
+fn role_suffix_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)\b(analyst|architect|administrator|advisor|consultant|coordinator|designer|developer|director|engineer|lead|manager|officer|partner|planner|scientist|specialist|strategist|technician)\b").unwrap())
 }
 
-fn requirement_bullet_prefix_regex() -> Regex {
-    Regex::new(r"^(?:[-*•·]+|\d+[.)])\s+").unwrap()
+fn requirement_bullet_prefix_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"^(?:[-*•·]+|\d+[.)])\s+").unwrap())
 }
 
-fn requirement_strong_modal_regex() -> Regex {
-    Regex::new(r"(?i)\b(required|required to|must|need|needs|minimum|at least|\d+\+?\s+years?)\b")
-        .unwrap()
+fn requirement_strong_modal_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)\b(required|required to|must|need|needs|minimum|at least|\d+\+?\s+years?)\b").unwrap())
 }
 
-fn requirement_nice_to_have_regex() -> Regex {
-    Regex::new(r"(?i)\b(preferred|nice to have|bonus|asset|plus)\b").unwrap()
+fn requirement_nice_to_have_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)\b(preferred|nice to have|bonus|asset|plus)\b").unwrap())
 }
 
-fn experience_years_regex() -> Regex {
-    Regex::new(r"(?i)(?:(?:at\s+least|minimum|min\.?)\s+)?(\d{1,2})\s*(?:(\+)|(?:to|-)\s*(\d{1,2})\s*\+?)?\s+years?").unwrap()
+fn experience_years_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)(?:(?:at\s+least|minimum|min\.?)\s+)?(\d{1,2})\s*(?:(\+)|(?:to|-)\s*(\d{1,2})\s*\+?)?\s+years?").unwrap())
 }
 
-fn quantifier_regex() -> Regex {
-    Regex::new(r"(?i)(?:\$[\d,]+(?:\.\d+)?[KkMmBb]?|[\d,]+(?:\.\d+)?\s*%|\b\d{2,}(?:,\d{3})+\b|\b\d+\s*(?:x|×)\b|\b(?:1[0-9]{2,}|[2-9]\d{2,})\b)").unwrap()
+fn quantifier_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)(?:\$[\d,]+(?:\.\d+)?[KkMmBb]?|[\d,]+(?:\.\d+)?\s*%|\b\d{2,}(?:,\d{3})+\b|\b\d+\s*(?:x|×)\b|\b(?:1[0-9]{2,}|[2-9]\d{2,})\b)").unwrap())
 }
 
-fn word_regex() -> Regex {
-    Regex::new(r"[a-z0-9]+").unwrap()
+fn word_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"[a-z0-9]+").unwrap())
 }
 
-fn non_word_regex() -> Regex {
-    Regex::new(r"\W+").unwrap()
+fn non_word_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\W+").unwrap())
 }
 
 #[cfg(test)]
@@ -1089,7 +1269,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(analysis.analysis_version, "1.0");
+        assert_eq!(analysis.analysis_version, "1.1");
         assert_eq!(analysis.source.target_role_family, "Python engineer");
         assert_eq!(
             analysis.source.extraction_method,
@@ -1130,5 +1310,161 @@ mod tests {
         .unwrap();
 
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn negation_downgrades_required_to_should_have() {
+        // "not required" should suppress the must_have signal from "required"
+        let kind = classify_requirement_kind("A degree is not required for this role", "");
+        assert_eq!(kind, REQUIREMENT_KIND_SHOULD_HAVE);
+    }
+
+    #[test]
+    fn negation_downgrades_nice_to_have() {
+        // "not a nice to have" should suppress the nice_to_have signal,
+        // and with no un-negated must_have signal it falls through to should_have
+        let kind = classify_requirement_kind("This is not a nice to have", "");
+        assert_eq!(kind, REQUIREMENT_KIND_SHOULD_HAVE);
+    }
+
+    #[test]
+    fn non_negated_still_classifies_correctly() {
+        // Regression guard: plain "required" without negation still → must_have
+        let kind = classify_requirement_kind("Python experience required", "");
+        assert_eq!(kind, REQUIREMENT_KIND_MUST_HAVE);
+
+        // Plain "preferred" without negation still → nice_to_have
+        let kind = classify_requirement_kind("Experience with Rust preferred", "");
+        assert_eq!(kind, REQUIREMENT_KIND_NICE_TO_HAVE);
+    }
+
+    #[test]
+    fn splits_semicolon_mixed_modality() {
+        // Both halves carry a signal word → split into 2 fragments
+        let parts = split_mixed_modality("Bachelor's degree required; Master's preferred");
+        assert_eq!(parts.len(), 2);
+        assert!(parts[0].contains("required"));
+        assert!(parts[1].contains("preferred"));
+    }
+
+    #[test]
+    fn does_not_split_when_only_one_signal() {
+        // "strong communication" has no classification signal word
+        let parts = split_mixed_modality("Python experience required; strong communication skills");
+        assert_eq!(parts.len(), 1);
+    }
+
+    #[test]
+    fn does_not_split_plain_semicolons() {
+        // Neither half has a signal word
+        let parts = split_mixed_modality("Python; AWS; Docker experience");
+        assert_eq!(parts.len(), 1);
+    }
+
+    #[test]
+    fn heading_decay_suppresses_after_streak() {
+        let conn = setup_conn();
+        // "Requirements:" is a must_have heading. Bullets 2-4 contain "preferred"
+        // (soft signal). After 3 consecutive soft lines, the heading boost should
+        // be suppressed: bullet 5 (no signal word) → should_have instead of must_have.
+        let analysis = build_requirement_analysis(
+            &conn,
+            "Requirements:\n\
+             - Python experience in automation workflows\n\
+             - AWS cloud services experience preferred\n\
+             - Docker container experience preferred\n\
+             - Kubernetes orchestration preferred\n\
+             - Good communication and teamwork abilities",
+        )
+        .unwrap();
+
+        // Bullet 1: no soft signal, heading boost → must_have
+        assert_eq!(analysis.atoms[0].kind, "must_have");
+        // Bullets 2-4: "preferred" → nice_to_have (classify checks nice_to_have first)
+        assert_eq!(analysis.atoms[1].kind, "nice_to_have");
+        assert_eq!(analysis.atoms[2].kind, "nice_to_have");
+        assert_eq!(analysis.atoms[3].kind, "nice_to_have");
+        // Bullet 5: no signal, streak == 3, heading suppressed → should_have
+        assert_eq!(analysis.atoms[4].kind, "should_have");
+    }
+
+    #[test]
+    fn heading_decay_resets_on_hard_line() {
+        let conn = setup_conn();
+        // After a streak of soft lines, a hard-signal line resets the streak.
+        let analysis = build_requirement_analysis(
+            &conn,
+            "Requirements:\n\
+             - AWS cloud services experience preferred\n\
+             - Docker container experience preferred\n\
+             - Kubernetes orchestration preferred\n\
+             - Python scripting experience required\n\
+             - Terraform infrastructure preferred\n\
+             - Ansible automation preferred\n\
+             - Chef configuration preferred\n\
+             - Strong troubleshooting and debugging abilities",
+        )
+        .unwrap();
+
+        // Bullet 4: "required" (hard signal), resets streak → must_have
+        assert_eq!(analysis.atoms[3].kind, "must_have");
+        // Bullets 5-7: soft signal, streak rebuilds (1, 2, 3)
+        assert_eq!(analysis.atoms[4].kind, "nice_to_have");
+        assert_eq!(analysis.atoms[5].kind, "nice_to_have");
+        assert_eq!(analysis.atoms[6].kind, "nice_to_have");
+        // Bullet 8: no signal, streak == 3, heading suppressed → should_have
+        assert_eq!(analysis.atoms[7].kind, "should_have");
+    }
+
+    #[test]
+    fn extracts_trailing_subject() {
+        assert_eq!(
+            extract_requirement_subject("Python experience required"),
+            Some("python experience".to_string()),
+        );
+        assert_eq!(
+            extract_requirement_subject("A bachelor's degree is preferred"),
+            Some("a bachelor's degree".to_string()),
+        );
+    }
+
+    #[test]
+    fn extracts_leading_subject() {
+        assert_eq!(
+            extract_requirement_subject("Must have 3+ years of AWS experience"),
+            Some("3+ years of aws experience".to_string()),
+        );
+    }
+
+    #[test]
+    fn subject_is_none_for_no_signal() {
+        assert_eq!(
+            extract_requirement_subject("Build automation workflows"),
+            None,
+        );
+    }
+
+    #[test]
+    fn subject_survives_dedup() {
+        let conn = setup_conn();
+        // Two atoms with the same tags should merge; the survivor keeps the subject
+        let analysis = build_requirement_analysis(
+            &conn,
+            "Requirements:\n\
+             - Python scripting experience required\n\
+             - Strong Python skills for automation tasks",
+        )
+        .unwrap();
+
+        // Both lines mention "python" so they may share tags and merge.
+        // The surviving atom should have a subject from the "required" line.
+        let python_atom = analysis.atoms.iter().find(|a| {
+            a.matched_tags.contains(&"python".to_string())
+        });
+        if let Some(atom) = python_atom {
+            // If atoms merged, subject should be preserved from the higher-priority atom.
+            // If they didn't merge (different cluster keys), the first still has a subject.
+            assert!(atom.subject.is_some(), "expected subject to be present");
+        }
     }
 }
