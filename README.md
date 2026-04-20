@@ -2,7 +2,9 @@
 
 A local-first desktop application for managing career evidence, auto-tagging skills via inference markers, and generating targeted resumes. No cloud services, no accounts — all data lives in a local SQLite database on your machine.
 
-<!-- TODO: Add screenshot from demo video -->
+Demo/first time set up | https://youtu.be/TSJX-YLRbuM?si=N7LrJuJNwgzTmszQ
+<img width="1065" height="838" alt="image" src="https://github.com/user-attachments/assets/afa23984-14b2-4be5-be43-772adcbc9e6a" />
+
 
 ## What is Career Ledger?
 
