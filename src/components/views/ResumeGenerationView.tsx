@@ -456,7 +456,11 @@ export default function ResumeGenerationView() {
       const terms: string[] = []
 
       for (const atom of clusterAtoms) {
-        for (const term of atom.normalized_terms) {
+        for (const entry of atom.normalized_terms) {
+          // Negated terms are not positive signals — they must not appear
+          // in the adopt-or-create suggestion UI.
+          if (entry.is_negated) continue
+          const term = entry.term
           if (unrecognizedSet.has(term) && !matchedSet.has(term) && !seen.has(term)) {
             seen.add(term)
             terms.push(term)

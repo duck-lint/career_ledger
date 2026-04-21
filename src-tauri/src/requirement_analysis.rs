@@ -15,6 +15,7 @@ const HEADING_DECAY_THRESHOLD: u32 = 3;
 
 const NEGATION_CUES: &[&str] = &[
     "not", "no", "without", "never",
+    "lacks", "lack", "lacking",
     "don't", "don\u{2019}t",
     "doesn't", "doesn\u{2019}t",
     "isn't", "isn\u{2019}t",
@@ -122,6 +123,18 @@ pub struct UnrecognizedNotableTerm {
     pub count: u32,
 }
 
+/// A surface term extracted from requirement text, tagged with whether it
+/// appeared inside a local negation window. Polarity is determined per
+/// occurrence using the same 3-word lookbehind as `is_negated_signal`; when
+/// the same normalized term appears multiple times within one extraction,
+/// any asserted (non-negated) occurrence wins (`is_negated = false`).
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ExtractedTerm {
+    pub term: String,
+    #[serde(default)]
+    pub is_negated: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct RequirementAnalysisSource {
     pub job_posting_sha256: String,
@@ -159,7 +172,7 @@ pub struct RequirementAtom {
     pub priority_rank: u32,
     pub source_order: u32,
     #[serde(default)]
-    pub normalized_terms: Vec<String>,
+    pub normalized_terms: Vec<ExtractedTerm>,
     #[serde(default)]
     pub matched_tags: Vec<String>,
     pub experience_years: Option<ExperienceYears>,
@@ -298,74 +311,147 @@ fn load_runtime_taxonomy_analysis_context(
     })
 }
 
+/// Public surface-term extractor. Used by callers (e.g. evidence text in
+/// `resume_assembler`) that have no negation context worth preserving;
+/// returns bare term strings by stripping polarity.
 pub fn extract_surface_terms(text: &str) -> Vec<String> {
     extract_surface_terms_with_max_ngram(text, 3)
+        .into_iter()
+        .map(|et| et.term)
+        .collect()
 }
 
-fn extract_surface_terms_with_max_ngram(text: &str, max_ngram: usize) -> Vec<String> {
+fn extract_surface_terms_with_max_ngram(text: &str, max_ngram: usize) -> Vec<ExtractedTerm> {
     let cleaned_text = normalize_whitespace(text);
     if cleaned_text.is_empty() {
         return Vec::new();
     }
 
-    let mut ordered = Vec::new();
-    let mut seen = HashSet::new();
     let lowered = cleaned_text.to_lowercase();
+    let mut index_by_normalized: HashMap<String, usize> = HashMap::new();
+    let mut ordered: Vec<ExtractedTerm> = Vec::new();
 
-    let mut add_term = |raw_value: &str| {
+    // Insert (or relax polarity of) a normalized term anchored at byte
+    // `anchor` within `source_text`. Asserted-occurrence-wins: if any
+    // emission of a given normalized term is non-negated, the stored entry
+    // becomes non-negated. Implemented as a free fn (not closure) to avoid
+    // borrow-checker headaches around the shared mutable state.
+    fn record_term(
+        raw_value: &str,
+        source_text: &str,
+        anchor: usize,
+        ordered: &mut Vec<ExtractedTerm>,
+        index_by_normalized: &mut HashMap<String, usize>,
+    ) {
         let normalized = normalize_surface_term(raw_value);
-        if normalized.is_empty() || !seen.insert(normalized.clone()) {
+        if normalized.is_empty() {
             return;
         }
-        ordered.push(normalized);
-    };
+        let is_neg = has_negation_cue_before(&source_text[..anchor]);
+        if let Some(&idx) = index_by_normalized.get(&normalized) {
+            if !is_neg {
+                ordered[idx].is_negated = false;
+            }
+        } else {
+            index_by_normalized.insert(normalized.clone(), ordered.len());
+            ordered.push(ExtractedTerm {
+                term: normalized,
+                is_negated: is_neg,
+            });
+        }
+    }
 
+    // Credential patterns: each match site synthesizes one or more canonical
+    // terms. Anchor all synthesized terms at the match start so they share
+    // the same negation context.
     for (pattern, terms) in credential_patterns() {
-        if pattern.is_match(&lowered) {
+        if let Some(matched) = pattern.find(&lowered) {
             for term in terms {
-                add_term(term);
+                record_term(
+                    term,
+                    &lowered,
+                    matched.start(),
+                    &mut ordered,
+                    &mut index_by_normalized,
+                );
             }
         }
     }
 
+    // Title phrases: anchored in the original (mixed-case) cleaned text so
+    // their byte offsets are valid for that string. `has_negation_cue_before`
+    // lowercases the prefix internally, so case here doesn't matter.
     for capture in title_phrase_regex().find_iter(&cleaned_text) {
         let phrase = capture.as_str();
         if is_member(HEADING_TERMS, &phrase.to_lowercase()) {
             continue;
         }
-        add_term(phrase);
+        record_term(
+            phrase,
+            &cleaned_text,
+            capture.start(),
+            &mut ordered,
+            &mut index_by_normalized,
+        );
     }
 
-    let filtered_words = word_regex()
+    // Single words and n-grams: collect (word, byte_offset_in_lowered) so we
+    // can compute negation per occurrence and per n-gram start position.
+    let filtered_word_matches: Vec<(String, usize)> = word_regex()
         .find_iter(&lowered)
-        .map(|capture| capture.as_str().to_string())
-        .filter(|word| word.len() >= 3 && !is_member(STOPWORDS, word))
-        .collect::<Vec<_>>();
+        .map(|m| (m.as_str().to_string(), m.start()))
+        .filter(|(word, _)| word.len() >= 3 && !is_member(STOPWORDS, word))
+        .collect();
 
-    for word in &filtered_words {
-        add_term(word);
+    for (word, anchor) in &filtered_word_matches {
+        record_term(
+            word,
+            &lowered,
+            *anchor,
+            &mut ordered,
+            &mut index_by_normalized,
+        );
     }
 
     for ngram_size in 2..=max_ngram {
-        if filtered_words.len() < ngram_size {
+        if filtered_word_matches.len() < ngram_size {
             continue;
         }
 
-        for index in 0..=(filtered_words.len() - ngram_size) {
-            let phrase_words = &filtered_words[index..index + ngram_size];
-            if phrase_words
+        for index in 0..=(filtered_word_matches.len() - ngram_size) {
+            let phrase_window = &filtered_word_matches[index..index + ngram_size];
+            if phrase_window
                 .iter()
-                .all(|word| is_member(GENERIC_SURFACE_TERMS, word))
+                .all(|(word, _)| is_member(GENERIC_SURFACE_TERMS, word))
             {
                 continue;
             }
 
-            let contiguous_phrase = phrase_words.join(" ");
+            let contiguous_phrase = phrase_window
+                .iter()
+                .map(|(word, _)| word.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
             if !lowered.contains(&contiguous_phrase) {
                 continue;
             }
 
-            add_term(&phrase_words.join("_"));
+            // Anchor the n-gram at its first word's offset; the negation
+            // lookbehind then scans the same window the phrase actually
+            // occupies in the source.
+            let anchor = phrase_window[0].1;
+            let joined = phrase_window
+                .iter()
+                .map(|(word, _)| word.as_str())
+                .collect::<Vec<_>>()
+                .join("_");
+            record_term(
+                &joined,
+                &lowered,
+                anchor,
+                &mut ordered,
+                &mut index_by_normalized,
+            );
         }
     }
 
@@ -375,25 +461,53 @@ fn extract_surface_terms_with_max_ngram(text: &str, max_ngram: usize) -> Vec<Str
 fn extract_requirement_terms(
     text: &str,
     taxonomy: &RuntimeTaxonomyAnalysisContext,
-) -> (Vec<String>, Vec<String>) {
-    let surface_terms = extract_surface_terms_with_max_ngram(text, 3);
+) -> (Vec<ExtractedTerm>, Vec<String>) {
+    let mut surface_terms = extract_surface_terms_with_max_ngram(text, 3);
     let mut matched_tags = Vec::new();
     let mut seen_tags = HashSet::new();
 
+    let normalized_text = normalize_whitespace(text).to_lowercase();
+
+    // Atom-level negation fallback: per-occurrence lookbehind cannot see
+    // trailing negation cues like "Python experience not required" (where
+    // "not" comes after the term). If the requirement's own classification
+    // signal word (strong-modal or nice-to-have) is itself negated by the
+    // existing `is_negated_signal` rule, the whole atom is a negative
+    // requirement: flip every surface term and skip tag inference entirely.
+    // No positive tag (canonical or marker-driven) should fire from a
+    // requirement that says "X is not required" / "no X needed".
+    let atom_negated = is_negated_signal(&normalized_text, requirement_strong_modal_regex())
+        || is_negated_signal(&normalized_text, requirement_nice_to_have_regex());
+    if atom_negated {
+        for entry in &mut surface_terms {
+            entry.is_negated = true;
+        }
+        return (surface_terms, matched_tags);
+    }
+
+    // Surface-term-driven canonical tag matching: skip negated occurrences so
+    // that "lacks Python experience" does not light up the `python` tag.
     for surface_term in &surface_terms {
-        if taxonomy.canonical_tag_set.contains(surface_term)
-            && seen_tags.insert(surface_term.clone())
+        if surface_term.is_negated {
+            continue;
+        }
+        if taxonomy.canonical_tag_set.contains(&surface_term.term)
+            && seen_tags.insert(surface_term.term.clone())
         {
-            matched_tags.push(surface_term.clone());
+            matched_tags.push(surface_term.term.clone());
         }
     }
 
-    let normalized_text = normalize_whitespace(text).to_lowercase();
     let word_set = word_regex()
         .find_iter(&normalized_text)
         .map(|capture| capture.as_str().to_string())
         .collect::<HashSet<_>>();
 
+    // Marker-driven canonical tag matching: each marker term must occur in a
+    // non-negated context (3-word lookbehind) for the marker to fire. This
+    // keeps polarity consistent with the surface-term loop above; without it,
+    // "no kubernetes experience" would still infer `kubernetes` via a
+    // `k8s|kubernetes` literal marker.
     for (canonical_tag, markers) in &taxonomy.markers_by_tag {
         if markers
             .iter()
@@ -429,7 +543,13 @@ fn collect_unrecognized_notable_terms(
     let mut counts: HashMap<String, u32> = HashMap::new();
 
     for atom in atoms {
-        for value in &atom.normalized_terms {
+        for entry in &atom.normalized_terms {
+            // Negated terms are not positive signals — they must never
+            // surface in the suggested-taxonomy-terms UI.
+            if entry.is_negated {
+                continue;
+            }
+            let value = &entry.term;
             if value.is_empty()
                 || taxonomy.canonical_tag_set.contains(value)
                 || taxonomy.marker_term_set.contains(value)
@@ -573,6 +693,15 @@ fn split_posting_into_requirement_units(job_posting_text: &str) -> Vec<Requireme
     units
 }
 
+/// Returns true if the 3-word window ending at the end of `prefix` contains
+/// a negation cue. Lowercases internally so callers may pass mixed-case text.
+fn has_negation_cue_before(prefix: &str) -> bool {
+    let lowered = prefix.to_lowercase();
+    let words: Vec<&str> = lowered.split_whitespace().collect();
+    let window = &words[words.len().saturating_sub(3)..];
+    window.iter().any(|word| NEGATION_CUES.contains(word))
+}
+
 /// Returns true if the first match of `pattern` in `text` is preceded (within
 /// a 3-word window) by a negation cue like "not", "no", "without", etc.
 /// Expects `text` to already be lowercased.
@@ -580,10 +709,7 @@ fn is_negated_signal(text: &str, pattern: &Regex) -> bool {
     let Some(matched) = pattern.find(text) else {
         return false;
     };
-    let prefix = &text[..matched.start()];
-    let words: Vec<&str> = prefix.split_whitespace().collect();
-    let window = &words[words.len().saturating_sub(3)..];
-    window.iter().any(|word| NEGATION_CUES.contains(word))
+    has_negation_cue_before(&text[..matched.start()])
 }
 
 fn classify_requirement_kind(text: &str, heading: &str) -> String {
@@ -782,7 +908,13 @@ fn deduplicate_atoms(
         let mut survivor = group[0].clone();
         if group.len() > 1 {
             let mut all_terms = survivor.normalized_terms.clone();
-            let mut seen_terms = all_terms.iter().cloned().collect::<HashSet<_>>();
+            // Dedup by (term, is_negated) so polarity is preserved across
+            // merged atoms: an asserted `python` and a negated `python` from
+            // two sibling lines remain as two distinct entries.
+            let mut seen_terms = all_terms
+                .iter()
+                .map(|et| (et.term.clone(), et.is_negated))
+                .collect::<HashSet<_>>();
             let mut all_tags = survivor.matched_tags.clone();
             let mut seen_tags = all_tags.iter().cloned().collect::<HashSet<_>>();
             let mut merged_texts = Vec::new();
@@ -790,7 +922,7 @@ fn deduplicate_atoms(
             for other in group.iter().skip(1) {
                 merged_texts.push(other.text.clone());
                 for term in &other.normalized_terms {
-                    if seen_terms.insert(term.clone()) {
+                    if seen_terms.insert((term.term.clone(), term.is_negated)) {
                         all_terms.push(term.clone());
                     }
                 }
@@ -999,7 +1131,7 @@ fn tag_marker_matches_for_posting(
         "literal" => marker
             .literal_value
             .as_deref()
-            .map(|literal| marker_term_matches_for_posting(literal, normalized_text, word_set))
+            .map(|literal| non_negated_marker_term_match(literal, normalized_text, word_set))
             .unwrap_or(false),
         "compound" => {
             let all_of = marker
@@ -1021,14 +1153,14 @@ fn tag_marker_matches_for_posting(
             if !all_of.is_empty()
                 && !all_of
                     .iter()
-                    .all(|term| marker_term_matches_for_posting(term, normalized_text, word_set))
+                    .all(|term| non_negated_marker_term_match(term, normalized_text, word_set))
             {
                 return false;
             }
             if !any_of.is_empty()
                 && !any_of
                     .iter()
-                    .any(|term| marker_term_matches_for_posting(term, normalized_text, word_set))
+                    .any(|term| non_negated_marker_term_match(term, normalized_text, word_set))
             {
                 return false;
             }
@@ -1038,7 +1170,18 @@ fn tag_marker_matches_for_posting(
     }
 }
 
-fn marker_term_matches_for_posting(
+/// Returns true if `term` occurs in `normalized_text` at a whole-word boundary
+/// AND is not preceded (within the 3-word lookbehind window) by a negation
+/// cue. This is the marker-loop counterpart to the per-occurrence polarity
+/// check applied during surface-term extraction. Without it, a posting saying
+/// "no kubernetes experience" would still infer the `kubernetes` tag through
+/// its `k8s|kubernetes` literal marker even though the surface-term loop
+/// correctly skips the negated `kubernetes` mention.
+///
+/// Cheap pre-check: if the term's first word isn't in `word_set`, we know
+/// there is no occurrence — skip the substring scan entirely. This preserves
+/// the perf shape of the previous `marker_term_matches_for_posting`.
+fn non_negated_marker_term_match(
     term: &str,
     normalized_text: &str,
     word_set: &HashSet<String>,
@@ -1051,10 +1194,42 @@ fn marker_term_matches_for_posting(
     if term_words.is_empty() {
         return false;
     }
-    if term_words.len() == 1 {
-        return word_set.contains(&term_words[0]);
+    // First-word absence pre-check: if the first word of the term doesn't
+    // appear anywhere in the posting, no occurrence is possible.
+    if !word_set.contains(&term_words[0]) {
+        return false;
     }
-    normalized_text.contains(&term_text)
+
+    // Scan every occurrence of `term_text` and require BOTH whole-word
+    // boundaries AND a non-negated lookbehind. We can't short-circuit on the
+    // first match (it might be negated while a later one is asserted).
+    let bytes = normalized_text.as_bytes();
+    let term_len = term_text.len();
+    let mut search_from = 0usize;
+    while let Some(rel) = normalized_text[search_from..].find(&term_text) {
+        let start = search_from + rel;
+        let end = start + term_len;
+
+        // Whole-word boundary check: char on either side must not be a word
+        // char (`[a-z0-9_]`). UTF-8 continuation bytes happen to fall through
+        // as non-word, which is conservative and matches the prior
+        // `word_set`-only behavior on multi-word terms.
+        let left_ok = start == 0 || !is_word_byte(bytes[start - 1]);
+        let right_ok = end == bytes.len() || !is_word_byte(bytes[end]);
+        if left_ok && right_ok && !has_negation_cue_before(&normalized_text[..start]) {
+            return true;
+        }
+        // Advance past this occurrence (overlapping matches don't matter for
+        // single-word marker terms; for multi-word, advancing by 1 is safe
+        // and preserves the "any non-negated occurrence wins" semantics).
+        search_from = start + 1;
+    }
+    false
+}
+
+#[inline]
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
 }
 
 fn truncate_chars(value: &str, limit: usize) -> String {
@@ -1498,7 +1673,7 @@ mod tests {
 
     // --- marker_term_set filtering tests ---
 
-    fn make_stub_atom(normalized_terms: Vec<&str>) -> RequirementAtom {
+    fn make_stub_atom(normalized_terms: Vec<(&str, bool)>) -> RequirementAtom {
         RequirementAtom {
             requirement_id: "req_stub".to_string(),
             cluster_id: "cluster_stub".to_string(),
@@ -1506,7 +1681,13 @@ mod tests {
             kind: "must_have".to_string(),
             priority_rank: 0,
             source_order: 0,
-            normalized_terms: normalized_terms.into_iter().map(String::from).collect(),
+            normalized_terms: normalized_terms
+                .into_iter()
+                .map(|(term, is_negated)| ExtractedTerm {
+                    term: term.to_string(),
+                    is_negated,
+                })
+                .collect(),
             matched_tags: Vec::new(),
             experience_years: None,
             has_quantifier: false,
@@ -1531,8 +1712,8 @@ mod tests {
         // "k8s" is a literal inference marker for "kubernetes" — should not
         // appear as a suggested term even though it isn't a canonical tag.
         let atoms = vec![
-            make_stub_atom(vec!["k8s", "terraform"]),
-            make_stub_atom(vec!["k8s", "terraform"]),
+            make_stub_atom(vec![("k8s", false), ("terraform", false)]),
+            make_stub_atom(vec![("k8s", false), ("terraform", false)]),
         ];
         let taxonomy = make_taxonomy_context(vec!["kubernetes"], vec!["k8s"]);
         let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
@@ -1552,8 +1733,8 @@ mod tests {
         // A compound marker for "docker_compose" has all_of terms "docker"
         // and "compose" — both should be suppressed from suggestions.
         let atoms = vec![
-            make_stub_atom(vec!["docker", "compose", "ansible"]),
-            make_stub_atom(vec!["docker", "compose", "ansible"]),
+            make_stub_atom(vec![("docker", false), ("compose", false), ("ansible", false)]),
+            make_stub_atom(vec![("docker", false), ("compose", false), ("ansible", false)]),
         ];
         let taxonomy = make_taxonomy_context(vec![], vec!["docker", "compose"]);
         let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
@@ -1571,8 +1752,8 @@ mod tests {
         // Ensure the filter does not over-suppress: terms with no marker or
         // tag coverage should still appear when they meet the count threshold.
         let atoms = vec![
-            make_stub_atom(vec!["grafana", "prometheus", "loki"]),
-            make_stub_atom(vec!["grafana", "prometheus", "loki"]),
+            make_stub_atom(vec![("grafana", false), ("prometheus", false), ("loki", false)]),
+            make_stub_atom(vec![("grafana", false), ("prometheus", false), ("loki", false)]),
         ];
         let taxonomy = make_taxonomy_context(vec![], vec![]);
         let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
@@ -1580,5 +1761,269 @@ mod tests {
         assert!(terms.contains(&"grafana"));
         assert!(terms.contains(&"prometheus"));
         assert!(terms.contains(&"loki"));
+    }
+
+    // --- negation polarity tests ---
+
+    #[test]
+    fn negated_terms_excluded_from_suggested_terms() {
+        // Atoms carrying explicitly-negated surface terms must not count
+        // toward the unrecognized-notable-terms UI even when they meet the
+        // >=2 occurrence threshold.
+        let atoms = vec![
+            make_stub_atom(vec![("python", true), ("grafana", false)]),
+            make_stub_atom(vec![("python", true), ("grafana", false)]),
+        ];
+        let taxonomy = make_taxonomy_context(vec![], vec![]);
+        let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
+        let terms: Vec<&str> = suggestions.iter().map(|s| s.term.as_str()).collect();
+        assert!(
+            !terms.contains(&"python"),
+            "negated python should not surface as a positive signal"
+        );
+        assert!(
+            terms.contains(&"grafana"),
+            "non-negated grafana should still surface"
+        );
+    }
+
+    #[test]
+    fn not_required_clause_marks_term_as_negated() {
+        // End-to-end: extraction should flag `python` as negated when the
+        // requirement's classification signal ("required") is itself negated.
+        // This exercises the atom-level fallback since the per-term lookbehind
+        // cannot see "not" when it appears *after* "python".
+        let taxonomy = make_taxonomy_context(vec![], vec![]);
+        let (extracted, _) =
+            extract_requirement_terms("Python experience is not required for this role.", &taxonomy);
+        let python = extracted
+            .iter()
+            .find(|et| et.term == "python")
+            .expect("python term should be extracted");
+        assert!(
+            python.is_negated,
+            "python should be flagged is_negated after 'not required' cue"
+        );
+    }
+
+    #[test]
+    fn lacks_phrase_marks_term_as_negated() {
+        let extracted =
+            extract_surface_terms_with_max_ngram("Candidate lacks leadership experience.", 3);
+        let leadership = extracted
+            .iter()
+            .find(|et| et.term == "leadership")
+            .expect("leadership term should be extracted");
+        assert!(
+            leadership.is_negated,
+            "leadership should be flagged is_negated after 'lacks' cue"
+        );
+    }
+
+    #[test]
+    fn without_phrase_marks_term_as_negated() {
+        let extracted =
+            extract_surface_terms_with_max_ngram("Ability to work without VBA scripting.", 3);
+        let vba = extracted
+            .iter()
+            .find(|et| et.term == "vba")
+            .expect("vba term should be extracted");
+        assert!(
+            vba.is_negated,
+            "vba should be flagged is_negated after 'without' cue"
+        );
+    }
+
+    #[test]
+    fn non_negated_term_not_flagged() {
+        // Regression guard for the happy path.
+        let extracted =
+            extract_surface_terms_with_max_ngram("Python is required for this role.", 3);
+        let python = extracted
+            .iter()
+            .find(|et| et.term == "python")
+            .expect("python term should be extracted");
+        assert!(
+            !python.is_negated,
+            "non-negated python must not be flagged"
+        );
+    }
+
+    #[test]
+    fn asserted_occurrence_wins_within_atom() {
+        // "Python not required" (negated) + "Python experience preferred"
+        // (asserted) in one line — the asserted occurrence should relax the
+        // polarity flag back to false.
+        let extracted = extract_surface_terms_with_max_ngram(
+            "Python not required. Python experience preferred.",
+            3,
+        );
+        let python = extracted
+            .iter()
+            .find(|et| et.term == "python")
+            .expect("python term should be extracted");
+        assert!(
+            !python.is_negated,
+            "asserted occurrence should win over earlier negated occurrence"
+        );
+    }
+
+    // --- marker-loop polarity tests (Phase 5) ---
+
+    /// Build a `TagInferenceMarker` of kind "literal" for testing.
+    fn make_literal_marker(canonical_tag: &str, literal: &str) -> TagInferenceMarker {
+        TagInferenceMarker {
+            id: format!("marker-{}-{}", canonical_tag, literal),
+            canonical_tag: canonical_tag.to_string(),
+            marker_kind: "literal".to_string(),
+            literal_value: Some(literal.to_string()),
+            terms: Vec::new(),
+            created_at: String::new(),
+        }
+    }
+
+    /// Build a `TagInferenceMarker` of kind "compound" with `all_of` terms.
+    fn make_compound_all_of_marker(
+        canonical_tag: &str,
+        all_of: &[&str],
+    ) -> TagInferenceMarker {
+        TagInferenceMarker {
+            id: format!("marker-{}-compound", canonical_tag),
+            canonical_tag: canonical_tag.to_string(),
+            marker_kind: "compound".to_string(),
+            literal_value: None,
+            terms: all_of
+                .iter()
+                .enumerate()
+                .map(|(idx, term)| crate::taxonomy::TagInferenceMarkerTerm {
+                    id: format!("term-{}-{}", canonical_tag, idx),
+                    term_group: "all_of".to_string(),
+                    term_value: term.to_string(),
+                    sort_order: idx as i64,
+                })
+                .collect(),
+            created_at: String::new(),
+        }
+    }
+
+    /// Build a taxonomy context with explicit `markers_by_tag` entries. Used
+    /// by Phase 5 tests to drive `extract_requirement_terms` through the
+    /// marker-matching loop.
+    fn make_taxonomy_context_with_markers(
+        canonical_tags: Vec<&str>,
+        markers_by_tag: Vec<(&str, Vec<TagInferenceMarker>)>,
+    ) -> RuntimeTaxonomyAnalysisContext {
+        let mut marker_term_set = HashSet::new();
+        for (_, markers) in &markers_by_tag {
+            for marker in markers {
+                if let Some(literal) = &marker.literal_value {
+                    marker_term_set.insert(literal.to_lowercase());
+                }
+                for term in &marker.terms {
+                    marker_term_set.insert(term.term_value.to_lowercase());
+                }
+            }
+        }
+        RuntimeTaxonomyAnalysisContext {
+            canonical_tag_set: canonical_tags.into_iter().map(String::from).collect(),
+            markers_by_tag: markers_by_tag
+                .into_iter()
+                .map(|(tag, markers)| (tag.to_string(), markers))
+                .collect(),
+            marker_term_set,
+        }
+    }
+
+    #[test]
+    fn negated_literal_marker_does_not_infer_tag() {
+        // Literal marker `k8s` for canonical tag `kubernetes`. A posting
+        // saying "no k8s experience" must NOT infer the `kubernetes` tag,
+        // and the `k8s` surface term must carry is_negated = true.
+        let taxonomy = make_taxonomy_context_with_markers(
+            vec!["kubernetes"],
+            vec![("kubernetes", vec![make_literal_marker("kubernetes", "k8s")])],
+        );
+        let (extracted, matched_tags) =
+            extract_requirement_terms("No k8s experience needed for this role.", &taxonomy);
+        assert!(
+            !matched_tags.contains(&"kubernetes".to_string()),
+            "kubernetes tag must not fire for negated k8s marker; got {:?}",
+            matched_tags
+        );
+        let k8s = extracted
+            .iter()
+            .find(|et| et.term == "k8s")
+            .expect("k8s term should be extracted");
+        assert!(
+            k8s.is_negated,
+            "k8s surface term should be flagged is_negated"
+        );
+    }
+
+    #[test]
+    fn negated_compound_marker_does_not_infer_tag() {
+        // Compound marker for `docker_compose` requires both `docker` and
+        // `compose`. A posting saying "lacks docker and compose familiarity"
+        // must NOT infer `docker_compose`.
+        let taxonomy = make_taxonomy_context_with_markers(
+            vec!["docker_compose"],
+            vec![(
+                "docker_compose",
+                vec![make_compound_all_of_marker(
+                    "docker_compose",
+                    &["docker", "compose"],
+                )],
+            )],
+        );
+        let (_extracted, matched_tags) = extract_requirement_terms(
+            "Candidate lacks docker and compose familiarity.",
+            &taxonomy,
+        );
+        assert!(
+            !matched_tags.contains(&"docker_compose".to_string()),
+            "docker_compose must not fire when both compound terms are negated; got {:?}",
+            matched_tags
+        );
+    }
+
+    #[test]
+    fn non_negated_marker_still_fires_after_polarity_check() {
+        // Regression guard: the `k8s` literal marker MUST still infer
+        // `kubernetes` in the asserted case.
+        let taxonomy = make_taxonomy_context_with_markers(
+            vec!["kubernetes"],
+            vec![("kubernetes", vec![make_literal_marker("kubernetes", "k8s")])],
+        );
+        let (_extracted, matched_tags) =
+            extract_requirement_terms("k8s experience required for this role.", &taxonomy);
+        assert!(
+            matched_tags.contains(&"kubernetes".to_string()),
+            "kubernetes should fire for asserted k8s marker; got {:?}",
+            matched_tags
+        );
+    }
+
+    #[test]
+    fn atom_with_negated_classification_signal_yields_no_matched_tags() {
+        // When the requirement's own classification signal ("required") is
+        // itself negated, the atom-level early return should suppress all
+        // tag inference — including canonical-tag matches that would
+        // otherwise fire from the surface-term loop.
+        let taxonomy = make_taxonomy_context_with_markers(vec!["python"], vec![]);
+        let (extracted, matched_tags) =
+            extract_requirement_terms("Python is not required for this role.", &taxonomy);
+        assert!(
+            matched_tags.is_empty(),
+            "atom-level negation must yield empty matched_tags; got {:?}",
+            matched_tags
+        );
+        let python = extracted
+            .iter()
+            .find(|et| et.term == "python")
+            .expect("python term should be extracted");
+        assert!(
+            python.is_negated,
+            "python surface term should be flagged is_negated"
+        );
     }
 }

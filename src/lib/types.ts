@@ -107,6 +107,17 @@ export type ExperienceYears = {
   max_years?: number
 }
 
+/**
+ * A surface term extracted from a requirement atom's text, tagged with
+ * whether it appeared inside a local negation window. Consumers should skip
+ * entries where `is_negated` is true when using terms as positive signals
+ * (e.g. keyword matching, suggested-term UI).
+ */
+export type ExtractedTerm = {
+  term: string
+  is_negated: boolean
+}
+
 export type RequirementAtom = {
   requirement_id: string
   cluster_id: string
@@ -114,7 +125,7 @@ export type RequirementAtom = {
   kind: RequirementKind
   priority_rank: number
   source_order: number
-  normalized_terms: string[]
+  normalized_terms: ExtractedTerm[]
   matched_tags: string[]
   experience_years: ExperienceYears | null
   has_quantifier: boolean

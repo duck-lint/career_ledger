@@ -1317,8 +1317,8 @@ fn supporting_sources_for_requirement(
     let atom_terms = atom
         .normalized_terms
         .iter()
-        .filter(|term| !term.is_empty())
-        .cloned()
+        .filter(|entry| !entry.is_negated && !entry.term.is_empty())
+        .map(|entry| entry.term.clone())
         .collect::<HashSet<_>>();
     if atom_tags.is_empty() && atom_terms.is_empty() {
         return (Vec::new(), HashSet::new(), HashSet::new());
@@ -1373,7 +1373,11 @@ fn is_strong_requirement_support(
 }
 
 fn unsupported_requirement_reason(atom: &RequirementAtom) -> String {
-    if !atom.matched_tags.is_empty() || !atom.normalized_terms.is_empty() {
+    // A requirement has traceable signal if it has any matched tag or any
+    // asserted (non-negated) surface term. Negated-only terms must not count
+    // as support — "no VBA experience" gives us nothing to match against.
+    let has_asserted_term = atom.normalized_terms.iter().any(|entry| !entry.is_negated);
+    if !atom.matched_tags.is_empty() || has_asserted_term {
         return UNSUPPORTED_REASON.to_string();
     }
     "Requirement analysis did not identify traceable keyword overlap for this requirement."
@@ -1457,8 +1461,12 @@ fn evidence_support_tags(
 fn informative_requirement_terms(atom: &RequirementAtom) -> HashSet<String> {
     atom.normalized_terms
         .iter()
-        .filter(|term| !term.is_empty() && !GENERIC_SURFACE_TERMS.contains(&term.as_str()))
-        .cloned()
+        .filter(|entry| {
+            !entry.is_negated
+                && !entry.term.is_empty()
+                && !GENERIC_SURFACE_TERMS.contains(&entry.term.as_str())
+        })
+        .map(|entry| entry.term.clone())
         .collect()
 }
 
