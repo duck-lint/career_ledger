@@ -12,6 +12,11 @@ import type {
   PreflightFilterResult,
   ExperienceRecord,
   Evidence,
+  DeleteBatchOptions,
+  DeleteRecordsPreview,
+  DeleteRecordsResult,
+  DeleteEvidenceItemsPreview,
+  DeleteEvidenceItemsResult,
   CandidateProfile,
   CandidateContact,
   CandidateEducationEntry,
@@ -32,7 +37,13 @@ import type {
   EvidenceSaveResponse,
   ExperienceRecordFormData,
   EvidenceFormData,
-  CareerService,
+  RuntimeAdminService,
+  PipelineService,
+  LibraryService,
+  OperationsService,
+  TaxonomyService,
+  IntakeService,
+  RuntimeServices,
   TestMarkersResult,
 } from './types'
 
@@ -114,6 +125,10 @@ function dedupePreserve(values: string[]): string[] {
     }
   }
   return deduped
+}
+
+function normalizeDeleteIds(ids: string[]): string[] {
+  return dedupePreserve(ids.map(normalizeOutputValue).filter(Boolean))
 }
 
 function normalizeMarkerValue(value: string): string {
@@ -356,7 +371,156 @@ function buildDefaultTagInferenceMarkerMap(
   return markers
 }
 
-class LocalCareerService implements CareerService {
+class LocalCareerService
+  implements
+    RuntimeAdminService,
+    PipelineService,
+    LibraryService,
+    OperationsService,
+    TaxonomyService,
+    IntakeService
+{
+  private assertStrictBatchDeleteReady(
+    entityLabel: string,
+    missingIds: string[],
+    strict: boolean
+  ): void {
+    if (!strict || missingIds.length === 0) {
+      return
+    }
+
+    throw new Error(
+      `Strict batch delete aborted because these ${entityLabel} were missing: ${missingIds.join(', ')}`
+    )
+  }
+
+  private buildDeleteRecordsPreview(ids: string[]): DeleteRecordsPreview {
+    const normalizedIds = normalizeDeleteIds(ids)
+    const recordsObj = kvGet<Record<string, ExperienceRecord>>(RECORDS_KEY) ?? {}
+    const evidenceObj = kvGet<Record<string, Evidence>>(EVIDENCE_KEY) ?? {}
+    const linkedEvidenceCounts = new Map<string, number>()
+
+    Object.values(evidenceObj).forEach((item) => {
+      linkedEvidenceCounts.set(
+        item.experience_record_id,
+        (linkedEvidenceCounts.get(item.experience_record_id) ?? 0) + 1
+      )
+    })
+
+    const records = normalizedIds.flatMap((id) => {
+      const record = recordsObj[id]
+      if (!record) {
+        return []
+      }
+
+      return [{
+        id: record.id,
+        slug: record.slug,
+        organization: record.organization,
+        title: record.title,
+        linkedEvidenceCount: linkedEvidenceCounts.get(record.id) ?? 0,
+      }]
+    })
+
+    return {
+      requestedCount: normalizedIds.length,
+      foundCount: records.length,
+      missingIds: normalizedIds.filter((id) => !recordsObj[id]),
+      records,
+      cascadeEvidenceCount: records.reduce(
+        (count, record) => count + record.linkedEvidenceCount,
+        0
+      ),
+    }
+  }
+
+  private commitDeleteRecords(
+    preview: DeleteRecordsPreview,
+    options?: DeleteBatchOptions
+  ): DeleteRecordsResult {
+    const strict = options?.strict ?? true
+    this.assertStrictBatchDeleteReady('record ids', preview.missingIds, strict)
+
+    const recordIds = new Set(preview.records.map((record) => record.id))
+    const recordsObj = kvGet<Record<string, ExperienceRecord>>(RECORDS_KEY) ?? {}
+    const evidenceObj = kvGet<Record<string, Evidence>>(EVIDENCE_KEY) ?? {}
+    let deletedEvidenceCount = 0
+
+    Object.keys(recordsObj).forEach((recordId) => {
+      if (recordIds.has(recordId)) {
+        delete recordsObj[recordId]
+      }
+    })
+
+    Object.entries(evidenceObj).forEach(([evidenceId, item]) => {
+      if (recordIds.has(item.experience_record_id)) {
+        delete evidenceObj[evidenceId]
+        deletedEvidenceCount += 1
+      }
+    })
+
+    kvSet(RECORDS_KEY, recordsObj)
+    kvSet(EVIDENCE_KEY, evidenceObj)
+
+    return {
+      ...preview,
+      deletedRecordCount: recordIds.size,
+      deletedEvidenceCount,
+      strict,
+    }
+  }
+
+  private buildDeleteEvidenceItemsPreview(ids: string[]): DeleteEvidenceItemsPreview {
+    const normalizedIds = normalizeDeleteIds(ids)
+    const evidenceObj = kvGet<Record<string, Evidence>>(EVIDENCE_KEY) ?? {}
+    const recordsObj = kvGet<Record<string, ExperienceRecord>>(RECORDS_KEY) ?? {}
+    const evidenceItems = normalizedIds.flatMap((id) => {
+      const evidence = evidenceObj[id]
+      if (!evidence) {
+        return []
+      }
+
+      return [{
+        id: evidence.id,
+        experienceRecordId: evidence.experience_record_id,
+        recordSlug: recordsObj[evidence.experience_record_id]?.slug ?? null,
+        claim: evidence.claim,
+      }]
+    })
+
+    return {
+      requestedCount: normalizedIds.length,
+      foundCount: evidenceItems.length,
+      missingIds: normalizedIds.filter((id) => !evidenceObj[id]),
+      evidenceItems,
+    }
+  }
+
+  private commitDeleteEvidenceItems(
+    preview: DeleteEvidenceItemsPreview,
+    options?: DeleteBatchOptions
+  ): DeleteEvidenceItemsResult {
+    const strict = options?.strict ?? true
+    this.assertStrictBatchDeleteReady('evidence item ids', preview.missingIds, strict)
+
+    const evidenceIds = new Set(preview.evidenceItems.map((item) => item.id))
+    const evidenceObj = kvGet<Record<string, Evidence>>(EVIDENCE_KEY) ?? {}
+
+    Object.keys(evidenceObj).forEach((evidenceId) => {
+      if (evidenceIds.has(evidenceId)) {
+        delete evidenceObj[evidenceId]
+      }
+    })
+
+    kvSet(EVIDENCE_KEY, evidenceObj)
+
+    return {
+      ...preview,
+      deletedEvidenceCount: evidenceIds.size,
+      strict,
+    }
+  }
+
   private async normalizeCanonicalTags(tags: string[], label: string): Promise<string[]> {
     const normalized = await this.normalizeTags(tags)
     if (normalized.unknown.length > 0) {
@@ -451,9 +615,19 @@ class LocalCareerService implements CareerService {
     }
   }
 
+  private async initializeEmptyState(): Promise<void> {
+    kvSet<Record<string, ExperienceRecord>>(RECORDS_KEY, {})
+    kvSet<Record<string, Evidence>>(EVIDENCE_KEY, {})
+    kvSet<Record<string, CanonicalTag>>(CANONICAL_TAGS_KEY, {})
+    saveStoredDeliveryToolkitCategories([])
+    kvSet<Record<string, TagInferenceMarker[]>>(TAG_INFERENCE_MARKERS_KEY, {})
+    kvSet<Record<string, Anomaly>>(ANOMALIES_KEY, {})
+    kvSet<Record<string, GenerationManifest>>(GENERATION_MANIFESTS_KEY, {})
+  }
+
   async initialize(_dbPath?: string | null): Promise<void> {
     if (!kvGet<boolean>(INIT_KEY)) {
-      await this.seedData()
+      await this.initializeEmptyState()
       kvSet(INIT_KEY, true)
     }
 
@@ -473,7 +647,7 @@ class LocalCareerService implements CareerService {
   }
 
   async getActiveDbPath(): Promise<string> {
-    return 'Browser fallback store'
+    return 'Browser localStorage harness'
   }
 
   async buildCareerLibraryExport(): Promise<CareerLibraryExport> {
@@ -498,8 +672,8 @@ class LocalCareerService implements CareerService {
       export_meta: {
         schema_version: EXPORT_SCHEMA_VERSION,
         exported_at: new Date().toISOString(),
-        taxonomy_version: 'local-fallback',
-        source_db_name: 'browser-fallback-store',
+        taxonomy_version: 'browser-harness',
+        source_db_name: 'browser-harness-store',
       },
     }
   }
@@ -546,397 +720,6 @@ class LocalCareerService implements CareerService {
 
   async runResumePipeline(_request: ResumePipelineRequest): Promise<ResumePipelineResult> {
     throw new Error('Resume pipeline orchestration is available only in the Tauri desktop runtime.')
-  }
-
-  private async seedData() {
-    const now = new Date().toISOString()
-
-    const canonicalTagsData = [
-      {
-        tag: 'database_management',
-        description: 'Database design, administration, and optimization',
-        category: 'Data & Storage',
-        displayLabel: 'Database Management',
-      },
-      {
-        tag: 'sql',
-        description: 'SQL query writing and optimization',
-        category: 'Data & Storage',
-        displayLabel: 'SQL',
-      },
-      {
-        tag: 'sqlite',
-        description: 'SQLite-specific implementation',
-        category: 'Data & Storage',
-        displayLabel: 'SQLite',
-      },
-      {
-        tag: 'documentation',
-        description: 'Technical documentation and knowledge management',
-        category: 'Knowledge & Enablement',
-        displayLabel: 'Documentation',
-      },
-      {
-        tag: 'hris',
-        description: 'Human Resource Information Systems',
-        category: 'HR Systems',
-        displayLabel: 'HRIS',
-      },
-      {
-        tag: 'payroll',
-        description: 'Payroll processing and administration',
-        category: 'HR Systems',
-        displayLabel: 'Payroll',
-      },
-      {
-        tag: 'workday',
-        description: 'Workday HCM platform',
-        category: 'HR Systems',
-        displayLabel: 'Workday',
-      },
-      {
-        tag: 'runtime',
-        description: 'Runtime implementation and error handling',
-        category: 'Technical Foundations',
-        displayLabel: 'Runtime',
-      },
-      {
-        tag: 'json',
-        description: 'JSON parsing and manipulation',
-        category: 'Technical Foundations',
-        displayLabel: 'JSON',
-      },
-      {
-        tag: 'cross_platform',
-        description: 'Cross-platform compatibility implementation',
-        category: 'Technical Foundations',
-        displayLabel: 'Cross-Platform',
-      },
-      {
-        tag: 'version_control',
-        description: 'Version control and repository management',
-        category: 'Technical Foundations',
-        displayLabel: 'Version Control',
-      },
-      {
-        tag: 'cli_tools',
-        description: 'Command-line interface design and implementation',
-        category: 'Technical Foundations',
-        displayLabel: 'CLI Tools',
-      },
-      {
-        tag: 'reporting',
-        description: 'Report generation and data analysis',
-        category: 'Reporting & Analytics',
-        displayLabel: 'Reporting',
-      },
-      {
-        tag: 'process_mapping',
-        description: 'Business process mapping and documentation',
-        category: 'Delivery & Operations',
-        displayLabel: 'Process Mapping',
-      },
-      {
-        tag: 'time_and_absence',
-        description: 'Time tracking and absence management',
-        category: 'HR Systems',
-        displayLabel: 'Time and Absence',
-      },
-      {
-        tag: 'training_delivery',
-        description: 'Training session delivery and facilitation',
-        category: 'Knowledge & Enablement',
-        displayLabel: 'Training Delivery',
-      },
-      {
-        tag: 'training_enablement',
-        description: 'Training material development and enablement',
-        category: 'Knowledge & Enablement',
-        displayLabel: 'Training Enablement',
-      },
-      {
-        tag: 'implementation_support',
-        description: 'System implementation and user support',
-        category: 'Delivery & Operations',
-        displayLabel: 'Implementation Support',
-      },
-      {
-        tag: 'rollout',
-        description: 'System rollout and change management',
-        category: 'Delivery & Operations',
-        displayLabel: 'Rollout',
-      },
-      {
-        tag: 'issue_triage',
-        description: 'Issue triage and resolution',
-        category: 'Delivery & Operations',
-        displayLabel: 'Issue Triage',
-      },
-    ]
-
-    const canonicalTags: Record<string, CanonicalTag> = {}
-    const categoryNames = new Set<string>()
-    canonicalTagsData.forEach(({ tag, description, category, displayLabel }) => {
-      const id = crypto.randomUUID()
-      categoryNames.add(category)
-      canonicalTags[tag] = {
-        id,
-        tag,
-        description,
-        category,
-        display_label: displayLabel,
-        created_at: now,
-      }
-    })
-    kvSet(CANONICAL_TAGS_KEY, canonicalTags)
-    saveStoredDeliveryToolkitCategories(
-      Array.from(categoryNames).map((name, index) => ({
-        name,
-        sort_order: (index + 1) * 100,
-      }))
-    )
-
-    const record1: ExperienceRecord = {
-      id: '019d2d28-c7c0-71bc-8f73-476d572a33e0',
-      slug: 'example-hr-ops',
-      record_type: 'employment',
-      organization: 'Example Operations Company',
-      title: 'HR Operations Coordinator',
-      start_date: '2023-12',
-      end_date: '2026-03',
-      location: 'Example City AB',
-      employment_type: 'Full-time / Contract',
-      context_tags: ['hris', 'workday', 'payroll'],
-      created_at: '2026-03-27T02:39:00Z',
-      updated_at: '2026-03-27T02:39:00Z',
-    }
-
-    const record2: ExperienceRecord = {
-      id: '019d2d25-abd2-77cf-b7d3-e69d4ba4c69d',
-      slug: 'p-career-ledger',
-      record_type: 'project',
-      organization: 'Database/Pipeline Management',
-      title: 'Career Ledger',
-      start_date: '2026-02',
-      end_date: 'Present',
-      location: null,
-      employment_type: null,
-      context_tags: ['database_management', 'documentation'],
-      created_at: '2026-03-27T02:35:36Z',
-      updated_at: '2026-03-27T02:35:36Z',
-    }
-
-    const record3: ExperienceRecord = {
-      id: '019d2d26-b46b-712c-832c-7cfde5c5650d',
-      slug: 'p-local-agent',
-      record_type: 'project',
-      organization: 'Evidence Bounded RAG',
-      title: 'Retrieval Augmented Generation',
-      start_date: '2025-10',
-      end_date: 'Present',
-      location: null,
-      employment_type: null,
-      context_tags: ['runtime', 'cli_tools'],
-      created_at: '2026-03-27T02:36:44Z',
-      updated_at: '2026-03-27T02:36:44Z',
-    }
-
-    const records: Record<string, ExperienceRecord> = {
-      [record1.id]: record1,
-      [record2.id]: record2,
-      [record3.id]: record3,
-    }
-    kvSet(RECORDS_KEY, records)
-
-    const evidenceItems = [
-      {
-        id: '019d4102-4b2b-7416-bed0-5025af29b00b',
-        experience_record_id: record1.id,
-        claim: 'Owned Workday reports and extracts to support payroll processing, including timekeeping data, leave balances, and workflow status reporting.',
-        date_range: null,
-        tags: ['hris', 'payroll', 'process_mapping', 'reporting', 'workday'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:22Z',
-        updated_at: '2026-03-30T23:09:22Z',
-      },
-      {
-        id: '019d4102-4b30-7773-afd3-3f6f9cad4a41',
-        experience_record_id: record1.id,
-        claim: 'Coordinated and delivered rollout training activities for a ~150-employee site, including session logistics, learner grouping, attendance tracking, and go-live preparation.',
-        date_range: null,
-        tags: ['implementation_support', 'rollout', 'time_and_absence', 'training_delivery', 'training_enablement'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:22Z',
-        updated_at: '2026-03-30T23:09:22Z',
-      },
-      {
-        id: '019d4102-4b34-702e-af4a-204274082446',
-        experience_record_id: record1.id,
-        claim: 'Served as the primary point of contact for Workday Time & Absence support after go-live, providing post-rollout issue triage, resolution, and escalation.',
-        date_range: null,
-        tags: ['hris', 'implementation_support', 'issue_triage', 'rollout', 'time_and_absence', 'workday'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:22Z',
-        updated_at: '2026-03-30T23:09:22Z',
-      },
-      {
-        id: '019d4102-4e09-728f-99a5-1b963598ed16',
-        experience_record_id: record1.id,
-        claim: 'Detected JSON object spans with brace tracking that is aware of strings and escapes.',
-        date_range: null,
-        tags: ['json'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-4e0d-76d7-9608-932025c3c64d',
-        experience_record_id: record1.id,
-        claim: 'Enforced foreign keys and cascade deletes in SQLite.',
-        date_range: null,
-        tags: ['database_management', 'sql', 'sqlite'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-4e12-7699-9541-10e6774a5826',
-        experience_record_id: record1.id,
-        claim: 'Implemented Windows path anchor detection for cross-platform security controls.',
-        date_range: null,
-        tags: ['cross_platform'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-4fad-7320-9a9a-b4297c1029eb',
-        experience_record_id: record2.id,
-        claim: 'Designed a normalized SQLite schema with CHECK constraints, foreign keys, and cascade deletes',
-        date_range: null,
-        tags: ['database_management', 'sql', 'sqlite'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-4fb1-7057-a42c-709ef8f508b8',
-        experience_record_id: record2.id,
-        claim: 'Enforced PRAGMA foreign_keys at every SQLite connection point',
-        date_range: null,
-        tags: ['sql', 'sqlite'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-4fb5-7685-aae4-86af1e77fd47',
-        experience_record_id: record2.id,
-        claim: 'Implemented idempotent database initialization with rollback on schema-apply failure',
-        date_range: null,
-        tags: ['database_management'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-5077-73f4-8c52-dbc6addd35b5',
-        experience_record_id: record2.id,
-        claim: 'Wrote architectural documentation mapping threading boundaries, data flow, and component responsibilities',
-        date_range: null,
-        tags: ['documentation'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-507b-7373-864b-caec6c2d6ff6',
-        experience_record_id: record2.id,
-        claim: 'Designed resume-construction build policies as declarative JSON configuration',
-        date_range: null,
-        tags: ['json'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-507f-77c5-8350-ba6aa6abb942',
-        experience_record_id: record2.id,
-        claim: 'Configured .editorconfig and .gitattributes for cross-platform file consistency',
-        date_range: null,
-        tags: ['cross_platform', 'version_control'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:23Z',
-        updated_at: '2026-03-30T23:09:23Z',
-      },
-      {
-        id: '019d4102-5182-76f5-8eda-dfba49e6f7cf',
-        experience_record_id: record3.id,
-        claim: 'Designed multi-subcommand CLI entry points with argparse',
-        date_range: null,
-        tags: ['cli_tools'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:24Z',
-        updated_at: '2026-03-30T23:09:24Z',
-      },
-      {
-        id: '019d4102-5187-777e-8f50-f33409498030',
-        experience_record_id: record3.id,
-        claim: 'Implemented typed error codes for deterministic failure signaling',
-        date_range: null,
-        tags: ['runtime'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:24Z',
-        updated_at: '2026-03-30T23:09:24Z',
-      },
-      {
-        id: '019d4102-518e-7240-a677-070919e55657',
-        experience_record_id: record3.id,
-        claim: 'Implemented configuration precedence chains across multiple override levels',
-        date_range: null,
-        tags: ['runtime'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:24Z',
-        updated_at: '2026-03-30T23:09:24Z',
-      },
-      {
-        id: '019d4102-5262-7453-8d7b-052271f05470',
-        experience_record_id: record3.id,
-        claim: 'Implemented JSON object span detection with string- and escape-aware brace tracking',
-        date_range: null,
-        tags: ['json'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:24Z',
-        updated_at: '2026-03-30T23:09:24Z',
-      },
-      {
-        id: '019d4102-5266-7251-b205-d2770017fe57',
-        experience_record_id: record3.id,
-        claim: 'Implemented foreign-key enforcement and cascade deletes in SQLite',
-        date_range: null,
-        tags: ['database_management', 'sql', 'sqlite'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:24Z',
-        updated_at: '2026-03-30T23:09:24Z',
-      },
-      {
-        id: '019d4102-526a-721d-9b0b-23d7b0da527f',
-        experience_record_id: record3.id,
-        claim: 'Implemented Windows path-anchor detection for cross-platform security',
-        date_range: null,
-        tags: ['cross_platform', 'runtime'],
-        evidence_note: 'Derived from intake item.',
-        created_at: '2026-03-30T23:09:24Z',
-        updated_at: '2026-03-30T23:09:24Z',
-      },
-    ]
-
-    const evidence: Record<string, Evidence> = {}
-    evidenceItems.forEach((item) => {
-      evidence[item.id] = item
-    })
-    kvSet(EVIDENCE_KEY, evidence)
-    kvSet(TAG_INFERENCE_MARKERS_KEY, buildDefaultTagInferenceMarkerMap(canonicalTags))
   }
 
   normalizeTag(input: string): string {
@@ -1037,21 +820,19 @@ class LocalCareerService implements CareerService {
     return updated
   }
 
+  async previewDeleteRecords(ids: string[]): Promise<DeleteRecordsPreview> {
+    return this.buildDeleteRecordsPreview(ids)
+  }
+
+  async deleteRecords(
+    ids: string[],
+    options?: DeleteBatchOptions
+  ): Promise<DeleteRecordsResult> {
+    return this.commitDeleteRecords(this.buildDeleteRecordsPreview(ids), options)
+  }
+
   async deleteRecord(id: string): Promise<void> {
-    const evidenceObj = kvGet<Record<string, Evidence>>(EVIDENCE_KEY) ?? {}
-    const evidenceCount = Object.values(evidenceObj).filter(
-      (e) => e.experience_record_id === id
-    ).length
-
-    if (evidenceCount > 0) {
-      throw new Error(
-        `Cannot delete record with ${evidenceCount} evidence item${evidenceCount > 1 ? 's' : ''}. Delete evidence first.`
-      )
-    }
-
-    const recordsObj = kvGet<Record<string, ExperienceRecord>>(RECORDS_KEY) ?? {}
-    delete recordsObj[id]
-    kvSet(RECORDS_KEY, recordsObj)
+    this.commitDeleteRecords(this.buildDeleteRecordsPreview([id]), { strict: false })
   }
 
   async getEvidenceForRecord(recordId: string): Promise<Evidence[]> {
@@ -1156,10 +937,21 @@ class LocalCareerService implements CareerService {
     return this.buildEvidenceInferenceComparison(data)
   }
 
+  async previewDeleteEvidenceItems(ids: string[]): Promise<DeleteEvidenceItemsPreview> {
+    return this.buildDeleteEvidenceItemsPreview(ids)
+  }
+
+  async deleteEvidenceItems(
+    ids: string[],
+    options?: DeleteBatchOptions
+  ): Promise<DeleteEvidenceItemsResult> {
+    return this.commitDeleteEvidenceItems(this.buildDeleteEvidenceItemsPreview(ids), options)
+  }
+
   async deleteEvidence(id: string): Promise<void> {
-    const evidenceObj = kvGet<Record<string, Evidence>>(EVIDENCE_KEY) ?? {}
-    delete evidenceObj[id]
-    kvSet(EVIDENCE_KEY, evidenceObj)
+    this.commitDeleteEvidenceItems(this.buildDeleteEvidenceItemsPreview([id]), {
+      strict: false,
+    })
   }
 
   async getCandidateProfile(): Promise<CandidateProfile | undefined> {
@@ -1608,9 +1400,19 @@ class LocalCareerService implements CareerService {
     kvDelete(ANOMALIES_KEY)
     kvDelete(GENERATION_MANIFESTS_KEY)
     kvDelete(INIT_KEY)
-    await this.seedData()
+    await this.initializeEmptyState()
     kvSet(INIT_KEY, true)
   }
 }
 
 export const localService = new LocalCareerService()
+
+export const localServices: RuntimeServices = {
+  runtimeAdmin: localService,
+  pipeline: localService,
+  library: localService,
+  operations: localService,
+  taxonomy: localService,
+  intake: localService,
+  tagNormalization: localService,
+}

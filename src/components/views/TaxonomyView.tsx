@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { careerService } from '@/lib/service'
+import { taxonomyService } from '@/lib/service'
+import { runtimeSupports } from '@/lib/runtime'
 import type {
   CanonicalTag,
   DeliveryToolkitCategory,
@@ -51,7 +52,9 @@ function formatSyncTimestamp(value: string | null): string {
 }
 
 export default function TaxonomyView() {
-  const isTauri = '__TAURI_INTERNALS__' in window
+  const canImportExportTaxonomy = runtimeSupports('taxonomyFileImportExport')
+  const canClearTaxonomy = runtimeSupports('taxonomyClear')
+  const canRefreshLibraryTags = runtimeSupports('libraryTagRefresh')
   const [canonicalTags, setCanonicalTags] = useState<CanonicalTag[]>([])
   const [categories, setCategories] = useState<DeliveryToolkitCategory[]>([])
   const [selectedTag, setSelectedTag] = useState('')
@@ -78,10 +81,10 @@ export default function TaxonomyView() {
   const [markerTestResult, setMarkerTestResult] = useState<TestMarkersResult | null>(null)
   const [markerTestPending, setMarkerTestPending] = useState(false)
 
-  const loadTaxonomyData = async (): Promise<string> => {
+  const loadTaxonomyData = useCallback(async (): Promise<string> => {
     const [tagsData, categoryData] = await Promise.all([
-      careerService.getCanonicalTags(),
-      careerService.getDeliveryToolkitCategories(),
+      taxonomyService.getCanonicalTags(),
+      taxonomyService.getDeliveryToolkitCategories(),
     ])
     let nextSelectedTag = ''
 
@@ -97,9 +100,9 @@ export default function TaxonomyView() {
     })
 
     return nextSelectedTag
-  }
+  }, [])
 
-  const loadMarkers = async (tag: string) => {
+  const loadMarkers = useCallback(async (tag: string) => {
     if (!tag) {
       setMarkerDrafts([])
       return
@@ -107,7 +110,7 @@ export default function TaxonomyView() {
 
     setMarkersLoading(true)
     try {
-      const markers = await careerService.getTagInferenceMarkers(tag)
+      const markers = await taxonomyService.getTagInferenceMarkers(tag)
       setMarkerDrafts(tagInferenceMarkersToDrafts(markers))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load markers')
@@ -115,29 +118,29 @@ export default function TaxonomyView() {
     } finally {
       setMarkersLoading(false)
     }
-  }
+  }, [])
 
-  const loadLibraryTagSyncStatus = async () => {
+  const loadLibraryTagSyncStatus = useCallback(async () => {
     try {
-      const nextStatus = await careerService.getLibraryTagSyncStatus()
+      const nextStatus = await taxonomyService.getLibraryTagSyncStatus()
       setLibraryTagSyncStatus(nextStatus)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load library tag sync status')
     }
-  }
+  }, [])
 
-  const refreshTaxonomySurface = async () => {
+  const refreshTaxonomySurface = useCallback(async () => {
     const nextSelectedTag = await loadTaxonomyData()
     await Promise.all([loadMarkers(nextSelectedTag), loadLibraryTagSyncStatus()])
-  }
+  }, [loadLibraryTagSyncStatus, loadMarkers, loadTaxonomyData])
 
   useEffect(() => {
     void refreshTaxonomySurface()
-  }, [])
+  }, [refreshTaxonomySurface])
 
   useEffect(() => {
     void loadMarkers(selectedTag)
-  }, [selectedTag])
+  }, [loadMarkers, selectedTag])
 
   const categoryUsageCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -167,10 +170,10 @@ export default function TaxonomyView() {
     setCategoryPending(true)
     try {
       if (editingCategoryName) {
-        await careerService.renameDeliveryToolkitCategory(editingCategoryName, normalizedCategory)
+        await taxonomyService.renameDeliveryToolkitCategory(editingCategoryName, normalizedCategory)
         toast.success(`Category renamed to "${normalizedCategory}"`)
       } else {
-        await careerService.createDeliveryToolkitCategory(normalizedCategory)
+        await taxonomyService.createDeliveryToolkitCategory(normalizedCategory)
         toast.success(`Category "${normalizedCategory}" created`)
       }
 
@@ -191,7 +194,7 @@ export default function TaxonomyView() {
   const handleDeleteCategory = async (category: DeliveryToolkitCategory) => {
     setCategoryPending(true)
     try {
-      await careerService.deleteDeliveryToolkitCategory(category.name)
+      await taxonomyService.deleteDeliveryToolkitCategory(category.name)
       await refreshTaxonomySurface()
       if (editingCategoryName === category.name) {
         resetCategoryEditor()
@@ -215,7 +218,7 @@ export default function TaxonomyView() {
   }
 
   const handleDeleteTag = async (tag: CanonicalTag) => {
-    await careerService.deleteCanonicalTag(tag.tag)
+    await taxonomyService.deleteCanonicalTag(tag.tag)
     await refreshTaxonomySurface()
     toast.success(`Tag "${tag.tag}" deleted`)
   }
@@ -232,7 +235,7 @@ export default function TaxonomyView() {
 
     setMarkerSavePending(true)
     try {
-      const updated = await careerService.replaceTagInferenceMarkers(
+      const updated = await taxonomyService.replaceTagInferenceMarkers(
         selectedTag,
         tagInferenceMarkerDraftsToInputs(markerDrafts)
       )
@@ -251,7 +254,7 @@ export default function TaxonomyView() {
     setMarkerTestPending(true)
     setMarkerTestResult(null)
     try {
-      const result = await careerService.testMarkers(
+      const result = await taxonomyService.testMarkers(
         markerTestText,
         tagInferenceMarkerDraftsToInputs(markerDrafts)
       )
@@ -264,7 +267,7 @@ export default function TaxonomyView() {
   }
 
   const handleBrowseImportTaxonomy = async () => {
-    if (!isTauri) {
+    if (!canImportExportTaxonomy) {
       toast.error('Taxonomy import is available only in the Tauri desktop runtime.')
       return
     }
@@ -285,7 +288,7 @@ export default function TaxonomyView() {
   }
 
   const handleExportTaxonomy = async () => {
-    if (!isTauri) {
+    if (!canImportExportTaxonomy) {
       toast.error('Taxonomy export is available only in the Tauri desktop runtime.')
       return
     }
@@ -301,7 +304,7 @@ export default function TaxonomyView() {
       }
 
       setTaxonomyOpPending(true)
-      const exportPath = await careerService.exportTaxonomy(selected)
+  const exportPath = await taxonomyService.exportTaxonomy(selected)
       toast.success(`Taxonomy exported to ${exportPath}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to export taxonomy')
@@ -315,12 +318,22 @@ export default function TaxonomyView() {
       return
     }
 
+    if (confirmState.kind === 'import' && !canImportExportTaxonomy) {
+      toast.error('Taxonomy import is available only in the Tauri desktop runtime.')
+      return
+    }
+
+    if (confirmState.kind === 'clear' && !canClearTaxonomy) {
+      toast.error('Taxonomy clear is available only in the Tauri desktop runtime.')
+      return
+    }
+
     setTaxonomyOpPending(true)
     try {
       const result =
         confirmState.kind === 'import'
-          ? await careerService.importTaxonomy(confirmState.path)
-          : await careerService.clearTaxonomy()
+          ? await taxonomyService.importTaxonomy(confirmState.path)
+          : await taxonomyService.clearTaxonomy()
 
       await refreshTaxonomySurface()
       setTaxonomyImportResult(result)
@@ -339,9 +352,14 @@ export default function TaxonomyView() {
   }
 
   const handleReInferLibraryTags = async () => {
+    if (!canRefreshLibraryTags) {
+      toast.error('Library tag re-inference is available only in the Tauri desktop runtime.')
+      return
+    }
+
     setLibraryTagRefreshPending(true)
     try {
-      const result = await careerService.reInferLibraryTags()
+      const result = await taxonomyService.reInferLibraryTags()
       await refreshTaxonomySurface()
       setLibraryTagRefreshResult(result)
       toast.success('Library tags re-inferred from the current taxonomy')
@@ -362,19 +380,31 @@ export default function TaxonomyView() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void handleBrowseImportTaxonomy()} disabled={taxonomyOpPending}>
+          <Button
+            variant="outline"
+            onClick={() => void handleBrowseImportTaxonomy()}
+            disabled={taxonomyOpPending || !canImportExportTaxonomy}
+          >
             Import Taxonomy
           </Button>
-          <Button variant="outline" onClick={() => void handleExportTaxonomy()} disabled={taxonomyOpPending}>
+          <Button
+            variant="outline"
+            onClick={() => void handleExportTaxonomy()}
+            disabled={taxonomyOpPending || !canImportExportTaxonomy}
+          >
             Export Taxonomy
           </Button>
-          <Button variant="outline" onClick={() => setConfirmState({ kind: 'clear' })} disabled={taxonomyOpPending}>
+          <Button
+            variant="outline"
+            onClick={() => setConfirmState({ kind: 'clear' })}
+            disabled={taxonomyOpPending || !canClearTaxonomy}
+          >
             Clear Taxonomy
           </Button>
           <Button
             variant="outline"
             onClick={() => void handleReInferLibraryTags()}
-            disabled={taxonomyOpPending || libraryTagRefreshPending || !isTauri}
+            disabled={taxonomyOpPending || libraryTagRefreshPending || !canRefreshLibraryTags}
           >
             <ArrowsClockwise className="mr-2" />
             {libraryTagRefreshPending ? 'Re-inferring...' : 'Re-infer Library Tags'}

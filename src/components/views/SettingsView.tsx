@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
-import { careerService } from '@/lib/service'
+import { intakeService, runtimeAdminService } from '@/lib/service'
+import { runtimeSupports } from '@/lib/runtime'
 import { clearStoredDbPath, getStoredDbPath, setStoredDbPath } from '@/lib/runtime-settings'
 import type { RawIntakeImportSkipReason, RawIntakeImportResult } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,7 +36,8 @@ function formatSkipReason(reason: RawIntakeImportSkipReason): string {
 }
 
 export default function SettingsView() {
-  const isTauri = '__TAURI_INTERNALS__' in window
+  const canSelectDbPath = runtimeSupports('databasePathSelection')
+  const canImportRawIntake = runtimeSupports('rawIntakeImport')
   const [dbPath, setDbPath] = useState('')
   const [activeDbPath, setActiveDbPath] = useState('')
   const [dbPathLoading, setDbPathLoading] = useState(false)
@@ -47,7 +49,7 @@ export default function SettingsView() {
   const [importResult, setImportResult] = useState<RawIntakeImportResult | null>(null)
 
   useEffect(() => {
-    if (!isTauri) {
+    if (!canSelectDbPath) {
       return
     }
 
@@ -56,7 +58,7 @@ export default function SettingsView() {
     const loadDbPath = async () => {
       setDbPathLoading(true)
       try {
-        const resolvedPath = await careerService.getActiveDbPath()
+        const resolvedPath = await runtimeAdminService.getActiveDbPath()
         if (cancelled) {
           return
         }
@@ -83,10 +85,10 @@ export default function SettingsView() {
     return () => {
       cancelled = true
     }
-  }, [isTauri])
+  }, [canSelectDbPath])
 
   const handleBrowseDb = async () => {
-    if (!isTauri) {
+    if (!canSelectDbPath) {
       return
     }
 
@@ -108,7 +110,7 @@ export default function SettingsView() {
   }
 
   const handleApplyDbPath = async () => {
-    if (!isTauri) {
+    if (!canSelectDbPath) {
       return
     }
 
@@ -117,8 +119,8 @@ export default function SettingsView() {
     setDbPathApplying(true)
     setDbPathError(null)
     try {
-      await careerService.initialize(requestedPath || null)
-      const resolvedPath = await careerService.getActiveDbPath()
+      await runtimeAdminService.initialize(requestedPath || null)
+      const resolvedPath = await runtimeAdminService.getActiveDbPath()
       setActiveDbPath(resolvedPath)
 
       if (requestedPath) {
@@ -138,7 +140,7 @@ export default function SettingsView() {
   }
 
   const handleBrowse = async () => {
-    if (!isTauri) {
+    if (!canImportRawIntake) {
       return
     }
 
@@ -172,7 +174,7 @@ export default function SettingsView() {
     setImportError(null)
     setImportResult(null)
     try {
-      const result = await careerService.importRawIntake(rawImportPath.trim())
+      const result = await intakeService.importRawIntake(rawImportPath.trim())
       setImportResult(result)
 
       if (result.success) {
@@ -193,8 +195,8 @@ export default function SettingsView() {
 
   const handleReset = async () => {
     try {
-      await careerService.reset()
-      toast.success('Data reset to initial seed state')
+      await runtimeAdminService.reset()
+      toast.success('Data reset to empty first-run state')
       window.location.reload()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reset data'
@@ -213,7 +215,7 @@ export default function SettingsView() {
           <CardTitle className="text-base">Database Path</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isTauri ? (
+          {canSelectDbPath ? (
             <>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-foreground">Active database</div>
@@ -251,7 +253,7 @@ export default function SettingsView() {
               <Alert>
                 <AlertDescription>
                   Browse selects an existing SQLite file. Leave the field blank and apply to use
-                  the default repo-root database. Applying a new path reloads the app.
+                  the default app-local database. Applying a new path reloads the app.
                 </AlertDescription>
               </Alert>
 
@@ -275,7 +277,7 @@ export default function SettingsView() {
           <CardTitle className="text-base">Bulk Import</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isTauri ? (
+          {canImportRawIntake ? (
             <>
               <div className="flex flex-col gap-3 md:flex-row">
                 <Input
@@ -397,10 +399,10 @@ export default function SettingsView() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <h3 className="text-sm font-medium">Reset to Seed Data</h3>
+            <h3 className="text-sm font-medium">Reset to Empty First-Run State</h3>
             <p className="text-sm text-muted-foreground">
               Clears records, evidence, candidate profile data, anomalies, generation manifests,
-              and import history.
+              and import history, then returns the active runtime to empty first-run state.
             </p>
             <Button onClick={handleReset} variant="outline">
               <ArrowClockwise className="mr-2" />

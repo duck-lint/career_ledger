@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { careerService } from '@/lib/service'
+import { libraryService, operationsService } from '@/lib/service'
 import type { Anomaly, Evidence, ExperienceRecord, GenerationManifest } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -129,8 +129,8 @@ export default function OperationsView() {
     setLoading(true)
     try {
       const [anomalyData, manifestData] = await Promise.all([
-        careerService.getAnomalies(),
-        careerService.getGenerationManifests(),
+        operationsService.getAnomalies(),
+        operationsService.getGenerationManifests(),
       ])
       setAnomalies(anomalyData)
       setManifests(manifestData)
@@ -171,7 +171,7 @@ export default function OperationsView() {
 
       try {
         if (selectedAnomaly.entityType === 'experience_record') {
-          const record = await careerService.getRecord(selectedAnomaly.entityId)
+          const record = await libraryService.getRecord(selectedAnomaly.entityId)
           if (cancelled) {
             return
           }
@@ -188,7 +188,7 @@ export default function OperationsView() {
         }
 
         if (selectedAnomaly.entityType === 'evidence_item') {
-          const evidence = await careerService.getEvidence(selectedAnomaly.entityId)
+          const evidence = await libraryService.getEvidence(selectedAnomaly.entityId)
           if (cancelled) {
             return
           }
@@ -201,7 +201,7 @@ export default function OperationsView() {
             return
           }
 
-          const parentRecord = await careerService.getRecord(evidence.experience_record_id)
+          const parentRecord = await libraryService.getRecord(evidence.experience_record_id)
           if (cancelled) {
             return
           }
@@ -241,10 +241,10 @@ export default function OperationsView() {
   const handleToggleAnomaly = async (item: Anomaly) => {
     try {
       if (item.resolvedAt) {
-        await careerService.reopenAnomaly(item.id)
+        await operationsService.reopenAnomaly(item.id)
         toast.success('Anomaly reopened')
       } else {
-        await careerService.resolveAnomaly(item.id)
+        await operationsService.resolveAnomaly(item.id)
         toast.success('Anomaly resolved')
       }
       await loadData()
@@ -255,7 +255,7 @@ export default function OperationsView() {
 
   const handleDeleteAnomaly = async (item: Anomaly) => {
     try {
-      await careerService.deleteAnomaly(item.id)
+      await operationsService.deleteAnomaly(item.id)
       await loadData()
       toast.success('Anomaly deleted')
     } catch (error) {
@@ -265,7 +265,7 @@ export default function OperationsView() {
 
   const handleDeleteManifest = async (item: GenerationManifest) => {
     try {
-      await careerService.deleteGenerationManifest(item.id)
+      await operationsService.deleteGenerationManifest(item.id)
       await loadData()
       toast.success('Generation manifest deleted')
     } catch (error) {
@@ -283,7 +283,7 @@ export default function OperationsView() {
     setNotesSaving(true)
     try {
       const trimmed = notesDraft.trim()
-      await careerService.updateManifestNotes(selectedManifest.id, trimmed || null)
+      await operationsService.updateManifestNotes(selectedManifest.id, trimmed || null)
       await loadData()
       setEditingNotes(false)
       toast.success('Notes updated')

@@ -26,6 +26,51 @@ export type Evidence = {
   updated_at: string
 }
 
+export type DeleteBatchOptions = {
+  strict?: boolean
+}
+
+export type DeleteRecordPreviewItem = {
+  id: string
+  slug: string
+  organization: string
+  title: string
+  linkedEvidenceCount: number
+}
+
+export type DeleteRecordsPreview = {
+  requestedCount: number
+  foundCount: number
+  missingIds: string[]
+  records: DeleteRecordPreviewItem[]
+  cascadeEvidenceCount: number
+}
+
+export type DeleteRecordsResult = DeleteRecordsPreview & {
+  deletedRecordCount: number
+  deletedEvidenceCount: number
+  strict: boolean
+}
+
+export type DeleteEvidencePreviewItem = {
+  id: string
+  experienceRecordId: string
+  recordSlug: string | null
+  claim: string
+}
+
+export type DeleteEvidenceItemsPreview = {
+  requestedCount: number
+  foundCount: number
+  missingIds: string[]
+  evidenceItems: DeleteEvidencePreviewItem[]
+}
+
+export type DeleteEvidenceItemsResult = DeleteEvidenceItemsPreview & {
+  deletedEvidenceCount: number
+  strict: boolean
+}
+
 export type JsonValue =
   | string
   | number
@@ -660,9 +705,13 @@ export type RawIntakeImportResult = {
 // Views import from @/lib/service, never a concrete backend.
 // ---------------------------------------------------------------------------
 
-export interface CareerService {
+export interface RuntimeAdminService {
   initialize(dbPath?: string | null): Promise<void>
   getActiveDbPath(): Promise<string>
+  reset(): Promise<void>
+}
+
+export interface PipelineService {
   buildCareerLibraryExport(): Promise<CareerLibraryExport>
   buildRequirementAnalysis(jobPostingText: string): Promise<RequirementAnalysis>
   getBuildPolicy(): Promise<BuildPolicy>
@@ -684,14 +733,20 @@ export interface CareerService {
   ): Promise<ResumeBundleInput>
   assembleResume(bundle: ResumeBundleInput): Promise<ResumeAssemblyResult>
   runResumePipeline(request: ResumePipelineRequest): Promise<ResumePipelineResult>
+}
 
+export interface TagNormalizationService {
   normalizeTag(input: string): string
   normalizeTags(tags: string[]): Promise<TagNormalizationResult>
+}
 
+export interface LibraryService extends TagNormalizationService {
   getRecords(): Promise<ExperienceRecord[]>
   getRecord(id: string): Promise<ExperienceRecord | undefined>
   createRecord(data: ExperienceRecordFormData): Promise<ExperienceRecord>
   updateRecord(id: string, data: ExperienceRecordFormData): Promise<ExperienceRecord>
+  previewDeleteRecords(ids: string[]): Promise<DeleteRecordsPreview>
+  deleteRecords(ids: string[], options?: DeleteBatchOptions): Promise<DeleteRecordsResult>
   deleteRecord(id: string): Promise<void>
 
   getEvidenceForRecord(recordId: string): Promise<Evidence[]>
@@ -711,13 +766,20 @@ export interface CareerService {
     recordId: string,
     data: EvidenceFormData,
   ): Promise<EvidenceInferenceComparison>
+  previewDeleteEvidenceItems(ids: string[]): Promise<DeleteEvidenceItemsPreview>
+  deleteEvidenceItems(
+    ids: string[],
+    options?: DeleteBatchOptions,
+  ): Promise<DeleteEvidenceItemsResult>
   deleteEvidence(id: string): Promise<void>
 
   getCandidateProfile(): Promise<CandidateProfile | undefined>
   replaceCandidateProfile(profile: CandidateProfile): Promise<CandidateProfile>
   deleteCandidateProfile(): Promise<void>
   getCandidateProfileCertificationTags(): Promise<string[]>
+}
 
+export interface OperationsService {
   getAnomalies(): Promise<Anomaly[]>
   getAnomaly(id: string): Promise<Anomaly | undefined>
   resolveAnomaly(id: string): Promise<Anomaly>
@@ -728,7 +790,9 @@ export interface CareerService {
   getGenerationManifest(id: string): Promise<GenerationManifest | undefined>
   deleteGenerationManifest(id: string): Promise<void>
   updateManifestNotes(id: string, notes: string | null): Promise<GenerationManifest>
+}
 
+export interface TaxonomyService extends TagNormalizationService {
   getCanonicalTags(): Promise<CanonicalTag[]>
   getCanonicalTag(tag: string): Promise<CanonicalTag | undefined>
   getDeliveryToolkitCategories(): Promise<DeliveryToolkitCategory[]>
@@ -763,8 +827,18 @@ export interface CareerService {
   ): Promise<TagInferenceMarker[]>
 
   testMarkers(text: string, markers: TagInferenceMarkerInput[]): Promise<TestMarkersResult>
+}
 
+export interface IntakeService {
   importRawIntake(path: string): Promise<RawIntakeImportResult>
+}
 
-  reset(): Promise<void>
+export type RuntimeServices = {
+  runtimeAdmin: RuntimeAdminService
+  pipeline: PipelineService
+  library: LibraryService
+  operations: OperationsService
+  taxonomy: TaxonomyService
+  intake: IntakeService
+  tagNormalization: TagNormalizationService
 }

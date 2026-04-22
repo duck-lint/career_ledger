@@ -37,17 +37,18 @@ use crate::validation::{
     normalize_optional_owned, normalize_required_record_type, normalize_required_text,
     slugify_record_slug,
 };
-use rusqlite::{params, Connection};
+use rusqlite::{params, params_from_iter, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::Manager;
 use uuid::Uuid;
 
-pub struct DbState(pub Mutex<Option<Connection>>);
-pub struct ActiveDbPath(pub Mutex<Option<String>>);
+pub struct ActiveDbState(pub Mutex<Option<String>>);
 
 const OPEN_ENDED_DATE_MARKERS: [&str; 4] = ["present", "current", "ongoing", "now"];
 const LATEST_RUNTIME_DB_VERSION: i32 = 1;
@@ -106,6 +107,74 @@ pub struct EvidenceSaveResponse {
     pub status: String,
     pub evidence: Option<Evidence>,
     pub comparison: EvidenceInferenceComparison,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteBatchOptions {
+    pub strict: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteRecordPreviewItem {
+    pub id: String,
+    pub slug: String,
+    pub organization: String,
+    pub title: String,
+    pub linked_evidence_count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteRecordsPreview {
+    pub requested_count: i64,
+    pub found_count: i64,
+    pub missing_ids: Vec<String>,
+    pub records: Vec<DeleteRecordPreviewItem>,
+    pub cascade_evidence_count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteRecordsResult {
+    pub requested_count: i64,
+    pub found_count: i64,
+    pub missing_ids: Vec<String>,
+    pub records: Vec<DeleteRecordPreviewItem>,
+    pub cascade_evidence_count: i64,
+    pub deleted_record_count: i64,
+    pub deleted_evidence_count: i64,
+    pub strict: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteEvidencePreviewItem {
+    pub id: String,
+    pub experience_record_id: String,
+    pub record_slug: Option<String>,
+    pub claim: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteEvidenceItemsPreview {
+    pub requested_count: i64,
+    pub found_count: i64,
+    pub missing_ids: Vec<String>,
+    pub evidence_items: Vec<DeleteEvidencePreviewItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteEvidenceItemsResult {
+    pub requested_count: i64,
+    pub found_count: i64,
+    pub missing_ids: Vec<String>,
+    pub evidence_items: Vec<DeleteEvidencePreviewItem>,
+    pub deleted_evidence_count: i64,
+    pub strict: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -259,15 +328,41 @@ fn open_runtime_connection(
     db_path: Option<&str>,
 ) -> Result<(Connection, String), String> {
     let db_path = resolve_runtime_db_path(app, db_path)?;
+    let db_preexisting = db_path.exists();
     let resolved_path = db_path.display().to_string();
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    conn.execute("PRAGMA foreign_keys = ON;", [])
-        .map_err(|e| e.to_string())?;
+    let conn = open_configured_runtime_connection(&db_path)?;
     conn.execute_batch(CAREER_SCHEMA_SQL)
         .map_err(|e| e.to_string())?;
     run_runtime_db_migrations(&conn)?;
-    taxonomy::ensure_runtime_taxonomy_seeded(&conn)?;
+    if db_preexisting {
+        taxonomy::ensure_runtime_taxonomy_seeded(&conn)?;
+    } else {
+        taxonomy::clear_runtime_taxonomy(&conn)?;
+    }
     Ok((conn, resolved_path))
+}
+
+fn open_configured_runtime_connection(db_path: &Path) -> Result<Connection, String> {
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    conn.execute("PRAGMA foreign_keys = ON;", [])
+        .map_err(|error| error.to_string())?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(|error| error.to_string())?;
+    Ok(conn)
+}
+
+fn get_active_runtime_db_path(state: &ActiveDbState) -> Result<String, String> {
+    state
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone()
+        .ok_or_else(|| "Database not initialized".to_string())
+}
+
+fn open_active_runtime_connection(state: &ActiveDbState) -> Result<Connection, String> {
+    let active_path = get_active_runtime_db_path(state)?;
+    open_configured_runtime_connection(Path::new(&active_path))
 }
 
 pub(crate) fn experience_record_order_by_clause() -> String {
@@ -352,6 +447,266 @@ fn get_evidence_by_id(conn: &Connection, id: &str) -> Result<Evidence, String> {
         row_to_evidence,
     )
     .map_err(|e| e.to_string())
+}
+
+fn normalize_delete_ids(ids: Vec<String>) -> Vec<String> {
+    let mut normalized_ids = Vec::new();
+
+    for id in ids
+        .into_iter()
+        .filter_map(|value| normalize_optional_owned(Some(value)))
+    {
+        if !normalized_ids.iter().any(|existing| existing == &id) {
+            normalized_ids.push(id);
+        }
+    }
+
+    normalized_ids
+}
+
+fn sql_placeholders(count: usize) -> String {
+    std::iter::repeat_n("?", count).collect::<Vec<_>>().join(", ")
+}
+
+fn assert_strict_batch_delete_ready(
+    entity_label: &str,
+    missing_ids: &[String],
+    strict: bool,
+) -> Result<(), String> {
+    if !strict || missing_ids.is_empty() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Strict batch delete aborted because these {entity_label} were missing: {}",
+        missing_ids.join(", ")
+    ))
+}
+
+fn preview_delete_records_impl(
+    conn: &Connection,
+    ids: Vec<String>,
+) -> Result<DeleteRecordsPreview, String> {
+    let normalized_ids = normalize_delete_ids(ids);
+    if normalized_ids.is_empty() {
+        return Ok(DeleteRecordsPreview {
+            requested_count: 0,
+            found_count: 0,
+            missing_ids: Vec::new(),
+            records: Vec::new(),
+            cascade_evidence_count: 0,
+        });
+    }
+
+    let placeholders = sql_placeholders(normalized_ids.len());
+    let records_query = format!(
+        "SELECT id, slug, organization, title FROM experience_records WHERE id IN ({placeholders})"
+    );
+    let mut records_stmt = conn.prepare(&records_query).map_err(|error| error.to_string())?;
+    let record_rows = records_stmt
+        .query_map(params_from_iter(normalized_ids.iter()), |row| {
+            let id: String = row.get(0)?;
+            Ok((
+                id.clone(),
+                DeleteRecordPreviewItem {
+                    id,
+                    slug: row.get(1)?,
+                    organization: row.get(2)?,
+                    title: row.get(3)?,
+                    linked_evidence_count: 0,
+                },
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut record_map = HashMap::<String, DeleteRecordPreviewItem>::new();
+    for row in record_rows {
+        let (id, preview_item) = row.map_err(|error| error.to_string())?;
+        record_map.insert(id, preview_item);
+    }
+
+    let evidence_counts_query = format!(
+        "SELECT experience_record_id, COUNT(*) FROM evidence_items WHERE experience_record_id IN ({placeholders}) GROUP BY experience_record_id"
+    );
+    let mut evidence_counts_stmt = conn
+        .prepare(&evidence_counts_query)
+        .map_err(|error| error.to_string())?;
+    let evidence_count_rows = evidence_counts_stmt
+        .query_map(params_from_iter(normalized_ids.iter()), |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut evidence_count_map = HashMap::<String, i64>::new();
+    for row in evidence_count_rows {
+        let (record_id, evidence_count) = row.map_err(|error| error.to_string())?;
+        evidence_count_map.insert(record_id, evidence_count);
+    }
+
+    let missing_ids = normalized_ids
+        .iter()
+        .filter(|id| !record_map.contains_key(*id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let records = normalized_ids
+        .iter()
+        .filter_map(|id| {
+            record_map.remove(id).map(|mut preview_item| {
+                preview_item.linked_evidence_count =
+                    *evidence_count_map.get(id).unwrap_or(&0);
+                preview_item
+            })
+        })
+        .collect::<Vec<_>>();
+    let cascade_evidence_count = records
+        .iter()
+        .map(|record| record.linked_evidence_count)
+        .sum();
+
+    Ok(DeleteRecordsPreview {
+        requested_count: normalized_ids.len() as i64,
+        found_count: records.len() as i64,
+        missing_ids,
+        records,
+        cascade_evidence_count,
+    })
+}
+
+fn delete_records_impl(
+    conn: &mut Connection,
+    ids: Vec<String>,
+    options: Option<DeleteBatchOptions>,
+) -> Result<DeleteRecordsResult, String> {
+    let strict = options.and_then(|value| value.strict).unwrap_or(true);
+    let transaction = conn.transaction().map_err(|error| error.to_string())?;
+    let preview = preview_delete_records_impl(&transaction, ids)?;
+    assert_strict_batch_delete_ready("record ids", &preview.missing_ids, strict)?;
+
+    if !preview.records.is_empty() {
+        let record_ids = preview
+            .records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>();
+        let delete_query = format!(
+            "DELETE FROM experience_records WHERE id IN ({})",
+            sql_placeholders(record_ids.len())
+        );
+        transaction
+            .execute(&delete_query, params_from_iter(record_ids.iter()))
+            .map_err(|error| error.to_string())?;
+    }
+
+    transaction.commit().map_err(|error| error.to_string())?;
+
+    Ok(DeleteRecordsResult {
+        requested_count: preview.requested_count,
+        found_count: preview.found_count,
+        missing_ids: preview.missing_ids,
+        records: preview.records,
+        cascade_evidence_count: preview.cascade_evidence_count,
+        deleted_record_count: preview.found_count,
+        deleted_evidence_count: preview.cascade_evidence_count,
+        strict,
+    })
+}
+
+fn preview_delete_evidence_items_impl(
+    conn: &Connection,
+    ids: Vec<String>,
+) -> Result<DeleteEvidenceItemsPreview, String> {
+    let normalized_ids = normalize_delete_ids(ids);
+    if normalized_ids.is_empty() {
+        return Ok(DeleteEvidenceItemsPreview {
+            requested_count: 0,
+            found_count: 0,
+            missing_ids: Vec::new(),
+            evidence_items: Vec::new(),
+        });
+    }
+
+    let placeholders = sql_placeholders(normalized_ids.len());
+    let preview_query = format!(
+        "SELECT e.id, e.experience_record_id, e.claim, r.slug
+         FROM evidence_items e
+         LEFT JOIN experience_records r ON r.id = e.experience_record_id
+         WHERE e.id IN ({placeholders})"
+    );
+    let mut preview_stmt = conn.prepare(&preview_query).map_err(|error| error.to_string())?;
+    let preview_rows = preview_stmt
+        .query_map(params_from_iter(normalized_ids.iter()), |row| {
+            let id: String = row.get(0)?;
+            Ok((
+                id.clone(),
+                DeleteEvidencePreviewItem {
+                    id,
+                    experience_record_id: row.get(1)?,
+                    claim: row.get(2)?,
+                    record_slug: row.get(3)?,
+                },
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+
+    let mut preview_map = HashMap::<String, DeleteEvidencePreviewItem>::new();
+    for row in preview_rows {
+        let (id, preview_item) = row.map_err(|error| error.to_string())?;
+        preview_map.insert(id, preview_item);
+    }
+
+    let missing_ids = normalized_ids
+        .iter()
+        .filter(|id| !preview_map.contains_key(*id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let evidence_items = normalized_ids
+        .iter()
+        .filter_map(|id| preview_map.remove(id))
+        .collect::<Vec<_>>();
+
+    Ok(DeleteEvidenceItemsPreview {
+        requested_count: normalized_ids.len() as i64,
+        found_count: evidence_items.len() as i64,
+        missing_ids,
+        evidence_items,
+    })
+}
+
+fn delete_evidence_items_impl(
+    conn: &mut Connection,
+    ids: Vec<String>,
+    options: Option<DeleteBatchOptions>,
+) -> Result<DeleteEvidenceItemsResult, String> {
+    let strict = options.and_then(|value| value.strict).unwrap_or(true);
+    let transaction = conn.transaction().map_err(|error| error.to_string())?;
+    let preview = preview_delete_evidence_items_impl(&transaction, ids)?;
+    assert_strict_batch_delete_ready("evidence item ids", &preview.missing_ids, strict)?;
+
+    if !preview.evidence_items.is_empty() {
+        let evidence_ids = preview
+            .evidence_items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>();
+        let delete_query = format!(
+            "DELETE FROM evidence_items WHERE id IN ({})",
+            sql_placeholders(evidence_ids.len())
+        );
+        transaction
+            .execute(&delete_query, params_from_iter(evidence_ids.iter()))
+            .map_err(|error| error.to_string())?;
+    }
+
+    transaction.commit().map_err(|error| error.to_string())?;
+
+    Ok(DeleteEvidenceItemsResult {
+        requested_count: preview.requested_count,
+        found_count: preview.found_count,
+        missing_ids: preview.missing_ids,
+        evidence_items: preview.evidence_items,
+        deleted_evidence_count: preview.found_count,
+        strict,
+    })
 }
 
 fn slug_exists(conn: &Connection, slug: &str, exclude_id: Option<&str>) -> Result<bool, String> {
@@ -542,17 +897,16 @@ fn resolve_evidence_values_for_save(
 #[tauri::command]
 fn initialize_db(
     app: tauri::AppHandle,
-    state: tauri::State<DbState>,
-    active_db_path: tauri::State<ActiveDbPath>,
+    active_db_state: tauri::State<ActiveDbState>,
     db_path: Option<String>,
 ) -> Result<(), String> {
-    let (conn, resolved_path) = open_runtime_connection(&app, db_path.as_deref())?;
+    let (_conn, resolved_path) = open_runtime_connection(&app, db_path.as_deref())?;
 
-    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    *guard = Some(conn);
-    drop(guard);
-
-    let mut path_guard = active_db_path.0.lock().map_err(|e| e.to_string())?;
+    let mut path_guard = active_db_state
+        .inner()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?;
     *path_guard = Some(resolved_path);
     Ok(())
 }
@@ -560,9 +914,13 @@ fn initialize_db(
 #[tauri::command]
 fn get_active_db_path(
     app: tauri::AppHandle,
-    active_db_path: tauri::State<ActiveDbPath>,
+    active_db_state: tauri::State<ActiveDbState>,
 ) -> Result<String, String> {
-    let guard = active_db_path.0.lock().map_err(|e| e.to_string())?;
+    let guard = active_db_state
+        .inner()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?;
     if let Some(path) = guard.as_ref() {
         return Ok(path.clone());
     }
@@ -572,64 +930,54 @@ fn get_active_db_path(
 
 #[tauri::command]
 fn build_career_library_export(
-    state: tauri::State<DbState>,
-    active_db_path: tauri::State<ActiveDbPath>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<CareerLibraryExport, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    let conn = open_active_runtime_connection(state.inner())?;
 
-    let source_db_name = active_db_path
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .as_deref()
-        .and_then(|value| Path::new(value).file_name())
+    let source_db_name = Path::new(get_active_runtime_db_path(state.inner())?.as_str())
+        .file_name()
         .and_then(|value| value.to_str())
         .map(str::to_string)
         .unwrap_or_else(|| "career.db".to_string());
 
-    library_export::build_career_library_export(conn, &source_db_name)
+    library_export::build_career_library_export(&conn, &source_db_name)
 }
 
 #[tauri::command]
 fn build_requirement_analysis(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     job_posting_text: String,
 ) -> Result<RequirementAnalysis, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    requirement_analysis::build_requirement_analysis(conn, &job_posting_text)
+    let conn = open_active_runtime_connection(state.inner())?;
+    requirement_analysis::build_requirement_analysis(&conn, &job_posting_text)
 }
 
 #[tauri::command]
-fn get_build_policy(state: tauri::State<DbState>) -> Result<BuildPolicy, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    build_policy::get_build_policy(conn)
+fn get_build_policy(state: tauri::State<ActiveDbState>) -> Result<BuildPolicy, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    build_policy::get_build_policy(&conn)
 }
 
 #[tauri::command]
 fn save_build_policy(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     build_policy: BuildPolicy,
 ) -> Result<BuildPolicy, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    build_policy::save_build_policy(conn, build_policy)
+    let conn = open_active_runtime_connection(state.inner())?;
+    build_policy::save_build_policy(&conn, build_policy)
 }
 
 #[tauri::command]
 fn build_bundle_semantics(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     career_library_export: CareerLibraryExport,
     requirement_analysis: RequirementAnalysis,
 ) -> Result<BundleSemantics, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let candidate_profile = crate::candidate_profile::get_candidate_profile(conn)?
+    let conn = open_active_runtime_connection(state.inner())?;
+    let candidate_profile = crate::candidate_profile::get_candidate_profile(&conn)?
         .ok_or("Active candidate profile not found")?;
     bundle_prep::build_bundle_semantics(
-        conn,
+        &conn,
         &candidate_profile,
         &career_library_export,
         &requirement_analysis,
@@ -654,19 +1002,18 @@ fn run_preflight_filter(
 
 #[tauri::command]
 fn prepare_resume_bundle(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     job_posting_text: String,
     requirement_analysis: RequirementAnalysis,
     preflight_result: PreflightFilterResult,
 ) -> Result<ResumeBundleInput, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let candidate_profile = crate::candidate_profile::get_candidate_profile(conn)?
+    let conn = open_active_runtime_connection(state.inner())?;
+    let candidate_profile = crate::candidate_profile::get_candidate_profile(&conn)?
         .ok_or("Active candidate profile not found")?;
-    let build_policy = build_policy::get_build_policy(conn)?;
+    let build_policy = build_policy::get_build_policy(&conn)?;
 
     bundle_prep::prepare_resume_bundle(
-        conn,
+        &conn,
         &candidate_profile,
         &preflight_result.career_library_export,
         &build_policy,
@@ -683,25 +1030,18 @@ fn assemble_resume(bundle: ResumeBundleInput) -> Result<ResumeAssemblyResult, St
 
 #[tauri::command]
 fn run_resume_pipeline(
-    state: tauri::State<DbState>,
-    active_db_path: tauri::State<ActiveDbPath>,
+    state: tauri::State<ActiveDbState>,
     request: ResumePipelineRequest,
 ) -> Result<ResumePipelineResult, String> {
-    let active_db_path = active_db_path
-        .0
-        .lock()
-        .map_err(|error| error.to_string())?
-        .clone();
-    let guard = state.0.lock().map_err(|error| error.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    let active_db_path = get_active_runtime_db_path(state.inner())?;
+    let conn = open_active_runtime_connection(state.inner())?;
 
-    resume_pipeline::run_resume_pipeline(conn, active_db_path.as_deref(), &request)
+    resume_pipeline::run_resume_pipeline(&conn, Some(active_db_path.as_str()), &request)
 }
 
 #[tauri::command]
-fn reset_db(state: tauri::State<DbState>) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+fn reset_db(state: tauri::State<ActiveDbState>) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
     conn.execute_batch(
         "DELETE FROM evidence_items;
          DELETE FROM experience_records;
@@ -716,24 +1056,22 @@ fn reset_db(state: tauri::State<DbState>) -> Result<(), String> {
             DELETE FROM resume_build_policy_settings;",
     )
     .map_err(|e| e.to_string())?;
-        build_policy::ensure_build_policy_seeded(conn)?;
-    taxonomy::reset_runtime_taxonomy(conn)
+    build_policy::ensure_build_policy_seeded(&conn)?;
+    taxonomy::clear_runtime_taxonomy(&conn).map(|_| ())
 }
 
 #[tauri::command]
-fn get_records(state: tauri::State<DbState>) -> Result<Vec<ExperienceRecord>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    get_records_impl(conn)
+fn get_records(state: tauri::State<ActiveDbState>) -> Result<Vec<ExperienceRecord>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    get_records_impl(&conn)
 }
 
 #[tauri::command]
 fn get_record(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     id: String,
 ) -> Result<Option<ExperienceRecord>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    let conn = open_active_runtime_connection(state.inner())?;
     conn.query_row(
         "SELECT id, slug, record_type, organization, title, start_date, end_date,
                 location, employment_type, context_tags_json, created_at, updated_at
@@ -754,12 +1092,11 @@ fn get_record(
 
 #[tauri::command]
 fn create_record(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     data: ExperienceRecordFormData,
 ) -> Result<ExperienceRecord, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let normalized = normalize_record_form_data(conn, data, None)?;
+    let conn = open_active_runtime_connection(state.inner())?;
+    let normalized = normalize_record_form_data(&conn, data, None)?;
     let id = new_id();
     conn.execute(
         "INSERT INTO experience_records
@@ -782,18 +1119,17 @@ fn create_record(
         ],
     )
     .map_err(|e| e.to_string())?;
-    get_record_by_id(conn, &id)
+    get_record_by_id(&conn, &id)
 }
 
 #[tauri::command]
 fn update_record(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     id: String,
     data: ExperienceRecordFormData,
 ) -> Result<ExperienceRecord, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let normalized = normalize_record_form_data(conn, data, Some(id.as_str()))?;
+    let conn = open_active_runtime_connection(state.inner())?;
+    let normalized = normalize_record_form_data(&conn, data, Some(id.as_str()))?;
     let affected = conn
         .execute(
             "UPDATE experience_records SET
@@ -818,25 +1154,42 @@ fn update_record(
     if affected == 0 {
         return Err(format!("Record {id} not found"));
     }
-    get_record_by_id(conn, &id)
+    get_record_by_id(&conn, &id)
 }
 
 #[tauri::command]
-fn delete_record(state: tauri::State<DbState>, id: String) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+fn delete_record(state: tauri::State<ActiveDbState>, id: String) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
     conn.execute("DELETE FROM experience_records WHERE id=?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
+fn preview_delete_records(
+    state: tauri::State<ActiveDbState>,
+    ids: Vec<String>,
+) -> Result<DeleteRecordsPreview, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    preview_delete_records_impl(&conn, ids)
+}
+
+#[tauri::command]
+fn delete_records(
+    state: tauri::State<ActiveDbState>,
+    ids: Vec<String>,
+    options: Option<DeleteBatchOptions>,
+) -> Result<DeleteRecordsResult, String> {
+    let mut conn = open_active_runtime_connection(state.inner())?;
+    delete_records_impl(&mut conn, ids, options)
+}
+
+#[tauri::command]
 fn get_evidence_for_record(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     record_id: String,
 ) -> Result<Vec<Evidence>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+    let conn = open_active_runtime_connection(state.inner())?;
     let mut stmt = conn
         .prepare(
             "SELECT id, experience_record_id, claim, date_range, tags_json,
@@ -852,9 +1205,8 @@ fn get_evidence_for_record(
 }
 
 #[tauri::command]
-fn get_all_evidence(state: tauri::State<DbState>) -> Result<Vec<Evidence>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+fn get_all_evidence(state: tauri::State<ActiveDbState>) -> Result<Vec<Evidence>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
     let mut stmt = conn
         .prepare(
             "SELECT id, experience_record_id, claim, date_range, tags_json,
@@ -870,9 +1222,11 @@ fn get_all_evidence(state: tauri::State<DbState>) -> Result<Vec<Evidence>, Strin
 }
 
 #[tauri::command]
-fn get_evidence(state: tauri::State<DbState>, id: String) -> Result<Option<Evidence>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+fn get_evidence(
+    state: tauri::State<ActiveDbState>,
+    id: String,
+) -> Result<Option<Evidence>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
     conn.query_row(
         "SELECT id, experience_record_id, claim, date_range, tags_json,
             evidence_note, created_at, updated_at
@@ -893,16 +1247,15 @@ fn get_evidence(state: tauri::State<DbState>, id: String) -> Result<Option<Evide
 
 #[tauri::command]
 fn create_evidence(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     record_id: String,
     data: EvidenceFormData,
     decision: Option<EvidenceSaveDecision>,
 ) -> Result<EvidenceSaveResponse, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let record_context = get_record_inference_context(conn, &record_id)?;
-    let normalized = normalize_evidence_form_data(conn, data, true)?;
-    let comparison = build_evidence_inference_comparison(conn, &record_context, &normalized)?;
+    let conn = open_active_runtime_connection(state.inner())?;
+    let record_context = get_record_inference_context(&conn, &record_id)?;
+    let normalized = normalize_evidence_form_data(&conn, data, true)?;
+    let comparison = build_evidence_inference_comparison(&conn, &record_context, &normalized)?;
     let Some(tags) = resolve_evidence_values_for_save(&normalized, &comparison, decision.as_ref())?
     else {
         return Ok(EvidenceSaveResponse {
@@ -932,24 +1285,23 @@ fn create_evidence(
     .map_err(|e| e.to_string())?;
     Ok(EvidenceSaveResponse {
         status: "saved".to_string(),
-        evidence: Some(get_evidence_by_id(conn, &id)?),
+        evidence: Some(get_evidence_by_id(&conn, &id)?),
         comparison,
     })
 }
 
 #[tauri::command]
 fn update_evidence(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     id: String,
     data: EvidenceFormData,
     decision: Option<EvidenceSaveDecision>,
 ) -> Result<EvidenceSaveResponse, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let existing = get_evidence_by_id(conn, &id)?;
-    let record_context = get_record_inference_context(conn, &existing.experience_record_id)?;
-    let normalized = normalize_evidence_form_data(conn, data, true)?;
-    let comparison = build_evidence_inference_comparison(conn, &record_context, &normalized)?;
+    let conn = open_active_runtime_connection(state.inner())?;
+    let existing = get_evidence_by_id(&conn, &id)?;
+    let record_context = get_record_inference_context(&conn, &existing.experience_record_id)?;
+    let normalized = normalize_evidence_form_data(&conn, data, true)?;
+    let comparison = build_evidence_inference_comparison(&conn, &record_context, &normalized)?;
     let Some(tags) = resolve_evidence_values_for_save(&normalized, &comparison, decision.as_ref())?
     else {
         return Ok(EvidenceSaveResponse {
@@ -980,314 +1332,308 @@ fn update_evidence(
     }
     Ok(EvidenceSaveResponse {
         status: "saved".to_string(),
-        evidence: Some(get_evidence_by_id(conn, &id)?),
+        evidence: Some(get_evidence_by_id(&conn, &id)?),
         comparison,
     })
 }
 
 #[tauri::command]
 fn preview_evidence_inference(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     record_id: String,
     data: EvidenceFormData,
 ) -> Result<EvidenceInferenceComparison, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    let record_context = get_record_inference_context(conn, &record_id)?;
-    let normalized = normalize_evidence_form_data(conn, data, false)?;
-    build_evidence_inference_comparison(conn, &record_context, &normalized)
+    let conn = open_active_runtime_connection(state.inner())?;
+    let record_context = get_record_inference_context(&conn, &record_id)?;
+    let normalized = normalize_evidence_form_data(&conn, data, false)?;
+    build_evidence_inference_comparison(&conn, &record_context, &normalized)
 }
 
 #[tauri::command]
-fn delete_evidence(state: tauri::State<DbState>, id: String) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
+fn delete_evidence(state: tauri::State<ActiveDbState>, id: String) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
     conn.execute("DELETE FROM evidence_items WHERE id=?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-fn get_candidate_profile(state: tauri::State<DbState>) -> Result<Option<CandidateProfile>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    candidate_profile::get_candidate_profile(conn)
+fn preview_delete_evidence_items(
+    state: tauri::State<ActiveDbState>,
+    ids: Vec<String>,
+) -> Result<DeleteEvidenceItemsPreview, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    preview_delete_evidence_items_impl(&conn, ids)
+}
+
+#[tauri::command]
+fn delete_evidence_items(
+    state: tauri::State<ActiveDbState>,
+    ids: Vec<String>,
+    options: Option<DeleteBatchOptions>,
+) -> Result<DeleteEvidenceItemsResult, String> {
+    let mut conn = open_active_runtime_connection(state.inner())?;
+    delete_evidence_items_impl(&mut conn, ids, options)
+}
+
+#[tauri::command]
+fn get_candidate_profile(
+    state: tauri::State<ActiveDbState>,
+) -> Result<Option<CandidateProfile>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    candidate_profile::get_candidate_profile(&conn)
 }
 
 #[tauri::command]
 fn replace_candidate_profile(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     profile: CandidateProfile,
 ) -> Result<CandidateProfile, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    candidate_profile::replace_candidate_profile(conn, profile)
+    let conn = open_active_runtime_connection(state.inner())?;
+    candidate_profile::replace_candidate_profile(&conn, profile)
 }
 
 #[tauri::command]
-fn delete_candidate_profile(state: tauri::State<DbState>) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    candidate_profile::delete_candidate_profile(conn)
+fn delete_candidate_profile(state: tauri::State<ActiveDbState>) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    candidate_profile::delete_candidate_profile(&conn)
 }
 
 #[tauri::command]
 fn get_candidate_profile_certification_tags(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<Vec<String>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    candidate_profile::get_candidate_profile_certification_tags(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    candidate_profile::get_candidate_profile_certification_tags(&conn)
 }
 
 #[tauri::command]
-fn get_anomalies(state: tauri::State<DbState>) -> Result<Vec<Anomaly>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::get_anomalies(conn)
+fn get_anomalies(state: tauri::State<ActiveDbState>) -> Result<Vec<Anomaly>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::get_anomalies(&conn)
 }
 
 #[tauri::command]
-fn get_anomaly(state: tauri::State<DbState>, id: String) -> Result<Option<Anomaly>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::get_anomaly(conn, &id)
+fn get_anomaly(
+    state: tauri::State<ActiveDbState>,
+    id: String,
+) -> Result<Option<Anomaly>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::get_anomaly(&conn, &id)
 }
 
 #[tauri::command]
-fn resolve_anomaly(state: tauri::State<DbState>, id: String) -> Result<Anomaly, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::resolve_anomaly(conn, id)
+fn resolve_anomaly(state: tauri::State<ActiveDbState>, id: String) -> Result<Anomaly, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::resolve_anomaly(&conn, id)
 }
 
 #[tauri::command]
-fn reopen_anomaly(state: tauri::State<DbState>, id: String) -> Result<Anomaly, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::reopen_anomaly(conn, id)
+fn reopen_anomaly(state: tauri::State<ActiveDbState>, id: String) -> Result<Anomaly, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::reopen_anomaly(&conn, id)
 }
 
 #[tauri::command]
-fn delete_anomaly(state: tauri::State<DbState>, id: String) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::delete_anomaly(conn, id)
+fn delete_anomaly(state: tauri::State<ActiveDbState>, id: String) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::delete_anomaly(&conn, id)
 }
 
 #[tauri::command]
 fn get_generation_manifests(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<Vec<GenerationManifest>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::get_generation_manifests(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::get_generation_manifests(&conn)
 }
 
 #[tauri::command]
 fn get_generation_manifest(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     id: String,
 ) -> Result<Option<GenerationManifest>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::get_generation_manifest(conn, &id)
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::get_generation_manifest(&conn, &id)
 }
 
 #[tauri::command]
-fn delete_generation_manifest(state: tauri::State<DbState>, id: String) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::delete_generation_manifest(conn, id)
+fn delete_generation_manifest(
+    state: tauri::State<ActiveDbState>,
+    id: String,
+) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::delete_generation_manifest(&conn, id)
 }
 
 #[tauri::command]
 fn update_manifest_notes(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     id: String,
     notes: Option<String>,
 ) -> Result<GenerationManifest, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    operations::update_generation_manifest_notes(conn, &id, notes)
+    let conn = open_active_runtime_connection(state.inner())?;
+    operations::update_generation_manifest_notes(&conn, &id, notes)
 }
 
 #[tauri::command]
-fn get_canonical_tags(state: tauri::State<DbState>) -> Result<Vec<CanonicalTag>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::get_canonical_tags(conn)
+fn get_canonical_tags(state: tauri::State<ActiveDbState>) -> Result<Vec<CanonicalTag>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::get_canonical_tags(&conn)
 }
 
 #[tauri::command]
 fn get_canonical_tag(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     tag: String,
 ) -> Result<Option<CanonicalTag>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::get_canonical_tag(conn, &tag)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::get_canonical_tag(&conn, &tag)
 }
 
 #[tauri::command]
 fn create_canonical_tag(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     tag: String,
     description: Option<String>,
     category: String,
     display_label: String,
 ) -> Result<CanonicalTag, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::create_canonical_tag(conn, tag, description, category, display_label)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::create_canonical_tag(&conn, tag, description, category, display_label)
 }
 
 #[tauri::command]
 fn update_canonical_tag(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     old_tag: String,
     new_tag: String,
     description: Option<String>,
     category: String,
     display_label: String,
 ) -> Result<CanonicalTag, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::update_canonical_tag(conn, old_tag, new_tag, description, category, display_label)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::update_canonical_tag(&conn, old_tag, new_tag, description, category, display_label)
 }
 
 #[tauri::command]
-fn delete_canonical_tag(state: tauri::State<DbState>, tag: String) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::delete_canonical_tag(conn, tag)
+fn delete_canonical_tag(state: tauri::State<ActiveDbState>, tag: String) -> Result<(), String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::delete_canonical_tag(&conn, tag)
 }
 
 #[tauri::command]
 fn get_delivery_toolkit_categories(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<Vec<DeliveryToolkitCategory>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::get_delivery_toolkit_categories(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::get_delivery_toolkit_categories(&conn)
 }
 
 #[tauri::command]
 fn create_delivery_toolkit_category(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     name: String,
 ) -> Result<DeliveryToolkitCategory, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::create_delivery_toolkit_category(conn, name)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::create_delivery_toolkit_category(&conn, name)
 }
 
 #[tauri::command]
 fn rename_delivery_toolkit_category(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     current_name: String,
     next_name: String,
 ) -> Result<DeliveryToolkitCategory, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::rename_delivery_toolkit_category(conn, current_name, next_name)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::rename_delivery_toolkit_category(&conn, current_name, next_name)
 }
 
 #[tauri::command]
 fn delete_delivery_toolkit_category(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     name: String,
 ) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::delete_delivery_toolkit_category(conn, name)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::delete_delivery_toolkit_category(&conn, name)
 }
 
 #[tauri::command]
 fn import_taxonomy(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     taxonomy_path: String,
 ) -> Result<TaxonomyImportResult, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::import_taxonomy_from_file(conn, taxonomy_path)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::import_taxonomy_from_file(&conn, taxonomy_path)
 }
 
 #[tauri::command]
 fn export_taxonomy(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     output_path: String,
 ) -> Result<String, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::export_taxonomy_to_file(conn, output_path)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::export_taxonomy_to_file(&conn, output_path)
 }
 
 #[tauri::command]
 fn reset_taxonomy_to_starter(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<TaxonomyImportResult, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::reset_runtime_taxonomy_to_starter(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::reset_runtime_taxonomy_to_starter(&conn)
 }
 
 #[tauri::command]
 fn clear_taxonomy(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<TaxonomyImportResult, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::clear_runtime_taxonomy(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::clear_runtime_taxonomy(&conn)
 }
 
 #[tauri::command]
 fn get_library_tag_sync_status(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<LibraryTagSyncStatus, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::get_library_tag_sync_status(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::get_library_tag_sync_status(&conn)
 }
 
 #[tauri::command]
 fn re_infer_library_tags(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
 ) -> Result<LibraryTagRefreshResult, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::re_infer_library_tags(conn)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::re_infer_library_tags(&conn)
 }
 
 #[tauri::command]
 fn get_tag_inference_markers(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     canonical_tag: String,
 ) -> Result<Vec<TagInferenceMarker>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::get_tag_inference_markers(conn, &canonical_tag)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::get_tag_inference_markers(&conn, &canonical_tag)
 }
 
 #[tauri::command]
 fn replace_tag_inference_markers(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     canonical_tag: String,
     markers: Vec<TagInferenceMarkerInput>,
 ) -> Result<Vec<TagInferenceMarker>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::replace_tag_inference_markers(conn, canonical_tag, markers)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::replace_tag_inference_markers(&conn, canonical_tag, markers)
 }
 
 #[tauri::command]
 fn normalize_tags(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     tags: Vec<String>,
 ) -> Result<TagNormalizationResult, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    taxonomy::normalize_tags(conn, &tags)
+    let conn = open_active_runtime_connection(state.inner())?;
+    taxonomy::normalize_tags(&conn, &tags)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1371,12 +1717,11 @@ fn test_markers(
 
 #[tauri::command]
 fn import_raw_intake(
-    state: tauri::State<DbState>,
+    state: tauri::State<ActiveDbState>,
     raw_file_path: String,
 ) -> Result<RawIntakeImportResult, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("Database not initialized")?;
-    intake::import_raw_intake_impl(conn, &raw_file_path)
+    let conn = open_active_runtime_connection(state.inner())?;
+    intake::import_raw_intake_impl(&conn, &raw_file_path)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1384,8 +1729,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            app.manage(DbState(Mutex::new(None)));
-            app.manage(ActiveDbPath(Mutex::new(None)));
+            app.manage(ActiveDbState(Mutex::new(None)));
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -1413,6 +1757,8 @@ pub fn run() {
             create_record,
             update_record,
             delete_record,
+            preview_delete_records,
+            delete_records,
             get_evidence_for_record,
             get_all_evidence,
             get_evidence,
@@ -1420,6 +1766,8 @@ pub fn run() {
             create_evidence,
             update_evidence,
             delete_evidence,
+            preview_delete_evidence_items,
+            delete_evidence_items,
             get_candidate_profile,
             replace_candidate_profile,
             delete_candidate_profile,
@@ -1462,7 +1810,7 @@ pub fn run() {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::{env, fs};
+    use std::{env, fs, path::Path};
     use uuid::Uuid;
 
     fn setup_conn() -> Connection {
@@ -1497,6 +1845,113 @@ mod tests {
             ],
         )
         .unwrap();
+    }
+
+    fn insert_evidence(conn: &Connection, id: &str, record_id: &str, claim: &str) {
+        conn.execute(
+            "INSERT INTO evidence_items (
+                id, experience_record_id, claim, date_range, tags_json, evidence_note, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, NULL, '[]', NULL, ?4, ?4)",
+            params![id, record_id, claim, "2026-04-08T00:00:00Z"],
+        )
+        .unwrap();
+    }
+
+    fn setup_runtime_file_db(db_path: &Path) -> Connection {
+        let conn = open_configured_runtime_connection(db_path).unwrap();
+        conn.execute_batch(CAREER_SCHEMA_SQL).unwrap();
+        run_runtime_db_migrations(&conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn get_active_runtime_db_path_requires_initialization() {
+        let state = ActiveDbState(Mutex::new(None));
+
+        assert_eq!(
+            get_active_runtime_db_path(&state).unwrap_err(),
+            "Database not initialized"
+        );
+    }
+
+    #[test]
+    fn open_active_runtime_connection_reopens_initialized_database() {
+        let temp_dir = env::temp_dir().join(format!(
+            "career-ledger-active-connection-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let db_path = temp_dir.join("career.db");
+        let conn = setup_runtime_file_db(&db_path);
+        insert_record(
+            &conn,
+            "record-a",
+            "Example Org",
+            "Engineer",
+            "2024-01",
+            "2024-12",
+        );
+        drop(conn);
+
+        let state = ActiveDbState(Mutex::new(Some(db_path.display().to_string())));
+        let reopened = open_active_runtime_connection(&state).unwrap();
+        let records = get_records_impl(&reopened).unwrap();
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].id, "record-a");
+
+        fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    #[test]
+    fn open_active_runtime_connection_uses_latest_active_path() {
+        let temp_dir = env::temp_dir().join(format!(
+            "career-ledger-path-switch-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let first_db_path = temp_dir.join("first.db");
+        let first_conn = setup_runtime_file_db(&first_db_path);
+        insert_record(
+            &first_conn,
+            "record-first",
+            "First Org",
+            "Engineer",
+            "2024-01",
+            "2024-12",
+        );
+        drop(first_conn);
+
+        let second_db_path = temp_dir.join("second.db");
+        let second_conn = setup_runtime_file_db(&second_db_path);
+        insert_record(
+            &second_conn,
+            "record-second",
+            "Second Org",
+            "Lead",
+            "2025-01",
+            "",
+        );
+        drop(second_conn);
+
+        let state = ActiveDbState(Mutex::new(Some(first_db_path.display().to_string())));
+
+        let first_open = open_active_runtime_connection(&state).unwrap();
+        let first_records = get_records_impl(&first_open).unwrap();
+        assert_eq!(first_records.len(), 1);
+        assert_eq!(first_records[0].id, "record-first");
+        drop(first_open);
+
+        *state.0.lock().unwrap() = Some(second_db_path.display().to_string());
+
+        let second_open = open_active_runtime_connection(&state).unwrap();
+        let second_records = get_records_impl(&second_open).unwrap();
+        assert_eq!(second_records.len(), 1);
+        assert_eq!(second_records[0].id, "record-second");
+
+        fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[test]
@@ -1547,6 +2002,119 @@ mod tests {
             )
             .unwrap();
         assert_eq!(row_count, 1);
+    }
+
+    #[test]
+    fn preview_delete_records_reports_cascade_counts_and_missing_ids() {
+        let conn = setup_conn();
+        insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
+        insert_record(&conn, "record-2", "Beta", "Lead", "2025-01", "");
+        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
+        insert_evidence(&conn, "evidence-2", "record-1", "Hardened validation checks.");
+
+        let preview = preview_delete_records_impl(
+            &conn,
+            vec![
+                "record-2".to_string(),
+                "missing-record".to_string(),
+                "record-1".to_string(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(preview.requested_count, 3);
+        assert_eq!(preview.found_count, 2);
+        assert_eq!(preview.missing_ids, vec!["missing-record"]);
+        assert_eq!(preview.cascade_evidence_count, 2);
+        assert_eq!(preview.records[0].id, "record-2");
+        assert_eq!(preview.records[0].linked_evidence_count, 0);
+        assert_eq!(preview.records[1].id, "record-1");
+        assert_eq!(preview.records[1].linked_evidence_count, 2);
+    }
+
+    #[test]
+    fn delete_records_enforces_strict_missing_id_conflicts_without_mutation() {
+        let mut conn = setup_conn();
+        insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
+        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
+
+        let error = delete_records_impl(
+            &mut conn,
+            vec!["record-1".to_string(), "missing-record".to_string()],
+            Some(DeleteBatchOptions { strict: Some(true) }),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("missing-record"));
+        assert_eq!(get_records_impl(&conn).unwrap().len(), 1);
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn delete_records_cascades_linked_evidence_transactionally() {
+        let mut conn = setup_conn();
+        insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
+        insert_record(&conn, "record-2", "Beta", "Lead", "2025-01", "");
+        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
+        insert_evidence(&conn, "evidence-2", "record-2", "Defined the release process.");
+
+        let result = delete_records_impl(
+            &mut conn,
+            vec!["record-1".to_string(), "record-2".to_string()],
+            Some(DeleteBatchOptions { strict: Some(true) }),
+        )
+        .unwrap();
+
+        assert_eq!(result.deleted_record_count, 2);
+        assert_eq!(result.deleted_evidence_count, 2);
+        assert!(get_records_impl(&conn).unwrap().is_empty());
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn delete_evidence_items_supports_preview_and_strict_conflicts() {
+        let mut conn = setup_conn();
+        insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
+        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
+
+        let preview = preview_delete_evidence_items_impl(
+            &conn,
+            vec!["evidence-1".to_string(), "missing-evidence".to_string()],
+        )
+        .unwrap();
+        assert_eq!(preview.requested_count, 2);
+        assert_eq!(preview.found_count, 1);
+        assert_eq!(preview.missing_ids, vec!["missing-evidence"]);
+        assert_eq!(preview.evidence_items[0].record_slug.as_deref(), Some("record-1-slug"));
+
+        let error = delete_evidence_items_impl(
+            &mut conn,
+            vec!["evidence-1".to_string(), "missing-evidence".to_string()],
+            Some(DeleteBatchOptions { strict: Some(true) }),
+        )
+        .unwrap_err();
+        assert!(error.contains("missing-evidence"));
+
+        let result = delete_evidence_items_impl(
+            &mut conn,
+            vec!["evidence-1".to_string()],
+            Some(DeleteBatchOptions { strict: Some(true) }),
+        )
+        .unwrap();
+        assert_eq!(result.deleted_evidence_count, 1);
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
     }
 
     #[test]

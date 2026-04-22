@@ -11,6 +11,11 @@ import type {
   ResumePipelineResult,
   ExperienceRecord,
   Evidence,
+  DeleteBatchOptions,
+  DeleteRecordsPreview,
+  DeleteRecordsResult,
+  DeleteEvidenceItemsPreview,
+  DeleteEvidenceItemsResult,
   CandidateProfile,
   Anomaly,
   GenerationManifest,
@@ -28,11 +33,25 @@ import type {
   EvidenceSaveResponse,
   ExperienceRecordFormData,
   EvidenceFormData,
-  CareerService,
+  RuntimeAdminService,
+  PipelineService,
+  LibraryService,
+  OperationsService,
+  TaxonomyService,
+  IntakeService,
+  RuntimeServices,
   TestMarkersResult,
 } from './types'
 
-class TauriCareerService implements CareerService {
+class TauriCareerService
+  implements
+    RuntimeAdminService,
+    PipelineService,
+    LibraryService,
+    OperationsService,
+    TaxonomyService,
+    IntakeService
+{
   async initialize(dbPath?: string | null): Promise<void> {
     await invoke('initialize_db', { dbPath: dbPath ?? null })
   }
@@ -131,6 +150,17 @@ class TauriCareerService implements CareerService {
     return invoke('update_record', { id, data })
   }
 
+  async previewDeleteRecords(ids: string[]): Promise<DeleteRecordsPreview> {
+    return invoke('preview_delete_records', { ids })
+  }
+
+  async deleteRecords(
+    ids: string[],
+    options?: DeleteBatchOptions,
+  ): Promise<DeleteRecordsResult> {
+    return invoke('delete_records', { ids, options })
+  }
+
   async deleteRecord(id: string): Promise<void> {
     return invoke('delete_record', { id })
   }
@@ -170,6 +200,17 @@ class TauriCareerService implements CareerService {
     data: EvidenceFormData,
   ): Promise<EvidenceInferenceComparison> {
     return invoke('preview_evidence_inference', { recordId, data })
+  }
+
+  async previewDeleteEvidenceItems(ids: string[]): Promise<DeleteEvidenceItemsPreview> {
+    return invoke('preview_delete_evidence_items', { ids })
+  }
+
+  async deleteEvidenceItems(
+    ids: string[],
+    options?: DeleteBatchOptions,
+  ): Promise<DeleteEvidenceItemsResult> {
+    return invoke('delete_evidence_items', { ids, options })
   }
 
   async deleteEvidence(id: string): Promise<void> {
@@ -341,4 +382,14 @@ class TauriCareerService implements CareerService {
   }
 }
 
-export const tauriService: CareerService = new TauriCareerService()
+export const tauriService = new TauriCareerService()
+
+export const tauriServices: RuntimeServices = {
+  runtimeAdmin: tauriService,
+  pipeline: tauriService,
+  library: tauriService,
+  operations: tauriService,
+  taxonomy: tauriService,
+  intake: tauriService,
+  tagNormalization: tauriService,
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import TagInferenceMarkerEditor from '@/components/taxonomy/TagInferenceMarkerEditor'
-import { careerService } from '@/lib/service'
+import { tagNormalizationService, taxonomyService } from '@/lib/service'
 import {
   buildDefaultTagInferenceMarkerDrafts,
   cloneTagInferenceMarkerDrafts,
@@ -75,7 +75,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
 
     const loadCategories = async () => {
       try {
-        const availableCategories = await careerService.getDeliveryToolkitCategories()
+        const availableCategories = await taxonomyService.getDeliveryToolkitCategories()
         if (!cancelled) {
           setCategories(availableCategories)
         }
@@ -94,7 +94,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
   }, [open])
 
   useEffect(() => {
-    const normalizedTag = careerService.normalizeTag(tag?.tag ?? draft?.tagValue ?? '')
+    const normalizedTag = tagNormalizationService.normalizeTag(tag?.tag ?? draft?.tagValue ?? '')
 
     if (tag) {
       setTagValue(tag.tag)
@@ -111,7 +111,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
       setDescription(draft.description)
       setCategory(draft.categoryName ?? '')
       setDisplayLabel(draft.displayLabel)
-      setNormalizedPreview(careerService.normalizeTag(draft.tagValue))
+      setNormalizedPreview(tagNormalizationService.normalizeTag(draft.tagValue))
       const nextDefaults = buildDefaultTagInferenceMarkerDrafts(normalizedTag)
       setMarkerDrafts(nextDefaults)
       setMarkerBaseline(nextDefaults)
@@ -145,7 +145,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
 
     const loadMarkers = async () => {
       try {
-        const markers = await careerService.getTagInferenceMarkers(tag.tag)
+        const markers = await taxonomyService.getTagInferenceMarkers(tag.tag)
         if (!cancelled) {
           const nextDrafts = tagInferenceMarkersToDrafts(markers)
           setMarkerDrafts(nextDrafts)
@@ -191,7 +191,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
 
   useEffect(() => {
     if (tagValue) {
-      const normalized = careerService.normalizeTag(tagValue)
+      const normalized = tagNormalizationService.normalizeTag(tagValue)
       setNormalizedPreview(normalized)
     } else {
       setNormalizedPreview('')
@@ -228,7 +228,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
     const name = newCategoryName.trim()
     if (!name) return
     try {
-      const created = await careerService.createDeliveryToolkitCategory(name)
+      const created = await taxonomyService.createDeliveryToolkitCategory(name)
       setCategories((prev) => [...prev, created])
       setCategory(created.name)
       setCreatingCategory(false)
@@ -279,7 +279,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
       let savedTag: CanonicalTag
 
       if (tag) {
-        savedTag = await careerService.updateCanonicalTag(
+        savedTag = await taxonomyService.updateCanonicalTag(
           tag.tag,
           tagValue,
           description.trim() || null,
@@ -288,7 +288,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
         )
         toast.success(`Tag updated to "${normalizedPreview}"`)
       } else {
-        savedTag = await careerService.createCanonicalTag(
+        savedTag = await taxonomyService.createCanonicalTag(
           tagValue,
           description.trim() || null,
           category,
@@ -298,7 +298,7 @@ export default function TagDialog({ open, onOpenChange, tag, draft = null, onSav
       }
 
       if (markerDraftsChanged) {
-        await careerService.replaceTagInferenceMarkers(
+        await taxonomyService.replaceTagInferenceMarkers(
           savedTag.tag,
           tagInferenceMarkerDraftsToInputs(markerDrafts)
         )

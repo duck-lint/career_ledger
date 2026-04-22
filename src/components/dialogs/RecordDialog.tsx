@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { careerService } from '@/lib/service'
+import { libraryService } from '@/lib/service'
 import type { ExperienceRecord, RecordType } from '@/lib/types'
 import {
   Dialog,
@@ -101,7 +101,7 @@ export default function RecordDialog({ open, onOpenChange, record, onSave }: Rec
           .map((t) => t.trim())
           .filter(Boolean)
         if (tags.length > 0) {
-          const result = await careerService.normalizeTags(tags)
+          const result = await libraryService.normalizeTags(tags)
           setTagValidation(result)
         } else {
           setTagValidation(null)
@@ -150,10 +150,10 @@ export default function RecordDialog({ open, onOpenChange, record, onSave }: Rec
       }
 
       if (record) {
-        const savedRecord = await careerService.updateRecord(record.id, data)
+        const savedRecord = await libraryService.updateRecord(record.id, data)
         toast.success(`Record "${savedRecord.slug}" updated`)
       } else {
-        const savedRecord = await careerService.createRecord(data)
+        const savedRecord = await libraryService.createRecord(data)
         toast.success(`Record "${savedRecord.slug}" created`)
       }
 

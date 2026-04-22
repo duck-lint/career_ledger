@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { careerService } from '@/lib/service'
-import type { ExperienceRecord } from '@/lib/types'
+import { libraryService } from '@/lib/service'
+import type { DeleteRecordsPreview, ExperienceRecord } from '@/lib/types'
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -47,6 +47,8 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
   const [sortKey, setSortKey] = useState<SortKey>('updated_at')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeletePreview, setBulkDeletePreview] = useState<DeleteRecordsPreview | null>(null)
+  const [bulkDeletePreviewLoading, setBulkDeletePreviewLoading] = useState(false)
   const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false)
 
   const multiSelectActive = selectedIds.size > 0
@@ -56,7 +58,7 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
   }, [])
 
   const loadRecords = async () => {
-    const data = await careerService.getRecords()
+    const data = await libraryService.getRecords()
     setRecords(data)
   }
 
@@ -87,25 +89,60 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
     })
   }, [])
 
+  const resetBulkDeleteState = () => {
+    setBulkDeleteOpen(false)
+    setBulkDeletePreview(null)
+    setBulkDeletePreviewLoading(false)
+    setBulkDeleteSubmitting(false)
+  }
+
   const handleBulkDelete = async () => {
     setBulkDeleteSubmitting(true)
     try {
-      for (const id of selectedIds) {
-        await careerService.deleteRecord(id)
-      }
-      const count = selectedIds.size
-      if (selectedRecordId && selectedIds.has(selectedRecordId)) {
+      const result = await libraryService.deleteRecords(Array.from(selectedIds), {
+        strict: true,
+      })
+      if (
+        selectedRecordId &&
+        result.records.some((record) => record.id === selectedRecordId)
+      ) {
         onRecordSelect(null)
       }
       setSelectedIds(new Set())
       await loadRecords()
-      toast.success(`Deleted ${count} record${count === 1 ? '' : 's'}`)
-      setBulkDeleteOpen(false)
+      const recordLabel = `Deleted ${result.deletedRecordCount} record${result.deletedRecordCount === 1 ? '' : 's'}`
+      const evidenceLabel =
+        result.deletedEvidenceCount > 0
+          ? ` and ${result.deletedEvidenceCount} linked evidence item${result.deletedEvidenceCount === 1 ? '' : 's'}`
+          : ''
+      toast.success(`${recordLabel}${evidenceLabel}`)
+      resetBulkDeleteState()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete records')
     } finally {
       setBulkDeleteSubmitting(false)
     }
+  }
+
+  const handleBulkDeleteIntent = async () => {
+    if (selectedIds.size === 0) {
+      return
+    }
+
+    setBulkDeleteOpen(true)
+    setBulkDeletePreview(null)
+    setBulkDeletePreviewLoading(true)
+
+    try {
+      const preview = await libraryService.previewDeleteRecords(Array.from(selectedIds))
+      setBulkDeletePreview(preview)
+    } catch (error) {
+      resetBulkDeleteState()
+      toast.error(error instanceof Error ? error.message : 'Failed to preview record deletion')
+      return
+    }
+
+    setBulkDeletePreviewLoading(false)
   }
 
   const handleCreate = () => {
@@ -133,11 +170,16 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
     setDeleteDetailsLoading(true)
 
     try {
-      const linkedEvidence = await careerService.getEvidenceForRecord(record.id)
-      setDeleteEvidenceCount(linkedEvidence.length)
+      const preview = await libraryService.previewDeleteRecords([record.id])
+      if (preview.foundCount === 0) {
+        resetDeleteState()
+        toast.error('Failed to load record delete preview')
+        return
+      }
+      setDeleteEvidenceCount(preview.cascadeEvidenceCount)
     } catch (error) {
       resetDeleteState()
-      toast.error(error instanceof Error ? error.message : 'Failed to load linked evidence')
+      toast.error(error instanceof Error ? error.message : 'Failed to load record delete preview')
       return
     }
 
@@ -152,7 +194,7 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
     setDeleteSubmitting(true)
 
     try {
-      await careerService.deleteRecord(recordPendingDelete.id)
+      await libraryService.deleteRecord(recordPendingDelete.id)
       await loadRecords()
       if (selectedRecordId === recordPendingDelete.id) {
         onRecordSelect(null)
@@ -211,7 +253,7 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
             </Select>
           )}
           {multiSelectActive && (
-            <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+            <Button variant="destructive" size="sm" onClick={() => void handleBulkDeleteIntent()}>
               <Trash className="mr-2 h-4 w-4" />
               Delete {selectedIds.size}
             </Button>
@@ -373,18 +415,71 @@ export default function RecordsView({ selectedRecordId, onRecordSelect }: Record
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !bulkDeleteSubmitting && setBulkDeleteOpen(open)}>
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => {
+          if (bulkDeleteSubmitting) {
+            return
+          }
+
+          if (!open) {
+            resetBulkDeleteState()
+            return
+          }
+
+          setBulkDeleteOpen(true)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedIds.size} record{selectedIds.size === 1 ? '' : 's'}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the selected records and all their linked evidence. This cannot be undone.
+              This permanently deletes the selected records and any linked evidence. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <Alert>
+            <AlertDescription>
+              {bulkDeletePreviewLoading
+                ? 'Loading record delete preview...'
+                : bulkDeletePreview?.missingIds.length
+                  ? `Strict batch delete is blocked because ${bulkDeletePreview.missingIds.length} selected record id${bulkDeletePreview.missingIds.length === 1 ? ' is' : 's are'} missing: ${bulkDeletePreview.missingIds.join(', ')}`
+                  : bulkDeletePreview
+                    ? `Preview loaded for ${bulkDeletePreview.foundCount} record${bulkDeletePreview.foundCount === 1 ? '' : 's'} and ${bulkDeletePreview.cascadeEvidenceCount} linked evidence item${bulkDeletePreview.cascadeEvidenceCount === 1 ? '' : 's'}.`
+                    : 'Preview unavailable.'}
+            </AlertDescription>
+          </Alert>
+
+          {bulkDeletePreview && bulkDeletePreview.records.length > 0 && (
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <div className="space-y-1">
+                {bulkDeletePreview.records.slice(0, 3).map((record) => (
+                  <div key={record.id}>
+                    <span className="mono text-foreground">{record.slug}</span>
+                    {record.linkedEvidenceCount > 0
+                      ? ` · ${record.linkedEvidenceCount} linked evidence item${record.linkedEvidenceCount === 1 ? '' : 's'}`
+                      : ' · no linked evidence'}
+                  </div>
+                ))}
+                {bulkDeletePreview.records.length > 3 && (
+                  <div>
+                    + {bulkDeletePreview.records.length - 3} more selected record{bulkDeletePreview.records.length - 3 === 1 ? '' : 's'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={bulkDeleteSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={bulkDeleteSubmitting}
+              disabled={
+                bulkDeletePreviewLoading ||
+                bulkDeleteSubmitting ||
+                !bulkDeletePreview ||
+                bulkDeletePreview.foundCount === 0 ||
+                bulkDeletePreview.missingIds.length > 0
+              }
               className="bg-destructive text-white hover:bg-destructive/90"
               onClick={(event) => {
                 event.preventDefault()

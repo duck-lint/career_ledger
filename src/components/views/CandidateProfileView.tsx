@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { careerService } from '@/lib/service'
+import { libraryService } from '@/lib/service'
 import type {
   CandidateCertificationEntry,
   CandidateEducationEntry,
@@ -73,7 +73,7 @@ async function normalizeSignalTagText(signalTagsText: string): Promise<TagNormal
     return { normalized: [], unknown: [] }
   }
 
-  return careerService.normalizeTags(signalTags)
+  return libraryService.normalizeTags(signalTags)
 }
 
 function createEducationForm(entry?: CandidateEducationEntry): CandidateEducationForm {
@@ -206,7 +206,7 @@ export default function CandidateProfileView() {
   const loadProfile = async () => {
     setLoading(true)
     try {
-      const profile = await careerService.getCandidateProfile()
+      const profile = await libraryService.getCandidateProfile()
       const nextForm = profile ? profileToForm(profile) : createEmptyForm()
       setForm(nextForm)
       setHasPersistedProfile(Boolean(profile))
@@ -324,7 +324,7 @@ export default function CandidateProfileView() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const saved = await careerService.replaceCandidateProfile(formToProfile(form))
+      const saved = await libraryService.replaceCandidateProfile(formToProfile(form))
       const nextForm = profileToForm(saved)
       setForm(nextForm)
       snapshotRef.current = JSON.stringify(nextForm)
@@ -346,7 +346,7 @@ export default function CandidateProfileView() {
 
     setSaving(true)
     try {
-      await careerService.deleteCandidateProfile()
+      await libraryService.deleteCandidateProfile()
       setForm(createEmptyForm())
       setHasPersistedProfile(false)
       toast.success('Candidate profile deleted')

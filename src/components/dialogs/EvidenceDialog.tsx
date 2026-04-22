@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { careerService } from '@/lib/service'
+import { libraryService } from '@/lib/service'
 import type {
   Evidence,
   EvidenceFormData,
@@ -183,7 +183,12 @@ export default function EvidenceDialog({
       return
     }
 
-    const data = buildFormData()
+    const data: EvidenceFormData = {
+      claim: claim.trim(),
+      date_range: dateRange.trim() || null,
+      tags: parseList(tagsInput),
+      evidence_note: evidenceNote.trim() || null,
+    }
     if (
       !data.claim &&
       data.tags.length === 0 &&
@@ -197,7 +202,7 @@ export default function EvidenceDialog({
     let cancelled = false
     setPreviewLoading(true)
 
-    careerService
+    libraryService
       .previewEvidenceInference(recordId, data)
       .then((result) => {
         if (!cancelled) {
@@ -243,8 +248,8 @@ export default function EvidenceDialog({
     selectedDecision?: EvidenceSaveDecision
   ) => {
     return evidence
-      ? careerService.updateEvidence(evidence.id, data, selectedDecision)
-      : careerService.createEvidence(recordId, data, selectedDecision)
+      ? libraryService.updateEvidence(evidence.id, data, selectedDecision)
+      : libraryService.createEvidence(recordId, data, selectedDecision)
   }
 
   const finalizeSave = async (data: EvidenceFormData, selectedDecision?: EvidenceSaveDecision) => {

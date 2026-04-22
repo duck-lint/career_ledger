@@ -73,6 +73,13 @@ npm install
 npm run tauri:dev
 ```
 
+**Browser harness only** (frontend-only dev server, no desktop backend):
+```bash
+npm run dev
+```
+
+`npm run dev` launches the browser harness, not the full desktop runtime. It uses localStorage, starts empty, and leaves desktop-only features disabled.
+
 **Production build** (native installer):
 ```bash
 npm run tauri:build
@@ -144,15 +151,19 @@ career_ledger/
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start Vite dev server (frontend only) |
+| `npm run dev` | Start the frontend-only browser harness |
 | `npm run build` | TypeScript check + Vite production build |
 | `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript no-emit verification |
 | `npm test` | Run Vitest test suite |
+| `npm run verify:frontend` | Run frontend lint, typecheck, and tests |
+| `npm run verify:backend` | Run Rust backend tests across all targets |
+| `npm run verify` | Run frontend and backend verification together |
 | `npm run test:watch` | Vitest in watch mode |
 | `npm run test:ui` | Vitest with browser UI |
 | `npm run tauri:dev` | Full desktop app with hot reload |
 | `npm run tauri:build` | Production build with native installer |
-| `cd src-tauri && cargo test --lib` | Rust backend tests |
+| `cd src-tauri && cargo test --lib` | Rust backend library tests |
 
 ## Testing
 
@@ -161,10 +172,20 @@ career_ledger/
 npm test
 ```
 
+**Frontend quality gates**:
+```bash
+npm run verify:frontend
+```
+
 **Backend** (Rust unit tests):
 ```bash
 cd src-tauri
 cargo test --lib
+```
+
+**Full local verification**:
+```bash
+npm run verify
 ```
 
 ## License

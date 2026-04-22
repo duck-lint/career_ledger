@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { careerService } from '@/lib/service'
-import type { Evidence, ExperienceRecord } from '@/lib/types'
+import { libraryService } from '@/lib/service'
+import type { DeleteEvidenceItemsPreview, Evidence, ExperienceRecord } from '@/lib/types'
 import { Card, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +37,8 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   const [sortKey, setSortKey] = useState<EvidenceSortKey>('updated_at')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
-  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false)
+  const [bulkDeletePreview, setBulkDeletePreview] = useState<DeleteEvidenceItemsPreview | null>(null)
+  const [bulkDeletePreviewLoading, setBulkDeletePreviewLoading] = useState(false)
 
   const multiSelectActive = selectedIds.size > 0
 
@@ -48,8 +49,8 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   const loadData = async () => {
     try {
       const [evidenceData, recordsData] = await Promise.all([
-        careerService.getAllEvidence(),
-        careerService.getRecords(),
+        libraryService.getAllEvidence(),
+        libraryService.getRecords(),
       ])
       setEvidence(evidenceData)
       setRecords(recordsData)
@@ -103,9 +104,15 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   }
 
   const handleDelete = async (item: Evidence) => {
-    await careerService.deleteEvidence(item.id)
+    await libraryService.deleteEvidence(item.id)
     await loadData()
     toast.success('Evidence deleted')
+  }
+
+  const resetBulkDeleteState = () => {
+    setBulkDeleteOpen(false)
+    setBulkDeletePreview(null)
+    setBulkDeletePreviewLoading(false)
   }
 
   const handleSave = async () => {
@@ -123,21 +130,40 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
   }, [])
 
   const handleBulkDelete = async () => {
-    setBulkDeleteSubmitting(true)
     try {
-      for (const id of selectedIds) {
-        await careerService.deleteEvidence(id)
-      }
-      const count = selectedIds.size
+      const result = await libraryService.deleteEvidenceItems(Array.from(selectedIds), {
+        strict: true,
+      })
       setSelectedIds(new Set())
       await loadData()
-      toast.success(`Deleted ${count} evidence item${count === 1 ? '' : 's'}`)
-      setBulkDeleteOpen(false)
+      toast.success(
+        `Deleted ${result.deletedEvidenceCount} evidence item${result.deletedEvidenceCount === 1 ? '' : 's'}`
+      )
+      resetBulkDeleteState()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete evidence')
-    } finally {
-      setBulkDeleteSubmitting(false)
     }
+  }
+
+  const handleBulkDeleteIntent = async () => {
+    if (selectedIds.size === 0) {
+      return
+    }
+
+    setBulkDeleteOpen(true)
+    setBulkDeletePreview(null)
+    setBulkDeletePreviewLoading(true)
+
+    try {
+      const preview = await libraryService.previewDeleteEvidenceItems(Array.from(selectedIds))
+      setBulkDeletePreview(preview)
+    } catch (error) {
+      resetBulkDeleteState()
+      toast.error(error instanceof Error ? error.message : 'Failed to preview evidence deletion')
+      return
+    }
+
+    setBulkDeletePreviewLoading(false)
   }
 
   return (
@@ -203,7 +229,7 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
                 </Select>
               )}
               {multiSelectActive && (
-                <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                <Button variant="destructive" size="sm" onClick={() => void handleBulkDeleteIntent()}>
                   <Trash className="mr-2 h-4 w-4" />
                   Delete {selectedIds.size}
                 </Button>
@@ -384,10 +410,57 @@ export default function EvidenceView({ selectedRecordId, onRecordSelect }: Evide
 
       <ConfirmDialog
         open={bulkDeleteOpen}
-        onOpenChange={(next) => !bulkDeleteSubmitting && setBulkDeleteOpen(next)}
+        onOpenChange={(next) => {
+          if (!next) {
+            resetBulkDeleteState()
+            return
+          }
+
+          setBulkDeleteOpen(true)
+        }}
         title={`Delete ${selectedIds.size} evidence item${selectedIds.size === 1 ? '' : 's'}?`}
-        description="This permanently removes the selected evidence items. Records are unaffected."
-        confirmLabel={bulkDeleteSubmitting ? 'Deleting...' : `Delete ${selectedIds.size} item${selectedIds.size === 1 ? '' : 's'}`}
+        description={
+          <div className="space-y-3">
+            <p>This permanently removes the selected evidence items. Records are unaffected.</p>
+            <Alert>
+              <AlertDescription>
+                {bulkDeletePreviewLoading
+                  ? 'Loading evidence delete preview...'
+                  : bulkDeletePreview?.missingIds.length
+                    ? `Strict batch delete is blocked because ${bulkDeletePreview.missingIds.length} selected evidence item id${bulkDeletePreview.missingIds.length === 1 ? ' is' : 's are'} missing: ${bulkDeletePreview.missingIds.join(', ')}`
+                    : bulkDeletePreview
+                      ? `Preview loaded for ${bulkDeletePreview.foundCount} evidence item${bulkDeletePreview.foundCount === 1 ? '' : 's'} across ${new Set(bulkDeletePreview.evidenceItems.map((item) => item.recordSlug ?? item.experienceRecordId)).size} record${new Set(bulkDeletePreview.evidenceItems.map((item) => item.recordSlug ?? item.experienceRecordId)).size === 1 ? '' : 's'}.`
+                      : 'Preview unavailable.'}
+              </AlertDescription>
+            </Alert>
+            {bulkDeletePreview && bulkDeletePreview.evidenceItems.length > 0 && (
+              <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                <div className="space-y-1">
+                  {bulkDeletePreview.evidenceItems.slice(0, 3).map((item) => (
+                    <div key={item.id}>
+                      <span className="mono text-foreground">{item.recordSlug ?? item.experienceRecordId}</span>
+                      {' · '}
+                      {item.claim.slice(0, 72)}
+                      {item.claim.length > 72 ? '...' : ''}
+                    </div>
+                  ))}
+                  {bulkDeletePreview.evidenceItems.length > 3 && (
+                    <div>
+                      + {bulkDeletePreview.evidenceItems.length - 3} more selected evidence item{bulkDeletePreview.evidenceItems.length - 3 === 1 ? '' : 's'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+        confirmLabel={`Delete ${selectedIds.size} item${selectedIds.size === 1 ? '' : 's'}`}
+        confirmDisabled={
+          bulkDeletePreviewLoading ||
+          !bulkDeletePreview ||
+          bulkDeletePreview.foundCount === 0 ||
+          bulkDeletePreview.missingIds.length > 0
+        }
         destructive
         onConfirm={handleBulkDelete}
       />

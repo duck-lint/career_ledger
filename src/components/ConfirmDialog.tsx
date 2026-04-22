@@ -17,6 +17,7 @@ type ConfirmDialogProps = {
   description?: React.ReactNode
   confirmLabel?: string
   cancelLabel?: string
+  confirmDisabled?: boolean
   destructive?: boolean
   /** Called when the user confirms. May return a promise; a spinner label is
       shown while it resolves. The dialog closes only after success. */
@@ -35,6 +36,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  confirmDisabled = false,
   destructive = false,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -80,7 +82,7 @@ export function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={submitting}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            disabled={submitting}
+            disabled={submitting || confirmDisabled}
             className={destructive ? 'bg-destructive text-white hover:bg-destructive/90' : undefined}
             onClick={(event) => {
               event.preventDefault()

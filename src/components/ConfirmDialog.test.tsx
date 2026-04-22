@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 
@@ -67,7 +67,32 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: /Delete\.\.\./ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- TS can't track assignment inside vi.fn callback
-    resolveConfirm!()
+    await act(async () => {
+      resolveConfirm?.()
+      await Promise.resolve()
+    })
+  })
+
+  it('disables confirm without invoking onConfirm when confirmDisabled is true', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn()
+
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={() => {}}
+        title="Delete"
+        confirmLabel="Delete"
+        confirmDisabled
+        onConfirm={onConfirm}
+      />,
+    )
+
+    const confirmButton = screen.getByRole('button', { name: 'Delete' })
+    expect(confirmButton).toBeDisabled()
+
+    await user.click(confirmButton)
+
+    expect(onConfirm).not.toHaveBeenCalled()
   })
 })

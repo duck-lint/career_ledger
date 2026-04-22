@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { careerService } from '@/lib/service'
+import { taxonomyService } from '@/lib/service'
 import type { CanonicalTag, TagInferenceMarkerInput } from '@/lib/types'
 import {
   tagInferenceMarkersToDrafts,
@@ -64,7 +64,7 @@ export default function AdoptTagDialog({
       setAdopting(null)
       return
     }
-    careerService.getCanonicalTags().then(setAllTags).catch(() => {
+    taxonomyService.getCanonicalTags().then(setAllTags).catch(() => {
       toast.error('Failed to load canonical tags')
     })
   }, [open])
@@ -102,7 +102,7 @@ export default function AdoptTagDialog({
 
     try {
       // Get existing markers, convert to inputs, append the new literal
-      const existingMarkers = await careerService.getTagInferenceMarkers(tag.tag)
+      const existingMarkers = await taxonomyService.getTagInferenceMarkers(tag.tag)
       const existingInputs = tagInferenceMarkerDraftsToInputs(
         tagInferenceMarkersToDrafts(existingMarkers)
       )
@@ -112,7 +112,7 @@ export default function AdoptTagDialog({
         allOf: [],
         anyOf: [],
       }
-      await careerService.replaceTagInferenceMarkers(tag.tag, [...existingInputs, newMarker])
+      await taxonomyService.replaceTagInferenceMarkers(tag.tag, [...existingInputs, newMarker])
 
       toast.success(`Added "${term}" as inference marker on ${tag.display_label ?? tag.tag}`)
       onAdopt()

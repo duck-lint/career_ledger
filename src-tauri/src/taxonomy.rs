@@ -978,14 +978,6 @@ pub fn get_runtime_taxonomy_version(conn: &Connection) -> Result<String, String>
         .ok_or_else(|| "Failed to read taxonomy version metadata.".to_string())
 }
 
-pub fn reset_runtime_taxonomy(conn: &Connection) -> Result<(), String> {
-    with_transaction(conn, |conn| {
-        clear_taxonomy_tables(conn)?;
-        seed_taxonomy_contents(conn)?;
-        mark_taxonomy_and_library_tags_in_sync(conn).map(|_| ())
-    })
-}
-
 pub fn get_library_tag_sync_status(conn: &Connection) -> Result<LibraryTagSyncStatus, String> {
     ensure_runtime_taxonomy_seeded(conn)?;
 

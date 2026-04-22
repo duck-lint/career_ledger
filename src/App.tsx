@@ -7,7 +7,8 @@ import TaxonomyView from '@/components/views/TaxonomyView'
 import ResumeGenerationView from '@/components/views/ResumeGenerationView'
 import OperationsView from '@/components/views/OperationsView'
 import SettingsView from '@/components/views/SettingsView'
-import { careerService } from '@/lib/service'
+import { runtimeAdminService } from '@/lib/service'
+import { appRuntime } from '@/lib/runtime'
 import { clearStoredDbPath, getStoredDbPath } from '@/lib/runtime-settings'
 import { Toaster } from 'sonner'
 
@@ -31,7 +32,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<string>(readInitialTab)
   const [isInitialized, setIsInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
-  const isTauri = '__TAURI_INTERNALS__' in window
+  const isTauri = appRuntime.isTauri
 
   useEffect(() => {
     try {
@@ -49,14 +50,14 @@ function App() {
         const storedDbPath = isTauri ? getStoredDbPath() : null
 
         try {
-          await careerService.initialize(storedDbPath)
+          await runtimeAdminService.initialize(storedDbPath)
         } catch (error) {
           if (!storedDbPath) {
             throw error
           }
 
           clearStoredDbPath()
-          await careerService.initialize()
+          await runtimeAdminService.initialize()
         }
 
         if (!cancelled) {
@@ -113,7 +114,7 @@ function App() {
               </div>
               <span
                 className="mono inline-flex items-center gap-2 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground"
-                title={isTauri ? 'Running in the Tauri desktop shell with SQLite persistence.' : 'Running in the browser; data is stored in localStorage.'}
+                title={appRuntime.description}
               >
                 <span
                   aria-hidden
@@ -123,7 +124,7 @@ function App() {
                       : 'inline-block size-1.5 rounded-full bg-muted-foreground'
                   }
                 />
-                {isTauri ? 'Tauri · SQLite' : 'Browser fallback'}
+                {appRuntime.label}
               </span>
             </div>
           </div>

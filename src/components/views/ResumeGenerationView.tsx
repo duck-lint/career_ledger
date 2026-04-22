@@ -27,7 +27,12 @@ import { Textarea } from '@/components/ui/textarea'
 import AdoptTagDialog from '@/components/dialogs/AdoptTagDialog'
 import TagDialog from '@/components/dialogs/TagDialog'
 import { ProgressSteps, type ProgressStep } from '@/components/ProgressSteps'
-import { careerService } from '@/lib/service'
+import {
+  operationsService,
+  pipelineService,
+  tagNormalizationService,
+} from '@/lib/service'
+import { runtimeSupports } from '@/lib/runtime'
 import {
   getStoredArtifactOutputDir,
   setStoredArtifactOutputDir,
@@ -63,8 +68,8 @@ async function fetchGenerationState(): Promise<{
   manifests: GenerationManifest[]
 }> {
   const [manifests, anomalies] = await Promise.all([
-    careerService.getGenerationManifests(),
-    careerService.getAnomalies(),
+    operationsService.getGenerationManifests(),
+    operationsService.getAnomalies(),
   ])
 
   return { manifests, anomalies }
@@ -260,7 +265,7 @@ function ArtifactFileSummary({ label, file }: { label: string; file: ResumeArtif
 }
 
 export default function ResumeGenerationView() {
-  const isTauri = '__TAURI_INTERNALS__' in window
+  const canUseResumePipeline = runtimeSupports('resumePipeline')
   const [jobPostingText, setJobPostingText] = useState('')
   const [artifactOutputDir, setArtifactOutputDir] = useState('')
   const [artifactBaseName, setArtifactBaseName] = useState('')
@@ -294,7 +299,7 @@ export default function ResumeGenerationView() {
   const previewPending = pipelineResult !== deferredPipelineResult
 
   useEffect(() => {
-    if (!isTauri) {
+    if (!canUseResumePipeline) {
       return
     }
 
@@ -310,7 +315,7 @@ export default function ResumeGenerationView() {
 
         const [generationResult, buildPolicyResult] = await Promise.allSettled([
           fetchGenerationState(),
-          careerService.getBuildPolicy(),
+          pipelineService.getBuildPolicy(),
         ])
 
         if (cancelled) {
@@ -354,7 +359,7 @@ export default function ResumeGenerationView() {
     return () => {
       cancelled = true
     }
-  }, [isTauri])
+  }, [canUseResumePipeline])
 
   // Restore persisted form fields from localStorage
   useEffect(() => {
@@ -488,7 +493,7 @@ export default function ResumeGenerationView() {
   // Falls through from adopt dialog to create a new canonical tag
   const handleOpenTagDialog = (term: string) => {
     setTagDialogDraft({
-      tagValue: careerService.normalizeTag(term),
+      tagValue: tagNormalizationService.normalizeTag(term),
       description: '',
       displayLabel: formatSuggestedDisplayLabel(term),
       categoryName: null,
@@ -694,7 +699,7 @@ export default function ResumeGenerationView() {
   }
 
   const handleAnalyzePosting = async () => {
-    if (!isTauri) {
+    if (!canUseResumePipeline) {
       toast.error('Posting analysis is available only in the Tauri desktop runtime.')
       return
     }
@@ -711,7 +716,7 @@ export default function ResumeGenerationView() {
     setAnalysisError(null)
 
     try {
-      const result = await careerService.buildRequirementAnalysis(normalizedPostingText)
+      const result = await pipelineService.buildRequirementAnalysis(normalizedPostingText)
       setAnalysisResult(result)
       toast.success('Posting analysis updated')
     } catch (error) {
@@ -724,7 +729,7 @@ export default function ResumeGenerationView() {
   }
 
   const handleBrowseArtifactOutputDir = async () => {
-    if (!isTauri) {
+    if (!canUseResumePipeline) {
       return
     }
 
@@ -748,7 +753,7 @@ export default function ResumeGenerationView() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!isTauri) {
+    if (!canUseResumePipeline) {
       toast.error('Resume generation is available only in the Tauri desktop runtime.')
       return
     }
@@ -771,7 +776,7 @@ export default function ResumeGenerationView() {
       if (normalizedPostingText) setStoredJobPostingText(normalizedPostingText)
 
       const normalizedBaseName = artifactBaseName.trim()
-      const result = await careerService.runResumePipeline({
+      const result = await pipelineService.runResumePipeline({
         job_posting_text: normalizedPostingText,
         artifact_output_dir: normalizedArtifactOutputDir || null,
         artifact_base_name: normalizedBaseName || null,
@@ -810,7 +815,7 @@ export default function ResumeGenerationView() {
     setBuildPolicyError(null)
 
     try {
-      const saved = await careerService.saveBuildPolicy(buildPolicyDraft)
+      const saved = await pipelineService.saveBuildPolicy(buildPolicyDraft)
       setBuildPolicyDraft(saved)
       toast.success('Build policy saved')
     } catch (error) {
@@ -822,7 +827,7 @@ export default function ResumeGenerationView() {
     }
   }
 
-  if (!isTauri) {
+  if (!canUseResumePipeline) {
     return (
       <div className="space-y-6">
         <div>
