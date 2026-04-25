@@ -482,7 +482,9 @@ fn validate_u32(
     let number = number as u32;
     if let Some(minimum) = min {
         if number < minimum {
-            errors.push(format!("{path} must be greater than or equal to {minimum}."));
+            errors.push(format!(
+                "{path} must be greater than or equal to {minimum}."
+            ));
         }
     }
     if let Some(maximum) = max {
@@ -533,7 +535,9 @@ fn validate_f64(
     };
     if let Some(minimum) = min {
         if number < minimum {
-            errors.push(format!("{path} must be greater than or equal to {minimum}."));
+            errors.push(format!(
+                "{path} must be greater than or equal to {minimum}."
+            ));
         }
     }
     if let Some(maximum) = max {

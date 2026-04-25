@@ -27,6 +27,9 @@ import { Textarea } from '@/components/ui/textarea'
 import AdoptTagDialog from '@/components/dialogs/AdoptTagDialog'
 import TagDialog from '@/components/dialogs/TagDialog'
 import { ProgressSteps, type ProgressStep } from '@/components/ProgressSteps'
+import { RequirementAnalysisReviewPanel } from '@/components/resume/RequirementAnalysisReviewPanel'
+import { ResumeAssemblyAuditPanel, ResumeGapReportPanel } from '@/components/resume/ResumeAuditPanels'
+import { ResumeEvidenceSources } from '@/components/resume/ResumeEvidenceSources'
 import {
   operationsService,
   pipelineService,
@@ -39,11 +42,18 @@ import {
   getStoredJobPostingText,
   setStoredJobPostingText,
 } from '@/lib/runtime-settings'
+import {
+  BUILD_POLICY_PRESETS,
+  applyBuildPolicyPreset,
+  describeBuildPolicyChanges,
+  type BuildPolicyPresetId,
+} from '@/lib/build-policy-presets'
 import type {
   Anomaly,
   BuildPolicy,
   GenerationManifest,
   RequirementAnalysis,
+  RequirementReviewOverride,
   ResumeArtifactFile,
   ResumePipelineResult,
   TagDialogCreateDraft,
@@ -136,13 +146,6 @@ function formatBuildPolicySource(value: string | null | undefined): string {
   }
 
   return value
-}
-
-function formatRequirementKind(value: string): string {
-  return value
-    .split('_')
-    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : part))
-    .join(' ')
 }
 
 function mapResumeGenerationError(error: unknown): string {
@@ -274,6 +277,8 @@ export default function ResumeGenerationView() {
   const [persistManifest, setPersistManifest] = useState(true)
   const [manifestNotes, setManifestNotes] = useState('')
   const [analysisResult, setAnalysisResult] = useState<RequirementAnalysis | null>(null)
+  const [reviewedRequirementAnalysis, setReviewedRequirementAnalysis] = useState<RequirementAnalysis | null>(null)
+  const [requirementReview, setRequirementReview] = useState<RequirementReviewOverride | null>(null)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [pipelineResult, setPipelineResult] = useState<ResumePipelineResult | null>(null)
@@ -286,6 +291,7 @@ export default function ResumeGenerationView() {
   const [buildPolicySaving, setBuildPolicySaving] = useState(false)
   const [buildPolicyError, setBuildPolicyError] = useState<string | null>(null)
   const [buildPolicyDraft, setBuildPolicyDraft] = useState<BuildPolicy | null>(null)
+  const [savedBuildPolicy, setSavedBuildPolicy] = useState<BuildPolicy | null>(null)
   const [tagDialogOpen, setTagDialogOpen] = useState(false)
   const [tagDialogDraft, setTagDialogDraft] = useState<TagDialogCreateDraft | null>(null)
   const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
@@ -337,6 +343,7 @@ export default function ResumeGenerationView() {
 
         if (buildPolicyResult.status === 'fulfilled') {
           setBuildPolicyDraft(buildPolicyResult.value)
+          setSavedBuildPolicy(buildPolicyResult.value)
           setBuildPolicyError(null)
         } else {
           const message =
@@ -396,6 +403,8 @@ export default function ResumeGenerationView() {
     () => (deferredPipelineResult ? renderJson(deferredPipelineResult) : ''),
     [deferredPipelineResult]
   )
+
+  const reviewedAnalysisAvailable = Boolean(analysisResult && reviewedRequirementAnalysis && requirementReview)
 
   const analysisSummaryCards = useMemo(() => {
     if (!analysisResult) {
@@ -654,8 +663,19 @@ export default function ResumeGenerationView() {
     ]
   }, [pipelineResult, isSubmitting])
 
+  const buildPolicyChanges = useMemo(
+    () => savedBuildPolicy && buildPolicyDraft
+      ? describeBuildPolicyChanges(savedBuildPolicy, buildPolicyDraft)
+      : [],
+    [buildPolicyDraft, savedBuildPolicy],
+  )
+
   const updateBuildPolicyDraft = (updater: (current: BuildPolicy) => BuildPolicy) => {
     setBuildPolicyDraft((current) => (current ? updater(current) : current))
+  }
+
+  const handleApplyBuildPolicyPreset = (presetId: BuildPolicyPresetId) => {
+    updateBuildPolicyDraft((current) => applyBuildPolicyPreset(current, presetId))
   }
 
   const toggleMultiEvidenceSection = (section: 'highlights' | 'profile', checked: boolean) => {
@@ -688,6 +708,9 @@ export default function ResumeGenerationView() {
     try {
       const fileText = await file.text()
       setJobPostingText(fileText)
+      setAnalysisResult(null)
+      setReviewedRequirementAnalysis(null)
+      setRequirementReview(null)
       setAnalysisError(null)
       setSubmissionError(null)
       toast.success(`Loaded job posting from ${file.name}`)
@@ -718,6 +741,8 @@ export default function ResumeGenerationView() {
     try {
       const result = await pipelineService.buildRequirementAnalysis(normalizedPostingText)
       setAnalysisResult(result)
+      setReviewedRequirementAnalysis(null)
+      setRequirementReview(null)
       toast.success('Posting analysis updated')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Posting analysis failed'
@@ -778,6 +803,8 @@ export default function ResumeGenerationView() {
       const normalizedBaseName = artifactBaseName.trim()
       const result = await pipelineService.runResumePipeline({
         job_posting_text: normalizedPostingText,
+        reviewed_requirement_analysis: reviewedAnalysisAvailable ? reviewedRequirementAnalysis : null,
+        requirement_review: reviewedAnalysisAvailable ? requirementReview : null,
         artifact_output_dir: normalizedArtifactOutputDir || null,
         artifact_base_name: normalizedBaseName || null,
         write_bundle_json: normalizedArtifactOutputDir ? writeBundleJson : false,
@@ -817,6 +844,7 @@ export default function ResumeGenerationView() {
     try {
       const saved = await pipelineService.saveBuildPolicy(buildPolicyDraft)
       setBuildPolicyDraft(saved)
+      setSavedBuildPolicy(saved)
       toast.success('Build policy saved')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save build policy'
@@ -883,6 +911,9 @@ export default function ResumeGenerationView() {
                     value={jobPostingText}
                     onChange={(event) => {
                       setJobPostingText(event.target.value)
+                      setAnalysisResult(null)
+                      setReviewedRequirementAnalysis(null)
+                      setRequirementReview(null)
                       setAnalysisError(null)
                       setSubmissionError(null)
                     }}
@@ -1036,7 +1067,7 @@ export default function ResumeGenerationView() {
 
                 <Alert>
                   <AlertDescription>
-                    Analyze Posting is the read-only taxonomy-first step. It works without a candidate profile and helps you seed tags before adding evidence. Generate Resume still requires Library &gt; Candidate Profile plus existing library data.
+                    Analyze Posting is the taxonomy-first review step. It works without a candidate profile and helps you seed tags before adding evidence. Generate Resume uses reviewed analysis corrections for this run when they are available, and still requires Library &gt; Candidate Profile plus existing library data.
                   </AlertDescription>
                 </Alert>
 
@@ -1054,7 +1085,7 @@ export default function ResumeGenerationView() {
 
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <p className="text-sm text-muted-foreground">
-                    Analyze Posting is read-only. Generate Resume runs the full Tauri pipeline with the active DB-backed build policy, then reloads manifests and anomalies.
+                    Generate Resume runs the full Tauri pipeline with the active DB-backed build policy, reviewed analysis when available, then reloads manifests and anomalies.
                   </p>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <Button
@@ -1166,67 +1197,16 @@ export default function ResumeGenerationView() {
                     </CardContent>
                   </Card>
 
-                  <Card className="gap-0">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Requirement Clusters</CardTitle>
-                      <CardDescription>
-                        High-level grouping of extracted requirements from the posting.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {analysisClusters.length === 0 ? (
-                        <Alert>
-                          <AlertDescription>
-                            No requirement clusters were extracted from this posting.
-                          </AlertDescription>
-                        </Alert>
-                      ) : (
-                        analysisClusters.map((cluster) => (
-                          <div
-                            key={cluster.cluster_id}
-                            className="space-y-2 rounded-lg border bg-muted/20 p-3 text-sm"
-                          >
-                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                              <div className="font-medium text-foreground">{cluster.label}</div>
-                              <div className="flex flex-wrap gap-2">
-                                <Badge variant="secondary">
-                                  {formatRequirementKind(cluster.kind)}
-                                </Badge>
-                                <Badge variant="outline">{cluster.atom_ids.length} atoms</Badge>
-                              </div>
-                            </div>
-                            {(cluster.matched_tags.length > 0 ||
-                              (clusterSuggestedTerms.get(cluster.cluster_id)?.length ?? 0) >
-                                0) && (
-                              <div className="flex flex-wrap gap-2">
-                                {cluster.matched_tags.map((tag) => (
-                                  <Badge
-                                    key={`${cluster.cluster_id}-${tag}`}
-                                    variant="outline"
-                                    className="mono border-green-600/40 text-green-700 dark:border-green-500/40 dark:text-green-400"
-                                  >
-                                    {tag}
-                                  </Badge>
-                                ))}
-                                {clusterSuggestedTerms.get(cluster.cluster_id)?.map((term) => (
-                                  <Button
-                                    key={`${cluster.cluster_id}-suggest-${term}`}
-                                    type="button"
-                                    variant="secondary"
-                                    className="h-auto px-2 py-1 text-xs"
-                                    onClick={() => handleSuggestedTermClick(term, cluster.matched_tags)}
-                                    disabled={isAnalyzing || isSubmitting}
-                                  >
-                                    <span className="mono">{term}</span>
-                                  </Button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </CardContent>
-                  </Card>
+                  <RequirementAnalysisReviewPanel
+                    analysis={analysisResult}
+                    suggestedTermsByCluster={clusterSuggestedTerms}
+                    onSuggestedTermClick={handleSuggestedTermClick}
+                    onReviewChange={(reviewedAnalysis, review) => {
+                      setReviewedRequirementAnalysis(reviewedAnalysis)
+                      setRequirementReview(review)
+                    }}
+                    disabled={isAnalyzing || isSubmitting}
+                  />
                 </>
               )}
             </CardContent>
@@ -1272,13 +1252,26 @@ export default function ResumeGenerationView() {
                 </CardHeader>
               </Card>
 
+              <ResumeGapReportPanel
+                gapReport={displayResult.assembly_result.artifact.gap_report}
+              />
+
+              <ResumeAssemblyAuditPanel
+                constraintFlags={displayResult.assembly_result.constraint_flags}
+                notes={displayResult.assembly_result.notes}
+              />
+
               {displayResult.assembly_result.artifact.resume.profile && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Profile</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm leading-6">
-                    {displayResult.assembly_result.artifact.resume.profile.text}
+                  <CardContent className="space-y-3 text-sm leading-6">
+                    <p>{displayResult.assembly_result.artifact.resume.profile.text}</p>
+                    <ResumeEvidenceSources
+                      result={displayResult}
+                      evidenceIds={displayResult.assembly_result.artifact.resume.profile.evidence_ids}
+                    />
                   </CardContent>
                 </Card>
               )}
@@ -1294,9 +1287,15 @@ export default function ResumeGenerationView() {
                     <ul className="space-y-2 text-sm leading-6">
                       {displayResult.assembly_result.artifact.resume.highlights.map(
                         (highlight, index) => (
-                          <li key={`${highlight.text}-${index}`} className="flex gap-3">
-                            <span className="text-muted-foreground">-</span>
-                            <span>{highlight.text}</span>
+                          <li key={`${highlight.text}-${index}`} className="space-y-2">
+                            <div className="flex gap-3">
+                              <span className="text-muted-foreground">-</span>
+                              <span>{highlight.text}</span>
+                            </div>
+                            <ResumeEvidenceSources
+                              result={displayResult}
+                              evidenceIds={highlight.evidence_ids}
+                            />
                           </li>
                         )
                       )}
@@ -1336,9 +1335,15 @@ export default function ResumeGenerationView() {
                           </div>
                           <ul className="space-y-2 text-sm leading-6">
                             {entry.bullets.map((bullet, index) => (
-                              <li key={`${entry.record_id}-${index}`} className="flex gap-3">
-                                <span className="text-muted-foreground">-</span>
-                                <span>{bullet.text}</span>
+                              <li key={`${entry.record_id}-${index}`} className="space-y-2">
+                                <div className="flex gap-3">
+                                  <span className="text-muted-foreground">-</span>
+                                  <span>{bullet.text}</span>
+                                </div>
+                                <ResumeEvidenceSources
+                                  result={displayResult}
+                                  evidenceIds={bullet.evidence_ids}
+                                />
                               </li>
                             ))}
                           </ul>
@@ -1368,9 +1373,15 @@ export default function ResumeGenerationView() {
                         </div>
                         <ul className="space-y-2 text-sm leading-6">
                           {project.bullets.map((bullet, index) => (
-                            <li key={`${project.record_id}-${index}`} className="flex gap-3">
-                              <span className="text-muted-foreground">-</span>
-                              <span>{bullet.text}</span>
+                            <li key={`${project.record_id}-${index}`} className="space-y-2">
+                              <div className="flex gap-3">
+                                <span className="text-muted-foreground">-</span>
+                                <span>{bullet.text}</span>
+                              </div>
+                              <ResumeEvidenceSources
+                                result={displayResult}
+                                evidenceIds={bullet.evidence_ids}
+                              />
                             </li>
                           ))}
                         </ul>
@@ -1741,6 +1752,70 @@ export default function ResumeGenerationView() {
                 </Alert>
               ) : (
                 <form className="space-y-6" onSubmit={handleSaveBuildPolicy}>
+                  <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-foreground">Policy Presets</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Presets stage changes in the draft below. Review the field changes, then save to make them active for this database.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 xl:grid-cols-4">
+                      {BUILD_POLICY_PRESETS.map((preset) => (
+                        <div key={preset.id} className="space-y-3 rounded-md border bg-background/70 p-3">
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium text-foreground">{preset.label}</div>
+                            <p className="text-xs leading-5 text-muted-foreground">{preset.description}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApplyBuildPolicyPreset(preset.id)}
+                            disabled={buildPolicySaving}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border bg-background/60 p-4">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium text-foreground">Staged Policy Changes</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Difference between the saved policy and the current draft.
+                        </p>
+                      </div>
+                      <Badge variant={buildPolicyChanges.length > 0 ? 'secondary' : 'outline'}>
+                        {buildPolicyChanges.length} unsaved
+                      </Badge>
+                    </div>
+                    {buildPolicyChanges.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No unsaved build policy changes.</p>
+                    ) : (
+                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        {buildPolicyChanges.map((change) => (
+                          <div key={change.label} className="rounded-md border bg-muted/20 p-3 text-sm">
+                            <div className="font-medium text-foreground">{change.label}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {change.before} -&gt; {change.after}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-medium text-foreground">Advanced Controls</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Direct numeric and boolean controls remain available for deliberate tuning.
+                      </p>
+                    </div>
+
                   <div className="grid gap-4 xl:grid-cols-3">
                     <PolicyToggleField
                       id="policy-include-projects"
@@ -1979,6 +2054,7 @@ export default function ResumeGenerationView() {
                       }
                       disabled={buildPolicySaving}
                     />
+                  </div>
                   </div>
 
                   <div className="space-y-3 rounded-lg border bg-muted/10 p-4">

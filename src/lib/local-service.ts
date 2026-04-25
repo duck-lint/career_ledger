@@ -32,6 +32,7 @@ import type {
   LibraryTagRefreshResult,
   LibraryTagSyncStatus,
   RawIntakeImportResult,
+  RawIntakePreviewResult,
   EvidenceInferenceComparison,
   EvidenceSaveDecision,
   EvidenceSaveResponse,
@@ -1382,6 +1383,12 @@ class LocalCareerService
       matches: markers.map((_, i) => ({ markerIndex: i, matched: false })),
       normalizedText: _text.trim().toLowerCase(),
     }
+  }
+
+  async previewRawIntake(_path: string): Promise<RawIntakePreviewResult> {
+    throw new Error(
+      'Raw intake preview is available only in the Tauri desktop runtime.'
+    )
   }
 
   async importRawIntake(_path: string): Promise<RawIntakeImportResult> {

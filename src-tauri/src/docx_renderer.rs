@@ -85,7 +85,11 @@ pub fn render_resume_artifact(
                 &entry.organization,
                 &entry.date_range,
             ));
-            if let Some(location) = entry.location.as_deref().filter(|value| !value.trim().is_empty()) {
+            if let Some(location) = entry
+                .location
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+            {
                 docx = docx.add_paragraph(render_location_paragraph(location));
             }
             for bullet in &entry.bullets {
@@ -169,7 +173,13 @@ fn ordered_toolkit_groups(toolkit: &ToolkitSection) -> Vec<(String, Vec<String>)
 fn render_name_paragraph(header: &ResumeHeader) -> Paragraph {
     Paragraph::new()
         .align(AlignmentType::Center)
-        .add_run(styled_run(&header.display_name, 32, Some("000000"), true, false))
+        .add_run(styled_run(
+            &header.display_name,
+            32,
+            Some("000000"),
+            true,
+            false,
+        ))
 }
 
 fn render_contact_paragraph(text: &str) -> Paragraph {
@@ -222,9 +232,13 @@ fn render_role_heading_paragraph(title: &str, organization: &str, date_range: &s
         paragraph = paragraph.add_run(styled_run(organization, 21, Some("000000"), false, false));
     }
     if !date_range.trim().is_empty() {
-        paragraph = paragraph
-            .add_run(Run::new().add_tab())
-            .add_run(styled_run(date_range, 21, Some("134F5C"), false, false));
+        paragraph = paragraph.add_run(Run::new().add_tab()).add_run(styled_run(
+            date_range,
+            21,
+            Some("134F5C"),
+            false,
+            false,
+        ));
     }
     paragraph
 }
@@ -271,13 +285,13 @@ fn styled_run(text: &str, size: usize, color: Option<&str>, bold: bool, italic: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bundle_prep::DeliveryToolkitGroup;
     use crate::resume_assembler::{
         AssembledResumeArtifact, ClaimToEvidenceMapEntry, ConstraintFlag, ExperienceEntry,
-        GapReport, MultiEvidenceClaim, ProfileSection, ProjectEntry, Provenance,
-        ResumeHeader, SingleEvidenceClaim, StructuredResume, SupportedRequirement,
-        TextSourceItem, ToolkitSection,
+        GapReport, MultiEvidenceClaim, ProfileSection, ProjectEntry, Provenance, ResumeHeader,
+        SingleEvidenceClaim, StructuredResume, SupportedRequirement, TextSourceItem,
+        ToolkitSection,
     };
-    use crate::bundle_prep::DeliveryToolkitGroup;
     use std::env;
     use uuid::Uuid;
 
@@ -369,7 +383,8 @@ mod tests {
     #[test]
     fn renders_docx_file_without_python() {
         let artifact = sample_artifact();
-        let output_path = env::temp_dir().join(format!("career-ledger-docx-{}.docx", Uuid::new_v4()));
+        let output_path =
+            env::temp_dir().join(format!("career-ledger-docx-{}.docx", Uuid::new_v4()));
 
         render_resume_artifact(&artifact, &output_path).unwrap();
 

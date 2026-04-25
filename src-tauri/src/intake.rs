@@ -39,6 +39,37 @@ pub struct RawIntakeImportResult {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RawIntakePreviewItem {
+    pub item_ref: String,
+    pub intake_id: Option<String>,
+    pub source_area: String,
+    pub action: String,
+    pub outcome: String,
+    pub target_record_id: Option<String>,
+    pub target_record_slug: Option<String>,
+    pub would_create_record: bool,
+    pub would_create_evidence: bool,
+    pub skip_reason: Option<String>,
+    pub repair_hint: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RawIntakePreviewResult {
+    pub success: bool,
+    pub source_path: String,
+    pub total_item_count: i64,
+    pub would_import_record_count: i64,
+    pub would_import_evidence_count: i64,
+    pub skipped_count: i64,
+    pub skip_reasons: Vec<RawIntakeImportSkipSummary>,
+    pub duplicate_intake_ids: Vec<String>,
+    pub items: Vec<RawIntakePreviewItem>,
+    pub messages: Vec<String>,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct RawIntakeItem {
     intake_id: String,
@@ -109,6 +140,34 @@ impl ImportSkipReason {
             Self::ZeroInferredTags => "zero_inferred_tags",
         }
     }
+
+    fn repair_hint(self) -> &'static str {
+        match self {
+            Self::AmbiguousItem => {
+                "Add clearer raw_text or provide a target_record_ref before retrying."
+            }
+            Self::DuplicateClaim => {
+                "Review the existing evidence under that record; change the claim only if this is distinct evidence."
+            }
+            Self::DuplicateIntakeId => {
+                "Keep the id stable for retries; use a new id only for genuinely new source material."
+            }
+            Self::EmptyRawText => "Add raw_text before retrying this intake item.",
+            Self::InvalidItem => "Fix the item shape, required id, or field types before retrying.",
+            Self::MissingTargetRecord => {
+                "Add target_record_ref for evidence items or change the item into an experience import."
+            }
+            Self::UnknownTargetRecord => {
+                "Create the target record or correct target_record_ref, then retry the same intake file."
+            }
+            Self::UnsupportedAction => {
+                "Use item_type_hint evidence with target_record_ref, or experience without target_record_ref."
+            }
+            Self::ZeroInferredTags => {
+                "Add or tune taxonomy inference markers so this text resolves to at least one tag."
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,8 +182,94 @@ enum EvidencePreparationError {
     Skip(ImportSkipReason),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RawIntakeRunMode {
+    Preview,
+    Commit,
+}
+
+impl RawIntakeRunMode {
+    fn is_preview(self) -> bool {
+        self == Self::Preview
+    }
+
+    fn is_commit(self) -> bool {
+        self == Self::Commit
+    }
+}
+
+struct RawIntakeRunReport {
+    run_id: Option<String>,
+    source_path: String,
+    total_item_count: i64,
+    imported_record_count: i64,
+    imported_evidence_count: i64,
+    skipped_count: i64,
+    skip_reasons: Vec<RawIntakeImportSkipSummary>,
+    duplicate_intake_ids: Vec<String>,
+    messages: Vec<String>,
+    preview_items: Vec<RawIntakePreviewItem>,
+}
+
 fn new_id() -> String {
     Uuid::new_v4().to_string()
+}
+
+fn action_label(action: &ImportAction) -> &'static str {
+    match action {
+        ImportAction::GroupedExperienceRecord => "grouped_experience_record",
+        ImportAction::TargetedEvidence => "targeted_evidence",
+        ImportAction::Skip(_) => "skip",
+    }
+}
+
+fn preview_skip_item(
+    item_ref: String,
+    intake_id: Option<String>,
+    source_area: String,
+    action: &str,
+    reason: ImportSkipReason,
+    message: String,
+) -> RawIntakePreviewItem {
+    RawIntakePreviewItem {
+        item_ref,
+        intake_id,
+        source_area,
+        action: action.to_string(),
+        outcome: "skipped".to_string(),
+        target_record_id: None,
+        target_record_slug: None,
+        would_create_record: false,
+        would_create_evidence: false,
+        skip_reason: Some(reason.as_str().to_string()),
+        repair_hint: Some(reason.repair_hint().to_string()),
+        message,
+    }
+}
+
+fn preview_import_item(
+    item: &RawIntakeItem,
+    action: &str,
+    target_record_id: Option<String>,
+    target_record_slug: Option<String>,
+    would_create_record: bool,
+    would_create_evidence: bool,
+    message: String,
+) -> RawIntakePreviewItem {
+    RawIntakePreviewItem {
+        item_ref: item.intake_id.clone(),
+        intake_id: Some(item.intake_id.clone()),
+        source_area: item.source_area.clone(),
+        action: action.to_string(),
+        outcome: "would_import".to_string(),
+        target_record_id,
+        target_record_slug,
+        would_create_record,
+        would_create_evidence,
+        skip_reason: None,
+        repair_hint: None,
+        message,
+    }
 }
 
 fn normalize_text(value: &str) -> String {
@@ -666,12 +811,46 @@ fn insert_grouped_record(
     })
 }
 
-fn merge_grouped_record_state(
+fn preview_grouped_record_state(
     conn: &Connection,
+    item: &RawIntakeItem,
+    prepared: &PreparedEvidence,
+    reserved_slugs: &mut HashSet<String>,
+) -> Result<ImportedRecordState, String> {
+    let organization = derive_organization(&item.source_area);
+    let title = derive_title(&item.source_area, item.proposed_title.as_deref());
+    let record_type = derive_record_type(&item.source_area);
+    let slug = make_experience_slug(conn, &organization, &title, reserved_slugs)?;
+    let context_tags = prepared.tags.iter().cloned().collect::<BTreeSet<_>>();
+    let start_date = normalize_optional_owned(item.start_date.clone());
+    let end_date = normalize_optional_owned(item.end_date.clone());
+    let location = if record_type == "employment" {
+        normalize_optional_owned(item.location.clone())
+    } else {
+        None
+    };
+    let employment_type = if record_type == "employment" {
+        normalize_optional_owned(item.employment_type.clone())
+    } else {
+        None
+    };
+
+    Ok(ImportedRecordState {
+        id: format!("preview:{slug}"),
+        slug,
+        context_tags,
+        start_date,
+        end_date,
+        location,
+        employment_type,
+    })
+}
+
+fn merge_grouped_record_state_values(
     state: &mut ImportedRecordState,
     item: &RawIntakeItem,
     prepared: &PreparedEvidence,
-) -> Result<(), String> {
+) -> bool {
     let mut changed = false;
 
     for tag in &prepared.tags {
@@ -696,7 +875,16 @@ fn merge_grouped_record_state(
         changed = true;
     }
 
-    if !changed {
+    changed
+}
+
+fn merge_grouped_record_state(
+    conn: &Connection,
+    state: &mut ImportedRecordState,
+    item: &RawIntakeItem,
+    prepared: &PreparedEvidence,
+) -> Result<(), String> {
+    if !merge_grouped_record_state_values(state, item, prepared) {
         return Ok(());
     }
 
@@ -795,10 +983,12 @@ fn prepare_evidence_or_skip(
     }
 }
 
-fn persist_evidence_import(
+fn process_evidence_import(
     conn: &Connection,
-    run_id: &str,
+    mode: RawIntakeRunMode,
+    run_id: Option<&str>,
     item: &RawIntakeItem,
+    action: &str,
     record_id: &str,
     record_slug: &str,
     prepared: &PreparedEvidence,
@@ -807,6 +997,8 @@ fn persist_evidence_import(
     messages: &mut Vec<String>,
     skipped_count: &mut i64,
     imported_evidence_count: &mut i64,
+    preview_items: &mut Vec<RawIntakePreviewItem>,
+    would_create_record: bool,
 ) -> Result<(), String> {
     let duplicate_key = evidence_duplicate_key(record_id, &prepared.claim);
     let existing_row = find_matching_evidence_row(conn, record_id, &prepared.claim)?;
@@ -815,26 +1007,64 @@ fn persist_evidence_import(
             .as_ref()
             .map(|row| evidence_material_differences(row, prepared))
             .unwrap_or_default();
-        sync_duplicate_claim_anomaly(
-            conn,
-            &evidence_claim_entity_id(record_id, &prepared.claim),
-            existing_row.as_ref().map(|row| row.id.as_str()),
-            &differences,
-        )?;
+        if mode.is_commit() {
+            sync_duplicate_claim_anomaly(
+                conn,
+                &evidence_claim_entity_id(record_id, &prepared.claim),
+                existing_row.as_ref().map(|row| row.id.as_str()),
+                &differences,
+            )?;
+        }
+        let message = format!(
+            "skipped duplicate evidence claim under {} ({})",
+            record_id, record_slug
+        );
         record_skip_result(
             item,
             ImportSkipReason::DuplicateClaim,
-            format!(
-                "skipped duplicate evidence claim under {} ({})",
-                record_id, record_slug
-            ),
+            message.clone(),
             skip_counts,
             messages,
             skipped_count,
         );
+        if mode.is_preview() {
+            preview_items.push(preview_skip_item(
+                item.intake_id.clone(),
+                Some(item.intake_id.clone()),
+                item.source_area.clone(),
+                action,
+                ImportSkipReason::DuplicateClaim,
+                format!("{}: {message}", item.intake_id),
+            ));
+        }
         return Ok(());
     }
 
+    duplicate_evidence_keys.insert(duplicate_key);
+    *imported_evidence_count += 1;
+    if mode.is_preview() {
+        let message = format!(
+            "{}: would insert evidence under {} ({})",
+            item.intake_id, record_id, record_slug
+        );
+        messages.push(message.clone());
+        preview_items.push(preview_import_item(
+            item,
+            action,
+            if would_create_record {
+                None
+            } else {
+                Some(record_id.to_string())
+            },
+            Some(record_slug.to_string()),
+            would_create_record,
+            true,
+            message,
+        ));
+        return Ok(());
+    }
+
+    let run_id = run_id.ok_or_else(|| "Import run id missing for committed intake.".to_string())?;
     sync_duplicate_claim_anomaly(
         conn,
         &evidence_claim_entity_id(record_id, &prepared.claim),
@@ -842,8 +1072,6 @@ fn persist_evidence_import(
         &[],
     )?;
     let inserted_evidence_id = insert_evidence_item(conn, record_id, prepared)?;
-    duplicate_evidence_keys.insert(duplicate_key);
-    *imported_evidence_count += 1;
     messages.push(format!(
         "{}: inserted evidence_item {} under {} ({})",
         item.intake_id, inserted_evidence_id, record_id, record_slug
@@ -887,200 +1115,362 @@ fn build_skip_summaries(
     entries
 }
 
-pub fn import_raw_intake_impl(
+fn run_raw_intake(
     conn: &Connection,
     raw_file_path: &str,
-) -> Result<RawIntakeImportResult, String> {
+    mode: RawIntakeRunMode,
+) -> Result<RawIntakeRunReport, String> {
     let values = load_raw_intake_values(raw_file_path)?;
-    let run_id = new_id();
+    let run_id = if mode.is_commit() {
+        Some(new_id())
+    } else {
+        None
+    };
 
-    taxonomy::with_transaction(conn, |conn| {
-        insert_import_run(conn, &run_id, raw_file_path, values.len() as i64)?;
+    let mut reserved_slugs = HashSet::new();
+    let mut imported_record_states: HashMap<String, ImportedRecordState> = HashMap::new();
+    let mut duplicate_evidence_keys = HashSet::new();
+    let mut seen_intake_ids = HashSet::new();
+    let mut duplicate_intake_ids = Vec::new();
+    let mut messages = Vec::new();
+    let mut preview_items = Vec::new();
+    let mut skip_counts = HashMap::new();
+    let mut imported_record_count = 0_i64;
+    let mut imported_evidence_count = 0_i64;
+    let mut skipped_count = 0_i64;
 
-        let mut reserved_slugs = HashSet::new();
-        let mut imported_record_states: HashMap<String, ImportedRecordState> = HashMap::new();
-        let mut duplicate_evidence_keys = HashSet::new();
-        let mut seen_intake_ids = HashSet::new();
-        let mut duplicate_intake_ids = Vec::new();
-        let mut messages = Vec::new();
-        let mut skip_counts = HashMap::new();
-        let mut imported_record_count = 0_i64;
-        let mut imported_evidence_count = 0_i64;
-        let mut skipped_count = 0_i64;
+    if let Some(run_id) = run_id.as_deref() {
+        insert_import_run(conn, run_id, raw_file_path, values.len() as i64)?;
+    }
 
-        for (index, value) in values.iter().enumerate() {
-            let item = match parse_raw_intake_item(value, index) {
-                Ok(item) => item,
-                Err(error) => {
-                    record_skip(
-                        &mut skip_counts,
-                        &mut messages,
-                        &mut skipped_count,
-                        &format!("intake_items[{}]", index + 1),
-                        ImportSkipReason::InvalidItem,
-                        error,
-                    );
-                    continue;
-                }
-            };
-
-            if !seen_intake_ids.insert(item.intake_id.clone())
-                || intake_id_already_imported(conn, &item.intake_id)?
-            {
-                duplicate_intake_ids.push(item.intake_id.clone());
+    for (index, value) in values.iter().enumerate() {
+        let item = match parse_raw_intake_item(value, index) {
+            Ok(item) => item,
+            Err(error) => {
+                let item_ref = format!("intake_items[{}]", index + 1);
                 record_skip(
                     &mut skip_counts,
                     &mut messages,
                     &mut skipped_count,
-                    &item.intake_id,
-                    ImportSkipReason::DuplicateIntakeId,
-                    "skipped duplicate intake id".to_string(),
+                    &item_ref,
+                    ImportSkipReason::InvalidItem,
+                    error.clone(),
                 );
+                if mode.is_preview() {
+                    preview_items.push(preview_skip_item(
+                        item_ref.clone(),
+                        None,
+                        String::new(),
+                        "parse",
+                        ImportSkipReason::InvalidItem,
+                        format!("{}: {}", item_ref, error),
+                    ));
+                }
                 continue;
             }
+        };
 
-            match determine_action(&item) {
-                ImportAction::Skip(reason) => {
-                    record_skip_result(
-                        &item,
+        if !seen_intake_ids.insert(item.intake_id.clone())
+            || intake_id_already_imported(conn, &item.intake_id)?
+        {
+            duplicate_intake_ids.push(item.intake_id.clone());
+            let message = "skipped duplicate intake id".to_string();
+            record_skip(
+                &mut skip_counts,
+                &mut messages,
+                &mut skipped_count,
+                &item.intake_id,
+                ImportSkipReason::DuplicateIntakeId,
+                message.clone(),
+            );
+            if mode.is_preview() {
+                preview_items.push(preview_skip_item(
+                    item.intake_id.clone(),
+                    Some(item.intake_id.clone()),
+                    item.source_area.clone(),
+                    "duplicate_intake_id_check",
+                    ImportSkipReason::DuplicateIntakeId,
+                    format!("{}: {}", item.intake_id, message),
+                ));
+            }
+            continue;
+        }
+
+        let action = determine_action(&item);
+        match action {
+            ImportAction::Skip(reason) => {
+                let message = format!("skipped because {}", reason.as_str());
+                record_skip_result(
+                    &item,
+                    reason,
+                    message.clone(),
+                    &mut skip_counts,
+                    &mut messages,
+                    &mut skipped_count,
+                );
+                if mode.is_preview() {
+                    preview_items.push(preview_skip_item(
+                        item.intake_id.clone(),
+                        Some(item.intake_id.clone()),
+                        item.source_area.clone(),
+                        action_label(&action),
                         reason,
-                        format!("skipped because {}", reason.as_str()),
-                        &mut skip_counts,
-                        &mut messages,
-                        &mut skipped_count,
-                    );
+                        format!("{}: {}", item.intake_id, message),
+                    ));
                 }
-                ImportAction::TargetedEvidence => {
-                    let target_ref = match item.target_record_ref.as_deref() {
-                        Some(target_ref) => target_ref,
-                        None => {
-                            record_skip_result(
-                                &item,
-                                ImportSkipReason::MissingTargetRecord,
-                                "missing target record ref".to_string(),
-                                &mut skip_counts,
-                                &mut messages,
-                                &mut skipped_count,
-                            );
-                            continue;
-                        }
-                    };
-
-                    let Some((record_id, record_slug, organization, title, record_type)) =
-                        resolve_target_record(conn, target_ref)?
-                    else {
+            }
+            ImportAction::TargetedEvidence => {
+                let action_name = action_label(&action);
+                let target_ref = match item.target_record_ref.as_deref() {
+                    Some(target_ref) => target_ref,
+                    None => {
+                        let message = "missing target record ref".to_string();
                         record_skip_result(
                             &item,
-                            ImportSkipReason::UnknownTargetRecord,
-                            format!("target record '{}' does not exist", target_ref),
+                            ImportSkipReason::MissingTargetRecord,
+                            message.clone(),
                             &mut skip_counts,
                             &mut messages,
                             &mut skipped_count,
                         );
+                        if mode.is_preview() {
+                            preview_items.push(preview_skip_item(
+                                item.intake_id.clone(),
+                                Some(item.intake_id.clone()),
+                                item.source_area.clone(),
+                                action_name,
+                                ImportSkipReason::MissingTargetRecord,
+                                format!("{}: {}", item.intake_id, message),
+                            ));
+                        }
                         continue;
-                    };
+                    }
+                };
 
-                    let Some(prepared) = prepare_evidence_or_skip(
-                        conn,
+                let Some((record_id, record_slug, organization, title, record_type)) =
+                    resolve_target_record(conn, target_ref)?
+                else {
+                    let message = format!("target record '{}' does not exist", target_ref);
+                    record_skip_result(
                         &item,
-                        &record_type,
-                        &organization,
-                        &title,
+                        ImportSkipReason::UnknownTargetRecord,
+                        message.clone(),
                         &mut skip_counts,
                         &mut messages,
                         &mut skipped_count,
-                    )?
-                    else {
-                        continue;
+                    );
+                    if mode.is_preview() {
+                        preview_items.push(preview_skip_item(
+                            item.intake_id.clone(),
+                            Some(item.intake_id.clone()),
+                            item.source_area.clone(),
+                            action_name,
+                            ImportSkipReason::UnknownTargetRecord,
+                            format!("{}: {}", item.intake_id, message),
+                        ));
+                    }
+                    continue;
+                };
+
+                let prepared =
+                    match prepare_evidence(conn, &item, &record_type, &organization, &title) {
+                        Ok(prepared) => prepared,
+                        Err(EvidencePreparationError::Skip(reason)) => {
+                            let message = format!("skipped because {}", reason.as_str());
+                            record_skip_result(
+                                &item,
+                                reason,
+                                message.clone(),
+                                &mut skip_counts,
+                                &mut messages,
+                                &mut skipped_count,
+                            );
+                            if mode.is_preview() {
+                                preview_items.push(preview_skip_item(
+                                    item.intake_id.clone(),
+                                    Some(item.intake_id.clone()),
+                                    item.source_area.clone(),
+                                    action_name,
+                                    reason,
+                                    format!("{}: {}", item.intake_id, message),
+                                ));
+                            }
+                            continue;
+                        }
+                        Err(EvidencePreparationError::Fatal(error)) => return Err(error),
                     };
 
-                    persist_evidence_import(
-                        conn,
-                        &run_id,
-                        &item,
-                        &record_id,
-                        &record_slug,
-                        &prepared,
-                        &mut duplicate_evidence_keys,
-                        &mut skip_counts,
-                        &mut messages,
-                        &mut skipped_count,
-                        &mut imported_evidence_count,
-                    )?;
-                }
-                ImportAction::GroupedExperienceRecord => {
-                    let organization = derive_organization(&item.source_area);
-                    let title = derive_title(&item.source_area, item.proposed_title.as_deref());
-                    let record_type = derive_record_type(&item.source_area);
-                    let Some(prepared) = prepare_evidence_or_skip(
-                        conn,
-                        &item,
-                        &record_type,
-                        &organization,
-                        &title,
-                        &mut skip_counts,
-                        &mut messages,
-                        &mut skipped_count,
-                    )?
-                    else {
-                        continue;
+                process_evidence_import(
+                    conn,
+                    mode,
+                    run_id.as_deref(),
+                    &item,
+                    action_name,
+                    &record_id,
+                    &record_slug,
+                    &prepared,
+                    &mut duplicate_evidence_keys,
+                    &mut skip_counts,
+                    &mut messages,
+                    &mut skipped_count,
+                    &mut imported_evidence_count,
+                    &mut preview_items,
+                    false,
+                )?;
+            }
+            ImportAction::GroupedExperienceRecord => {
+                let action_name = action_label(&action);
+                let organization = derive_organization(&item.source_area);
+                let title = derive_title(&item.source_area, item.proposed_title.as_deref());
+                let record_type = derive_record_type(&item.source_area);
+                let prepared =
+                    match prepare_evidence(conn, &item, &record_type, &organization, &title) {
+                        Ok(prepared) => prepared,
+                        Err(EvidencePreparationError::Skip(reason)) => {
+                            let message = format!("skipped because {}", reason.as_str());
+                            record_skip_result(
+                                &item,
+                                reason,
+                                message.clone(),
+                                &mut skip_counts,
+                                &mut messages,
+                                &mut skipped_count,
+                            );
+                            if mode.is_preview() {
+                                preview_items.push(preview_skip_item(
+                                    item.intake_id.clone(),
+                                    Some(item.intake_id.clone()),
+                                    item.source_area.clone(),
+                                    action_name,
+                                    reason,
+                                    format!("{}: {}", item.intake_id, message),
+                                ));
+                            }
+                            continue;
+                        }
+                        Err(EvidencePreparationError::Fatal(error)) => return Err(error),
                     };
 
-                    let group_key = logical_experience_slug(&organization, &title)
-                        .unwrap_or_else(|| format!("{}:{}", organization, title));
+                let group_key = logical_experience_slug(&organization, &title)
+                    .unwrap_or_else(|| format!("{}:{}", organization, title));
+                let mut would_create_record = false;
 
-                    if !imported_record_states.contains_key(&group_key) {
-                        let state =
-                            insert_grouped_record(conn, &item, &prepared, &mut reserved_slugs)?;
-                        messages.push(format!(
+                if !imported_record_states.contains_key(&group_key) {
+                    let state = if mode.is_commit() {
+                        insert_grouped_record(conn, &item, &prepared, &mut reserved_slugs)?
+                    } else {
+                        preview_grouped_record_state(conn, &item, &prepared, &mut reserved_slugs)?
+                    };
+                    let message = if mode.is_commit() {
+                        format!(
                             "{}: inserted experience_record {} ({})",
                             item.intake_id, state.id, state.slug
-                        ));
-                        imported_record_count += 1;
-                        imported_record_states.insert(group_key.clone(), state);
-                    }
-
-                    let (record_id, record_slug) = {
-                        let state = imported_record_states.get_mut(&group_key).unwrap();
-                        merge_grouped_record_state(conn, state, &item, &prepared)?;
-                        (state.id.clone(), state.slug.clone())
+                        )
+                    } else {
+                        format!(
+                            "{}: would insert experience_record ({})",
+                            item.intake_id, state.slug
+                        )
                     };
-
-                    persist_evidence_import(
-                        conn,
-                        &run_id,
-                        &item,
-                        &record_id,
-                        &record_slug,
-                        &prepared,
-                        &mut duplicate_evidence_keys,
-                        &mut skip_counts,
-                        &mut messages,
-                        &mut skipped_count,
-                        &mut imported_evidence_count,
-                    )?;
+                    messages.push(message);
+                    imported_record_count += 1;
+                    would_create_record = true;
+                    imported_record_states.insert(group_key.clone(), state);
                 }
+
+                let (record_id, record_slug) = {
+                    let state = imported_record_states.get_mut(&group_key).unwrap();
+                    if mode.is_commit() {
+                        merge_grouped_record_state(conn, state, &item, &prepared)?;
+                    } else {
+                        merge_grouped_record_state_values(state, &item, &prepared);
+                    }
+                    (state.id.clone(), state.slug.clone())
+                };
+
+                process_evidence_import(
+                    conn,
+                    mode,
+                    run_id.as_deref(),
+                    &item,
+                    action_name,
+                    &record_id,
+                    &record_slug,
+                    &prepared,
+                    &mut duplicate_evidence_keys,
+                    &mut skip_counts,
+                    &mut messages,
+                    &mut skipped_count,
+                    &mut imported_evidence_count,
+                    &mut preview_items,
+                    would_create_record,
+                )?;
             }
         }
+    }
 
+    if let Some(run_id) = run_id.as_deref() {
         finalize_import_run(
             conn,
-            &run_id,
+            run_id,
             imported_record_count,
             imported_evidence_count,
             skipped_count,
         )?;
+    }
+
+    Ok(RawIntakeRunReport {
+        run_id,
+        source_path: raw_file_path.to_string(),
+        total_item_count: values.len() as i64,
+        imported_record_count,
+        imported_evidence_count,
+        skipped_count,
+        skip_reasons: build_skip_summaries(&skip_counts),
+        duplicate_intake_ids,
+        messages,
+        preview_items,
+    })
+}
+
+pub fn preview_raw_intake_impl(
+    conn: &Connection,
+    raw_file_path: &str,
+) -> Result<RawIntakePreviewResult, String> {
+    let report = run_raw_intake(conn, raw_file_path, RawIntakeRunMode::Preview)?;
+
+    Ok(RawIntakePreviewResult {
+        success: true,
+        source_path: report.source_path,
+        total_item_count: report.total_item_count,
+        would_import_record_count: report.imported_record_count,
+        would_import_evidence_count: report.imported_evidence_count,
+        skipped_count: report.skipped_count,
+        skip_reasons: report.skip_reasons,
+        duplicate_intake_ids: report.duplicate_intake_ids,
+        items: report.preview_items,
+        messages: report.messages,
+        error: None,
+    })
+}
+
+pub fn import_raw_intake_impl(
+    conn: &Connection,
+    raw_file_path: &str,
+) -> Result<RawIntakeImportResult, String> {
+    taxonomy::with_transaction(conn, |conn| {
+        let report = run_raw_intake(conn, raw_file_path, RawIntakeRunMode::Commit)?;
 
         Ok(RawIntakeImportResult {
-            run_id: Some(run_id.clone()),
+            run_id: report.run_id,
             success: true,
-            source_path: raw_file_path.to_string(),
-            imported_record_count,
-            imported_evidence_count,
-            skipped_count,
-            skip_reasons: build_skip_summaries(&skip_counts),
-            duplicate_intake_ids,
-            messages,
+            source_path: report.source_path,
+            imported_record_count: report.imported_record_count,
+            imported_evidence_count: report.imported_evidence_count,
+            skipped_count: report.skipped_count,
+            skip_reasons: report.skip_reasons,
+            duplicate_intake_ids: report.duplicate_intake_ids,
+            messages: report.messages,
             error: None,
         })
     })
@@ -1088,7 +1478,7 @@ pub fn import_raw_intake_impl(
 
 #[cfg(test)]
 mod tests {
-    use super::{import_raw_intake_impl, load_raw_intake_values};
+    use super::{import_raw_intake_impl, load_raw_intake_values, preview_raw_intake_impl};
     use crate::taxonomy::ensure_runtime_taxonomy_seeded;
     use rusqlite::{params, Connection};
     use std::env;
@@ -1146,6 +1536,18 @@ mod tests {
         .unwrap()
     }
 
+    fn count_evidence(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get(0))
+            .unwrap()
+    }
+
+    fn count_import_runs(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM raw_intake_import_runs", [], |row| {
+            row.get(0)
+        })
+        .unwrap()
+    }
+
     #[test]
     fn loads_raw_intake_values_from_yaml() {
         let path = temp_file_path("yaml");
@@ -1166,6 +1568,100 @@ intake_items:
         fs::remove_file(&path).ok();
 
         assert_eq!(loaded.len(), 1);
+    }
+
+    #[test]
+    fn previews_targeted_evidence_without_writing_import_rows() {
+        let db_path = setup_import_db();
+        let path = temp_file_path("yaml");
+        write_raw_yaml(
+            &path,
+            r#"
+intake_items:
+  - id: item_1
+    status: raw
+    source_area: example-hr-ops
+    target_record_ref: sample-record
+    item_type_hint: evidence
+    raw_text: Supported Workday rollout training and routed user issues.
+"#,
+        );
+
+        let conn = Connection::open(&db_path).unwrap();
+        let result = preview_raw_intake_impl(&conn, path.to_str().unwrap()).unwrap();
+        let evidence_count = count_evidence(&conn);
+        let import_run_count = count_import_runs(&conn);
+        let import_item_count = count_import_items(&conn, "item_1");
+        drop(conn);
+        fs::remove_file(&path).ok();
+        fs::remove_file(&db_path).ok();
+
+        assert!(result.success);
+        assert_eq!(result.total_item_count, 1);
+        assert_eq!(result.would_import_record_count, 0);
+        assert_eq!(result.would_import_evidence_count, 1);
+        assert_eq!(result.skipped_count, 0);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].outcome, "would_import");
+        assert_eq!(result.items[0].action, "targeted_evidence");
+        assert_eq!(
+            result.items[0].target_record_slug.as_deref(),
+            Some("sample-record")
+        );
+        assert_eq!(evidence_count, 0);
+        assert_eq!(import_run_count, 0);
+        assert_eq!(import_item_count, 0);
+    }
+
+    #[test]
+    fn preview_reports_skips_with_repair_hints() {
+        let db_path = setup_import_db();
+        let path = temp_file_path("yaml");
+        write_raw_yaml(
+            &path,
+            r#"
+intake_items:
+  - id: missing-target-1
+    status: raw
+    source_area: example-hr-ops
+    target_record_ref: does-not-exist
+    item_type_hint: evidence
+    raw_text: Supported Workday rollout training and routed user issues.
+  - id: vague-1
+    status: raw
+    source_area: example-hr-ops
+    item_type_hint: experience
+    raw_text: Helped with HR stuff.
+"#,
+        );
+
+        let conn = Connection::open(&db_path).unwrap();
+        let result = preview_raw_intake_impl(&conn, path.to_str().unwrap()).unwrap();
+        let evidence_count = count_evidence(&conn);
+        let import_run_count = count_import_runs(&conn);
+        drop(conn);
+        fs::remove_file(&path).ok();
+        fs::remove_file(&db_path).ok();
+
+        assert_eq!(result.would_import_record_count, 0);
+        assert_eq!(result.would_import_evidence_count, 0);
+        assert_eq!(result.skipped_count, 2);
+        assert!(result.items.iter().any(|item| item.skip_reason.as_deref()
+            == Some("unknown_target_record")
+            && item
+                .repair_hint
+                .as_deref()
+                .unwrap_or_default()
+                .contains("target record")));
+        assert!(result.items.iter().any(|item| item.skip_reason.as_deref()
+            == Some("ambiguous_item")
+            && item
+                .repair_hint
+                .as_deref()
+                .unwrap_or_default()
+                .contains("clearer raw_text")));
+        assert_eq!(evidence_count, 0);
+        assert_eq!(import_run_count, 0);
     }
 
     #[test]

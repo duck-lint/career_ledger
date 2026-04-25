@@ -28,6 +28,7 @@ import type {
   LibraryTagRefreshResult,
   LibraryTagSyncStatus,
   RawIntakeImportResult,
+  RawIntakePreviewResult,
   EvidenceInferenceComparison,
   EvidenceSaveDecision,
   EvidenceSaveResponse,
@@ -369,6 +370,10 @@ class TauriCareerService
 
   async testMarkers(text: string, markers: TagInferenceMarkerInput[]): Promise<TestMarkersResult> {
     return invoke('test_markers', { text, markers })
+  }
+
+  async previewRawIntake(path: string): Promise<RawIntakePreviewResult> {
+    return invoke('preview_raw_intake', { rawFilePath: path })
   }
 
   async importRawIntake(path: string): Promise<RawIntakeImportResult> {

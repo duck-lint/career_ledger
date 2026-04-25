@@ -22,7 +22,7 @@ use crate::embedded_assets::CAREER_SCHEMA_SQL;
 use crate::inference::{
     EvidenceInferenceComparison, EvidenceRecordContext, EvidenceSaveDecision, EvidenceValueSource,
 };
-use crate::intake::RawIntakeImportResult;
+use crate::intake::{RawIntakeImportResult, RawIntakePreviewResult};
 use crate::library_export::CareerLibraryExport;
 use crate::operations::{Anomaly, GenerationManifest};
 use crate::preflight_filter::PreflightFilterResult;
@@ -51,7 +51,7 @@ use uuid::Uuid;
 pub struct ActiveDbState(pub Mutex<Option<String>>);
 
 const OPEN_ENDED_DATE_MARKERS: [&str; 4] = ["present", "current", "ongoing", "now"];
-const LATEST_RUNTIME_DB_VERSION: i32 = 1;
+const LATEST_RUNTIME_DB_VERSION: i32 = 2;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExperienceRecord {
@@ -216,7 +216,9 @@ fn default_runtime_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         )
     })?;
 
-    Ok(default_runtime_db_path_from_app_local_data(&app_local_data_dir))
+    Ok(default_runtime_db_path_from_app_local_data(
+        &app_local_data_dir,
+    ))
 }
 
 fn normalize_runtime_db_path(path: PathBuf) -> Result<PathBuf, String> {
@@ -242,7 +244,8 @@ fn normalize_runtime_db_path(path: PathBuf) -> Result<PathBuf, String> {
 
     let parent = path.parent().unwrap_or_else(|| Path::new(""));
     let parent = if parent.as_os_str().is_empty() {
-        env::current_dir().map_err(|error| format!("Failed to resolve current directory: {error}"))?
+        env::current_dir()
+            .map_err(|error| format!("Failed to resolve current directory: {error}"))?
     } else if parent.exists() {
         parent.canonicalize().map_err(|error| {
             format!(
@@ -306,6 +309,32 @@ fn migrate_runtime_db_to_v1(conn: &Connection) -> Result<(), String> {
     set_runtime_db_user_version(conn, 1)
 }
 
+fn generation_manifests_has_requirement_review(conn: &Connection) -> Result<bool, String> {
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(generation_manifests)")
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|error| error.to_string())?;
+    for row in rows {
+        if row.map_err(|error| error.to_string())? == "requirement_review_json" {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn migrate_runtime_db_to_v2(conn: &Connection) -> Result<(), String> {
+    if !generation_manifests_has_requirement_review(conn)? {
+        conn.execute(
+            "ALTER TABLE generation_manifests ADD COLUMN requirement_review_json TEXT",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    set_runtime_db_user_version(conn, 2)
+}
+
 fn run_runtime_db_migrations(conn: &Connection) -> Result<(), String> {
     let current_version = runtime_db_user_version(conn)?;
     if current_version > LATEST_RUNTIME_DB_VERSION {
@@ -315,8 +344,15 @@ fn run_runtime_db_migrations(conn: &Connection) -> Result<(), String> {
     }
 
     match current_version {
-        0 => migrate_runtime_db_to_v1(conn)?,
-        1 => build_policy::ensure_build_policy_seeded(conn)?,
+        0 => {
+            migrate_runtime_db_to_v1(conn)?;
+            migrate_runtime_db_to_v2(conn)?;
+        }
+        1 => {
+            build_policy::ensure_build_policy_seeded(conn)?;
+            migrate_runtime_db_to_v2(conn)?;
+        }
+        2 => build_policy::ensure_build_policy_seeded(conn)?,
         _ => unreachable!("runtime db version validated above"),
     }
 
@@ -465,7 +501,9 @@ fn normalize_delete_ids(ids: Vec<String>) -> Vec<String> {
 }
 
 fn sql_placeholders(count: usize) -> String {
-    std::iter::repeat_n("?", count).collect::<Vec<_>>().join(", ")
+    std::iter::repeat_n("?", count)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn assert_strict_batch_delete_ready(
@@ -502,7 +540,9 @@ fn preview_delete_records_impl(
     let records_query = format!(
         "SELECT id, slug, organization, title FROM experience_records WHERE id IN ({placeholders})"
     );
-    let mut records_stmt = conn.prepare(&records_query).map_err(|error| error.to_string())?;
+    let mut records_stmt = conn
+        .prepare(&records_query)
+        .map_err(|error| error.to_string())?;
     let record_rows = records_stmt
         .query_map(params_from_iter(normalized_ids.iter()), |row| {
             let id: String = row.get(0)?;
@@ -552,8 +592,7 @@ fn preview_delete_records_impl(
         .iter()
         .filter_map(|id| {
             record_map.remove(id).map(|mut preview_item| {
-                preview_item.linked_evidence_count =
-                    *evidence_count_map.get(id).unwrap_or(&0);
+                preview_item.linked_evidence_count = *evidence_count_map.get(id).unwrap_or(&0);
                 preview_item
             })
         })
@@ -632,7 +671,9 @@ fn preview_delete_evidence_items_impl(
          LEFT JOIN experience_records r ON r.id = e.experience_record_id
          WHERE e.id IN ({placeholders})"
     );
-    let mut preview_stmt = conn.prepare(&preview_query).map_err(|error| error.to_string())?;
+    let mut preview_stmt = conn
+        .prepare(&preview_query)
+        .map_err(|error| error.to_string())?;
     let preview_rows = preview_stmt
         .query_map(params_from_iter(normalized_ids.iter()), |row| {
             let id: String = row.get(0)?;
@@ -1414,10 +1455,7 @@ fn get_anomalies(state: tauri::State<ActiveDbState>) -> Result<Vec<Anomaly>, Str
 }
 
 #[tauri::command]
-fn get_anomaly(
-    state: tauri::State<ActiveDbState>,
-    id: String,
-) -> Result<Option<Anomaly>, String> {
+fn get_anomaly(state: tauri::State<ActiveDbState>, id: String) -> Result<Option<Anomaly>, String> {
     let conn = open_active_runtime_connection(state.inner())?;
     operations::get_anomaly(&conn, &id)
 }
@@ -1513,7 +1551,14 @@ fn update_canonical_tag(
     display_label: String,
 ) -> Result<CanonicalTag, String> {
     let conn = open_active_runtime_connection(state.inner())?;
-    taxonomy::update_canonical_tag(&conn, old_tag, new_tag, description, category, display_label)
+    taxonomy::update_canonical_tag(
+        &conn,
+        old_tag,
+        new_tag,
+        description,
+        category,
+        display_label,
+    )
 }
 
 #[tauri::command]
@@ -1585,9 +1630,7 @@ fn reset_taxonomy_to_starter(
 }
 
 #[tauri::command]
-fn clear_taxonomy(
-    state: tauri::State<ActiveDbState>,
-) -> Result<TaxonomyImportResult, String> {
+fn clear_taxonomy(state: tauri::State<ActiveDbState>) -> Result<TaxonomyImportResult, String> {
     let conn = open_active_runtime_connection(state.inner())?;
     taxonomy::clear_runtime_taxonomy(&conn)
 }
@@ -1716,6 +1759,15 @@ fn test_markers(
 }
 
 #[tauri::command]
+fn preview_raw_intake(
+    state: tauri::State<ActiveDbState>,
+    raw_file_path: String,
+) -> Result<RawIntakePreviewResult, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    intake::preview_raw_intake_impl(&conn, &raw_file_path)
+}
+
+#[tauri::command]
 fn import_raw_intake(
     state: tauri::State<ActiveDbState>,
     raw_file_path: String,
@@ -1800,6 +1852,7 @@ pub fn run() {
             replace_tag_inference_markers,
             normalize_tags,
             test_markers,
+            preview_raw_intake,
             import_raw_intake,
         ])
         .run(tauri::generate_context!())
@@ -1816,8 +1869,7 @@ mod tests {
     fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute("PRAGMA foreign_keys = ON;", []).unwrap();
-        conn.execute_batch(CAREER_SCHEMA_SQL)
-            .unwrap();
+        conn.execute_batch(CAREER_SCHEMA_SQL).unwrap();
         conn
     }
 
@@ -1906,10 +1958,8 @@ mod tests {
 
     #[test]
     fn open_active_runtime_connection_uses_latest_active_path() {
-        let temp_dir = env::temp_dir().join(format!(
-            "career-ledger-path-switch-{}",
-            Uuid::new_v4()
-        ));
+        let temp_dir =
+            env::temp_dir().join(format!("career-ledger-path-switch-{}", Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).unwrap();
 
         let first_db_path = temp_dir.join("first.db");
@@ -1974,9 +2024,11 @@ mod tests {
 
         let default_db_path = default_runtime_db_path_from_app_local_data(&temp_dir);
         let candidate = temp_dir.join("alternate.db");
-        let resolved =
-            resolve_runtime_db_path_with_default(&default_db_path, Some(candidate.to_str().unwrap()))
-                .unwrap();
+        let resolved = resolve_runtime_db_path_with_default(
+            &default_db_path,
+            Some(candidate.to_str().unwrap()),
+        )
+        .unwrap();
         let canonical_parent = temp_dir.canonicalize().unwrap();
 
         assert_eq!(resolved, canonical_parent.join("alternate.db"));
@@ -1993,7 +2045,10 @@ mod tests {
 
         run_runtime_db_migrations(&conn).unwrap();
 
-        assert_eq!(runtime_db_user_version(&conn).unwrap(), 1);
+        assert_eq!(
+            runtime_db_user_version(&conn).unwrap(),
+            LATEST_RUNTIME_DB_VERSION
+        );
         let row_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM resume_build_policy_settings WHERE id = 'active'",
@@ -2009,8 +2064,18 @@ mod tests {
         let conn = setup_conn();
         insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
         insert_record(&conn, "record-2", "Beta", "Lead", "2025-01", "");
-        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
-        insert_evidence(&conn, "evidence-2", "record-1", "Hardened validation checks.");
+        insert_evidence(
+            &conn,
+            "evidence-1",
+            "record-1",
+            "Built the ingestion pipeline.",
+        );
+        insert_evidence(
+            &conn,
+            "evidence-2",
+            "record-1",
+            "Hardened validation checks.",
+        );
 
         let preview = preview_delete_records_impl(
             &conn,
@@ -2036,7 +2101,12 @@ mod tests {
     fn delete_records_enforces_strict_missing_id_conflicts_without_mutation() {
         let mut conn = setup_conn();
         insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
-        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
+        insert_evidence(
+            &conn,
+            "evidence-1",
+            "record-1",
+            "Built the ingestion pipeline.",
+        );
 
         let error = delete_records_impl(
             &mut conn,
@@ -2048,7 +2118,8 @@ mod tests {
         assert!(error.contains("missing-record"));
         assert_eq!(get_records_impl(&conn).unwrap().len(), 1);
         assert_eq!(
-            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get::<_, i64>(0))
+            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row
+                .get::<_, i64>(0))
                 .unwrap(),
             1
         );
@@ -2059,8 +2130,18 @@ mod tests {
         let mut conn = setup_conn();
         insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
         insert_record(&conn, "record-2", "Beta", "Lead", "2025-01", "");
-        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
-        insert_evidence(&conn, "evidence-2", "record-2", "Defined the release process.");
+        insert_evidence(
+            &conn,
+            "evidence-1",
+            "record-1",
+            "Built the ingestion pipeline.",
+        );
+        insert_evidence(
+            &conn,
+            "evidence-2",
+            "record-2",
+            "Defined the release process.",
+        );
 
         let result = delete_records_impl(
             &mut conn,
@@ -2073,7 +2154,8 @@ mod tests {
         assert_eq!(result.deleted_evidence_count, 2);
         assert!(get_records_impl(&conn).unwrap().is_empty());
         assert_eq!(
-            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get::<_, i64>(0))
+            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row
+                .get::<_, i64>(0))
                 .unwrap(),
             0
         );
@@ -2083,7 +2165,12 @@ mod tests {
     fn delete_evidence_items_supports_preview_and_strict_conflicts() {
         let mut conn = setup_conn();
         insert_record(&conn, "record-1", "Alpha", "Engineer", "2024-01", "2024-12");
-        insert_evidence(&conn, "evidence-1", "record-1", "Built the ingestion pipeline.");
+        insert_evidence(
+            &conn,
+            "evidence-1",
+            "record-1",
+            "Built the ingestion pipeline.",
+        );
 
         let preview = preview_delete_evidence_items_impl(
             &conn,
@@ -2093,7 +2180,10 @@ mod tests {
         assert_eq!(preview.requested_count, 2);
         assert_eq!(preview.found_count, 1);
         assert_eq!(preview.missing_ids, vec!["missing-evidence"]);
-        assert_eq!(preview.evidence_items[0].record_slug.as_deref(), Some("record-1-slug"));
+        assert_eq!(
+            preview.evidence_items[0].record_slug.as_deref(),
+            Some("record-1-slug")
+        );
 
         let error = delete_evidence_items_impl(
             &mut conn,
@@ -2111,7 +2201,8 @@ mod tests {
         .unwrap();
         assert_eq!(result.deleted_evidence_count, 1);
         assert_eq!(
-            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row.get::<_, i64>(0))
+            conn.query_row("SELECT COUNT(*) FROM evidence_items", [], |row| row
+                .get::<_, i64>(0))
                 .unwrap(),
             0
         );

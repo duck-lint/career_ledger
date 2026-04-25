@@ -14,17 +14,28 @@ When you need a resume, point the pipeline at a job posting. It analyzes the pos
 
 The taxonomy — canonical tags, inference markers, and delivery categories — is fully user-controlled. You can start from scratch, import a taxonomy JSON, or generate one with an LLM. See [Taxonomy Quickstart](docs/taxonomy-quickstart.md) for a copy-paste prompt that bootstraps a personalized taxonomy in minutes.
 
+## Product Boundaries
+
+- **Desktop runtime is the product.** Tauri provides SQLite storage, file dialogs, taxonomy import/export, raw intake import, resume pipeline commands, and `.docx` rendering.
+- **Browser mode is only a harness.** `npm run dev` is useful for frontend checks, but it uses localStorage and does not run desktop-only storage, file, intake, or resume commands.
+- **Evidence stays tag-first.** Records and evidence are the durable source of truth; tags and inference markers do the matching work. If evidence goes into the ledger, it may be selected for a resume when the taxonomy, requirement analysis, and build policy support it.
+- **Resume output stays evidence-bounded.** Unsupported requirements are surfaced in gap reports instead of being inferred from thin air.
+- **Raw intake is a bounded import path.** It is meant to migrate or batch-load structured material, not replace review of the resulting library.
+
 ## Key Features
 
 - **Experience Records** — Employment and project records with organization, title, dates, and record-level context tags
 - **Evidence Items** — Granular claim text with automatic tag inference, optional manual tags, date ranges, and evidence notes
 - **Canonical Tag Taxonomy** — Snake_case tag vocabulary with literal and compound inference markers that auto-detect skills from evidence text
 - **Delivery Toolkit Categories** — Group tags into resume-ready sections (e.g. "Systems & Platforms", "Technical Skills", "Implementation & Delivery")
-- **Job Posting Analysis** — Paste a job posting to extract requirement clusters, matched keywords, and gap analysis against your library
+- **Readiness Dashboard** — See whether taxonomy, evidence, profile data, anomalies, and generation history are ready for a useful resume run
+- **Job Posting Analysis** — Paste a job posting to extract local requirement clusters, matched keywords, suggested taxonomy terms, and reviewable noise/usefulness decisions
 - **Resume Pipeline** — Export → Analyze → Preflight Filter → Assemble → Render `.docx` — end-to-end from library to formatted document
+- **Resume Audit Trail** — Preview generated claims with source evidence drill-through, gap report buckets, constraint flags, assembly notes, and manifest history
+- **Taxonomy Diagnostics** — Inspect tags with no evidence, marker gaps, marker hit health, orphaned tag strings, profile drift, and saved-posting coverage
 - **Candidate Profile** — Manage contact info, education, certifications, and summary lines used in resume generation
 - **Anomaly Detection** — Surfaces data quality issues (orphaned tags, missing fields, duplicate claims) in an operations dashboard
-- **Raw Intake Import** — Batch import experience and evidence from YAML/JSON files with deduplication and skip tracking
+- **Raw Intake Import** — Preview and batch import experience/evidence from YAML/JSON files with deduplication, row-level outcomes, repair hints, skip tracking, and retryable failure summaries
 - **Generation Manifests** — Every pipeline run is logged with input hashes, selected records, gap reports, and artifact paths
 
 ## Architecture
@@ -68,7 +79,7 @@ cd career_ledger
 npm install
 ```
 
-**Development** (hot-reload frontend + Rust backend):
+**Desktop development** (hot-reload frontend + Rust backend):
 ```bash
 npm run tauri:dev
 ```
@@ -78,7 +89,7 @@ npm run tauri:dev
 npm run dev
 ```
 
-`npm run dev` launches the browser harness, not the full desktop runtime. It uses localStorage, starts empty, and leaves desktop-only features disabled.
+`npm run dev` launches the browser harness, not Career Ledger's full product runtime. It uses localStorage, starts empty, and disables SQLite path selection, taxonomy file import/export, raw intake import, and resume pipeline commands.
 
 **Production build** (native installer):
 ```bash
@@ -90,6 +101,8 @@ The installer output lands in `src-tauri/target/release/bundle/`.
 ## First-Time User Workflow
 
 There are multiple valid paths to a working library. The core loop is: **have some tags + have some evidence → press Re-infer Library Tags → everything calculates.**
+
+The readiness dashboard at the top of the app is the quickest state check. It separates missing setup, warnings, and ready signals before you dig into the individual tabs.
 
 ### Path A: Start with a taxonomy
 
@@ -108,9 +121,21 @@ There are multiple valid paths to a working library. The core loop is: **have so
 ### Path C: Import from raw intake
 
 1. Prepare a YAML or JSON file with intake items (experience + evidence entries)
-2. **Settings** tab → **Import Raw Intake** → select the file
-3. The import pipeline auto-infers tags and creates records/evidence
-4. Review in **Library**, refine taxonomy, Re-infer as needed
+2. **Settings** tab → **Bulk Import** → select the file
+3. Press **Preview Raw Intake** to inspect would-import counts, skipped items, duplicate IDs, and repair hints before anything is written
+4. Fix missing target records, unclear source text, or taxonomy inference gaps if the preview shows skipped items
+5. Press **Import Preview** when the current file preview is acceptable
+6. Review in **Library**, refine taxonomy, Re-infer as needed, then retry the same file for any fixed skipped items
+
+Raw intake safety rules:
+
+- Targeted evidence must name an explicit `target_record_ref`; the importer does not guess which existing record should own evidence.
+- Vague or underspecified untargeted items are skipped instead of being attached or expanded automatically.
+- Duplicate raw intake IDs are skipped across prior imports and within the current file.
+- Duplicate evidence claims under the same record are skipped and mirrored into anomaly tracking for review.
+- Untargeted items that describe the same imported experience merge into one new record within a single import run.
+- Preview does not write import runs, import items, records, evidence, or anomalies; import revalidates before writing.
+- Skipped items remain retryable after the missing target, taxonomy, or source text issue is fixed.
 
 Once your library is tagged, go to the **Resume** tab to analyze a job posting and generate a targeted resume.
 
@@ -142,8 +167,8 @@ career_ledger/
 │       ├── empty_taxonomy.json # Blank taxonomy
 │       └── build_policy.json   # Default resume build policy
 ├── docs/
-│   └── taxonomy-quickstart.md  # LLM prompt for generating a personal taxonomy
-├── PRD.md                      # Product requirements document
+│   ├── taxonomy-quickstart.md  # LLM prompt for generating a personal taxonomy
+│   └── archive/                # Completed implementation plans and closeout records
 └── package.json
 ```
 

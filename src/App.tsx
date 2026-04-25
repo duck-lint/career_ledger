@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { MinWidthGuard } from '@/components/MinWidthGuard'
+import { ReadinessDashboard } from '@/components/ReadinessDashboard'
 import LibraryView from '@/components/views/LibraryView'
 import TaxonomyView from '@/components/views/TaxonomyView'
 import ResumeGenerationView from '@/components/views/ResumeGenerationView'
@@ -33,6 +34,9 @@ function App() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   const isTauri = appRuntime.isTauri
+  const runtimeSubtitle = isTauri
+    ? 'SQLite-backed library, taxonomy, resume generation, operations, and import management'
+    : 'Browser harness for frontend checks; localStorage only, with desktop pipeline and file operations disabled'
 
   useEffect(() => {
     try {
@@ -109,7 +113,7 @@ function App() {
                   Career Ledger
                 </h1>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  SQLite-backed library, taxonomy, resume generation, operations, and import management
+                  {runtimeSubtitle}
                 </p>
               </div>
               <span
@@ -131,6 +135,8 @@ function App() {
         </div>
 
         <div className="container mx-auto px-6 py-6">
+          <ReadinessDashboard onNavigate={(tab) => setActiveTab(tab)} />
+
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-5 mb-6">
               <TabsTrigger value="library">Library</TabsTrigger>

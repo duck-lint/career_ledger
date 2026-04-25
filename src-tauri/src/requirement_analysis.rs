@@ -14,13 +14,23 @@ const REQUIREMENT_KIND_NICE_TO_HAVE: &str = "nice_to_have";
 const HEADING_DECAY_THRESHOLD: u32 = 3;
 
 const NEGATION_CUES: &[&str] = &[
-    "not", "no", "without", "never",
-    "lacks", "lack", "lacking",
-    "don't", "don\u{2019}t",
-    "doesn't", "doesn\u{2019}t",
-    "isn't", "isn\u{2019}t",
-    "won't", "won\u{2019}t",
-    "aren't", "aren\u{2019}t",
+    "not",
+    "no",
+    "without",
+    "never",
+    "lacks",
+    "lack",
+    "lacking",
+    "don't",
+    "don\u{2019}t",
+    "doesn't",
+    "doesn\u{2019}t",
+    "isn't",
+    "isn\u{2019}t",
+    "won't",
+    "won\u{2019}t",
+    "aren't",
+    "aren\u{2019}t",
 ];
 
 const STOPWORDS: &[&str] = &[
@@ -670,7 +680,10 @@ fn split_posting_into_requirement_units(job_posting_text: &str) -> Vec<Requireme
             vec![line.clone()]
         };
 
-        for fragment in candidate_fragments.into_iter().flat_map(|f| split_mixed_modality(&f)) {
+        for fragment in candidate_fragments
+            .into_iter()
+            .flat_map(|f| split_mixed_modality(&f))
+        {
             let cleaned = normalize_whitespace(&fragment)
                 .trim_matches(|character: char| matches!(character, ' ' | '-' | ':' | ';'))
                 .to_string();
@@ -772,12 +785,10 @@ fn cluster_requirement_atoms(
         let is_must_have_heading = is_member(MUST_HAVE_HEADINGS, &normalized_heading_lower);
         let effective_heading = if is_must_have_heading {
             let text_lower = text.to_lowercase();
-            let line_has_soft_signal =
-                requirement_nice_to_have_regex().is_match(&text_lower)
-                    && !is_negated_signal(&text_lower, requirement_nice_to_have_regex());
-            let line_has_hard_signal =
-                requirement_strong_modal_regex().is_match(&text_lower)
-                    && !is_negated_signal(&text_lower, requirement_strong_modal_regex());
+            let line_has_soft_signal = requirement_nice_to_have_regex().is_match(&text_lower)
+                && !is_negated_signal(&text_lower, requirement_nice_to_have_regex());
+            let line_has_hard_signal = requirement_strong_modal_regex().is_match(&text_lower)
+                && !is_negated_signal(&text_lower, requirement_strong_modal_regex());
 
             let streak = heading_soft_streak.entry(heading.clone()).or_insert(0);
             let decayed = heading_decayed.entry(heading.clone()).or_insert(false);
@@ -1362,37 +1373,39 @@ fn is_member(values: &[&str], candidate: &str) -> bool {
 
 fn credential_patterns() -> &'static [(Regex, Vec<&'static str>)] {
     static PATTERNS: OnceLock<Vec<(Regex, Vec<&'static str>)>> = OnceLock::new();
-    PATTERNS.get_or_init(|| vec![
-        (
-            Regex::new(r"\bundergraduate\s+degree\b").unwrap(),
-            vec!["undergraduate_degree", "degree"],
-        ),
-        (
-            Regex::new(r"\bbachelor(?:['\u{2019}]s)?\b").unwrap(),
-            vec!["bachelor", "degree"],
-        ),
-        (
-            Regex::new(r"\bmaster(?:['\u{2019}]s)?\b").unwrap(),
-            vec!["master", "degree"],
-        ),
-        (
-            Regex::new(r"\b(?:ph\.?d|doctorate|doctoral)\b").unwrap(),
-            vec!["phd", "degree"],
-        ),
-        (Regex::new(r"\bdiploma\b").unwrap(), vec!["diploma"]),
-        (
-            Regex::new(r"\b(?:certification|certificate)\b").unwrap(),
-            vec!["certification"],
-        ),
-        (
-            Regex::new(r"\bprofessional\s+designation\b").unwrap(),
-            vec!["professional_designation"],
-        ),
-        (
-            Regex::new(r"\bpost[- ]secondary\b").unwrap(),
-            vec!["post_secondary", "degree"],
-        ),
-    ])
+    PATTERNS.get_or_init(|| {
+        vec![
+            (
+                Regex::new(r"\bundergraduate\s+degree\b").unwrap(),
+                vec!["undergraduate_degree", "degree"],
+            ),
+            (
+                Regex::new(r"\bbachelor(?:['\u{2019}]s)?\b").unwrap(),
+                vec!["bachelor", "degree"],
+            ),
+            (
+                Regex::new(r"\bmaster(?:['\u{2019}]s)?\b").unwrap(),
+                vec!["master", "degree"],
+            ),
+            (
+                Regex::new(r"\b(?:ph\.?d|doctorate|doctoral)\b").unwrap(),
+                vec!["phd", "degree"],
+            ),
+            (Regex::new(r"\bdiploma\b").unwrap(), vec!["diploma"]),
+            (
+                Regex::new(r"\b(?:certification|certificate)\b").unwrap(),
+                vec!["certification"],
+            ),
+            (
+                Regex::new(r"\bprofessional\s+designation\b").unwrap(),
+                vec!["professional_designation"],
+            ),
+            (
+                Regex::new(r"\bpost[- ]secondary\b").unwrap(),
+                vec!["post_secondary", "degree"],
+            ),
+        ]
+    })
 }
 
 fn role_family_patterns() -> &'static [Regex] {
@@ -1422,7 +1435,12 @@ fn requirement_bullet_prefix_regex() -> &'static Regex {
 
 fn requirement_strong_modal_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"(?i)\b(required|required to|must|need|needs|minimum|at least|\d+\+?\s+years?)\b").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)\b(required|required to|must|need|needs|minimum|at least|\d+\+?\s+years?)\b",
+        )
+        .unwrap()
+    })
 }
 
 fn requirement_nice_to_have_regex() -> &'static Regex {
@@ -1661,9 +1679,10 @@ mod tests {
 
         // Both lines mention "python" so they may share tags and merge.
         // The surviving atom should have a subject from the "required" line.
-        let python_atom = analysis.atoms.iter().find(|a| {
-            a.matched_tags.contains(&"python".to_string())
-        });
+        let python_atom = analysis
+            .atoms
+            .iter()
+            .find(|a| a.matched_tags.contains(&"python".to_string()));
         if let Some(atom) = python_atom {
             // If atoms merged, subject should be preserved from the higher-priority atom.
             // If they didn't merge (different cluster keys), the first still has a subject.
@@ -1733,8 +1752,16 @@ mod tests {
         // A compound marker for "docker_compose" has all_of terms "docker"
         // and "compose" — both should be suppressed from suggestions.
         let atoms = vec![
-            make_stub_atom(vec![("docker", false), ("compose", false), ("ansible", false)]),
-            make_stub_atom(vec![("docker", false), ("compose", false), ("ansible", false)]),
+            make_stub_atom(vec![
+                ("docker", false),
+                ("compose", false),
+                ("ansible", false),
+            ]),
+            make_stub_atom(vec![
+                ("docker", false),
+                ("compose", false),
+                ("ansible", false),
+            ]),
         ];
         let taxonomy = make_taxonomy_context(vec![], vec!["docker", "compose"]);
         let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
@@ -1752,8 +1779,16 @@ mod tests {
         // Ensure the filter does not over-suppress: terms with no marker or
         // tag coverage should still appear when they meet the count threshold.
         let atoms = vec![
-            make_stub_atom(vec![("grafana", false), ("prometheus", false), ("loki", false)]),
-            make_stub_atom(vec![("grafana", false), ("prometheus", false), ("loki", false)]),
+            make_stub_atom(vec![
+                ("grafana", false),
+                ("prometheus", false),
+                ("loki", false),
+            ]),
+            make_stub_atom(vec![
+                ("grafana", false),
+                ("prometheus", false),
+                ("loki", false),
+            ]),
         ];
         let taxonomy = make_taxonomy_context(vec![], vec![]);
         let suggestions = collect_unrecognized_notable_terms(&atoms, &taxonomy);
@@ -1794,8 +1829,10 @@ mod tests {
         // This exercises the atom-level fallback since the per-term lookbehind
         // cannot see "not" when it appears *after* "python".
         let taxonomy = make_taxonomy_context(vec![], vec![]);
-        let (extracted, _) =
-            extract_requirement_terms("Python experience is not required for this role.", &taxonomy);
+        let (extracted, _) = extract_requirement_terms(
+            "Python experience is not required for this role.",
+            &taxonomy,
+        );
         let python = extracted
             .iter()
             .find(|et| et.term == "python")
@@ -1843,10 +1880,7 @@ mod tests {
             .iter()
             .find(|et| et.term == "python")
             .expect("python term should be extracted");
-        assert!(
-            !python.is_negated,
-            "non-negated python must not be flagged"
-        );
+        assert!(!python.is_negated, "non-negated python must not be flagged");
     }
 
     #[test]
@@ -1883,10 +1917,7 @@ mod tests {
     }
 
     /// Build a `TagInferenceMarker` of kind "compound" with `all_of` terms.
-    fn make_compound_all_of_marker(
-        canonical_tag: &str,
-        all_of: &[&str],
-    ) -> TagInferenceMarker {
+    fn make_compound_all_of_marker(canonical_tag: &str, all_of: &[&str]) -> TagInferenceMarker {
         TagInferenceMarker {
             id: format!("marker-{}-compound", canonical_tag),
             canonical_tag: canonical_tag.to_string(),
@@ -1975,10 +2006,8 @@ mod tests {
                 )],
             )],
         );
-        let (_extracted, matched_tags) = extract_requirement_terms(
-            "Candidate lacks docker and compose familiarity.",
-            &taxonomy,
-        );
+        let (_extracted, matched_tags) =
+            extract_requirement_terms("Candidate lacks docker and compose familiarity.", &taxonomy);
         assert!(
             !matched_tags.contains(&"docker_compose".to_string()),
             "docker_compose must not fire when both compound terms are negated; got {:?}",

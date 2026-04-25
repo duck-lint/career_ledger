@@ -21,6 +21,10 @@ const ARTIFACT_KIND_ASSEMBLED_RESUME: &str = "assembled_resume";
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ResumePipelineRequest {
     pub job_posting_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewed_requirement_analysis: Option<RequirementAnalysis>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirement_review: Option<RequirementReviewOverride>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact_output_dir: Option<String>,
     /// Custom prefix for artifact filenames. If provided, replaces the auto-generated
@@ -35,6 +39,21 @@ pub struct ResumePipelineRequest {
     pub persist_manifest: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest_notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct RequirementReviewOverride {
+    pub source_job_posting_sha256: String,
+    #[serde(default)]
+    pub reviewed_cluster_ids: Vec<String>,
+    #[serde(default)]
+    pub excluded_cluster_ids: Vec<String>,
+    #[serde(default)]
+    pub excluded_atom_ids: Vec<String>,
+    #[serde(default)]
+    pub useful_terms: Vec<String>,
+    #[serde(default)]
+    pub noise_terms: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -64,6 +83,8 @@ pub struct ResumePipelineResult {
     pub generated_artifacts: Option<ResumeGeneratedArtifacts>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generation_manifest: Option<GenerationManifest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requirement_review: Option<RequirementReviewOverride>,
 }
 
 pub fn run_resume_pipeline(
@@ -75,8 +96,13 @@ pub fn run_resume_pipeline(
         .ok_or("Active candidate profile not found")?;
     let source_db_name = source_db_name(active_db_path);
     let career_library_export = library_export::build_career_library_export(conn, &source_db_name)?;
-    let requirement_analysis =
+    let base_requirement_analysis =
         requirement_analysis::build_requirement_analysis(conn, &request.job_posting_text)?;
+    let (requirement_analysis, requirement_review) = resolve_reviewed_requirement_analysis(
+        &base_requirement_analysis,
+        request.reviewed_requirement_analysis.clone(),
+        request.requirement_review.clone(),
+    )?;
     let (build_policy, build_policy_snapshot_json) = build_policy::get_build_policy_snapshot(conn)?;
     let build_policy_sha256 = sha256_hex(build_policy_snapshot_json.as_bytes());
     let preflight_config = build_policy.effective_preflight_config();
@@ -127,6 +153,7 @@ pub fn run_resume_pipeline(
             &build_policy_sha256,
             &assembly_result,
             generated_artifacts.as_ref(),
+            requirement_review.as_ref(),
             normalize_optional_string(&request.manifest_notes),
         )?)
     } else {
@@ -141,7 +168,32 @@ pub fn run_resume_pipeline(
         assembly_result,
         generated_artifacts,
         generation_manifest,
+        requirement_review,
     })
+}
+
+fn resolve_reviewed_requirement_analysis(
+    base_requirement_analysis: &RequirementAnalysis,
+    reviewed_requirement_analysis: Option<RequirementAnalysis>,
+    requirement_review: Option<RequirementReviewOverride>,
+) -> Result<(RequirementAnalysis, Option<RequirementReviewOverride>), String> {
+    match (reviewed_requirement_analysis, requirement_review) {
+        (None, None) => Ok((base_requirement_analysis.clone(), None)),
+        (Some(_), None) | (None, Some(_)) => Err(
+            "reviewed_requirement_analysis and requirement_review must be provided together."
+                .to_string(),
+        ),
+        (Some(reviewed), Some(review)) => {
+            let expected_hash = &base_requirement_analysis.source.job_posting_sha256;
+            if review.source_job_posting_sha256 != *expected_hash {
+                return Err("Requirement review belongs to a different job posting. Re-run Analyze Posting before generating.".to_string());
+            }
+            if reviewed.source.job_posting_sha256 != *expected_hash {
+                return Err("Reviewed requirement analysis belongs to a different job posting. Re-run Analyze Posting before generating.".to_string());
+            }
+            Ok((reviewed, Some(review)))
+        }
+    }
 }
 
 fn write_resume_artifacts(
@@ -197,6 +249,7 @@ fn persist_generation_manifest(
     build_policy_sha256: &str,
     assembly_result: &ResumeAssemblyResult,
     generated_artifacts: Option<&ResumeGeneratedArtifacts>,
+    requirement_review: Option<&RequirementReviewOverride>,
     manifest_notes: Option<String>,
 ) -> Result<GenerationManifest, String> {
     operations::create_generation_manifest(
@@ -232,6 +285,10 @@ fn persist_generation_manifest(
             ),
             artifact_paths: generated_artifacts.map(artifact_paths_json),
             artifact_hashes: generated_artifacts.map(artifact_hashes_json),
+            requirement_review: requirement_review
+                .map(serde_json::to_value)
+                .transpose()
+                .map_err(|error| error.to_string())?,
             notes: manifest_notes,
         },
     )
@@ -351,7 +408,10 @@ fn slugify_filename_segment(value: &str) -> String {
         .join("_")
 }
 
-fn write_json_artifact<T: Serialize>(path: &Path, payload: &T) -> Result<ResumeArtifactFile, String> {
+fn write_json_artifact<T: Serialize>(
+    path: &Path,
+    payload: &T,
+) -> Result<ResumeArtifactFile, String> {
     let bytes = serde_json::to_vec_pretty(payload).map_err(|error| error.to_string())?;
     let mut bytes_with_newline = bytes;
     bytes_with_newline.push(b'\n');
@@ -364,12 +424,14 @@ fn write_json_artifact<T: Serialize>(path: &Path, payload: &T) -> Result<ResumeA
             )
         })?;
     }
-    fs::write(path, &bytes_with_newline).map_err(|error| {
-        format!("Failed to write artifact JSON {}: {error}", path.display())
-    })?;
+    fs::write(path, &bytes_with_newline)
+        .map_err(|error| format!("Failed to write artifact JSON {}: {error}", path.display()))?;
 
     let resolved_path = path.canonicalize().map_err(|error| {
-        format!("Failed to resolve artifact JSON path {}: {error}", path.display())
+        format!(
+            "Failed to resolve artifact JSON path {}: {error}",
+            path.display()
+        )
     })?;
 
     Ok(ResumeArtifactFile {
@@ -568,6 +630,8 @@ mod tests {
             Some("C:/work/career.db"),
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                reviewed_requirement_analysis: None,
+                requirement_review: None,
                 artifact_output_dir: None,
                 artifact_base_name: None,
                 write_bundle_json: false,
@@ -602,6 +666,8 @@ mod tests {
             Some("C:/work/career.db"),
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                reviewed_requirement_analysis: None,
+                requirement_review: None,
                 artifact_output_dir: Some(artifact_output_dir.display().to_string()),
                 artifact_base_name: None,
                 write_bundle_json: true,
@@ -629,10 +695,7 @@ mod tests {
             Some(json!(result.assembly_result.selected_evidence_ids))
         );
         assert!(Path::new(&generated_artifacts.assembled_json.path).exists());
-        assert!(Path::new(
-            &generated_artifacts.bundle_json.as_ref().unwrap().path
-        )
-        .exists());
+        assert!(Path::new(&generated_artifacts.bundle_json.as_ref().unwrap().path).exists());
         assert!(generated_artifacts.rendered_docx.is_none());
         assert_eq!(
             manifests[0].artifact_paths,
@@ -648,7 +711,10 @@ mod tests {
                 "bundle_json": generated_artifacts.bundle_json.as_ref().unwrap().sha256,
             }))
         );
-        assert_eq!(manifest.build_policy_path.as_deref(), Some(build_policy::BUILD_POLICY_SOURCE_URI));
+        assert_eq!(
+            manifest.build_policy_path.as_deref(),
+            Some(build_policy::BUILD_POLICY_SOURCE_URI)
+        );
 
         fs::remove_dir_all(artifact_output_dir).unwrap();
     }
@@ -665,6 +731,8 @@ mod tests {
             Some("C:/work/career.db"),
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                reviewed_requirement_analysis: None,
+                requirement_review: None,
                 artifact_output_dir: None,
                 artifact_base_name: None,
                 write_bundle_json: true,
@@ -691,6 +759,8 @@ mod tests {
             Some("C:/work/career.db"),
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                reviewed_requirement_analysis: None,
+                requirement_review: None,
                 artifact_output_dir: Some(artifact_output_dir.display().to_string()),
                 artifact_base_name: None,
                 write_bundle_json: false,
@@ -725,6 +795,8 @@ mod tests {
             Some("C:/work/career.db"),
             &ResumePipelineRequest {
                 job_posting_text: "Need Python automation support and export tooling.".to_string(),
+                reviewed_requirement_analysis: None,
+                requirement_review: None,
                 artifact_output_dir: Some(artifact_output_dir.display().to_string()),
                 artifact_base_name: Some("my_custom_prefix".to_string()),
                 write_bundle_json: true,
@@ -755,6 +827,90 @@ mod tests {
         assert!(bundle_filename.starts_with("my_custom_prefix_"));
 
         fs::remove_dir_all(artifact_output_dir).unwrap();
+    }
+
+    #[test]
+    fn run_resume_pipeline_uses_reviewed_requirement_analysis_and_persists_review() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+        let posting_text = "Need Python automation support and export tooling.";
+        let mut reviewed_analysis =
+            requirement_analysis::build_requirement_analysis(&conn, posting_text).unwrap();
+        reviewed_analysis.source.posting_keyword_bank = Vec::new();
+        reviewed_analysis.clusters = Vec::new();
+        reviewed_analysis.atoms = Vec::new();
+        let review = RequirementReviewOverride {
+            source_job_posting_sha256: reviewed_analysis.source.job_posting_sha256.clone(),
+            reviewed_cluster_ids: vec!["cluster-1".to_string()],
+            excluded_cluster_ids: vec!["cluster-1".to_string()],
+            excluded_atom_ids: vec!["atom-1".to_string()],
+            useful_terms: vec!["python".to_string()],
+            noise_terms: vec!["waterfall".to_string()],
+        };
+
+        let result = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: posting_text.to_string(),
+                reviewed_requirement_analysis: Some(reviewed_analysis),
+                requirement_review: Some(review.clone()),
+                artifact_output_dir: None,
+                artifact_base_name: None,
+                write_bundle_json: false,
+                render_docx: false,
+                persist_manifest: true,
+                manifest_notes: None,
+            },
+        )
+        .unwrap();
+
+        assert!(result.requirement_analysis.atoms.is_empty());
+        assert_eq!(result.requirement_review, Some(review.clone()));
+        let manifest = result.generation_manifest.unwrap();
+        assert_eq!(manifest.requirement_review, Some(json!(review)));
+    }
+
+    #[test]
+    fn run_resume_pipeline_rejects_review_for_different_posting() {
+        let conn = setup_conn();
+        seed_candidate_profile(&conn);
+        seed_library(&conn);
+        configure_test_build_policy(&conn);
+        let mut reviewed_analysis = requirement_analysis::build_requirement_analysis(
+            &conn,
+            "Need Python automation support.",
+        )
+        .unwrap();
+        reviewed_analysis.source.job_posting_sha256 = "wrong-hash".to_string();
+
+        let error = run_resume_pipeline(
+            &conn,
+            Some("C:/work/career.db"),
+            &ResumePipelineRequest {
+                job_posting_text: "Need Python automation support.".to_string(),
+                reviewed_requirement_analysis: Some(reviewed_analysis),
+                requirement_review: Some(RequirementReviewOverride {
+                    source_job_posting_sha256: "wrong-hash".to_string(),
+                    reviewed_cluster_ids: Vec::new(),
+                    excluded_cluster_ids: Vec::new(),
+                    excluded_atom_ids: Vec::new(),
+                    useful_terms: Vec::new(),
+                    noise_terms: Vec::new(),
+                }),
+                artifact_output_dir: None,
+                artifact_base_name: None,
+                write_bundle_json: false,
+                render_docx: false,
+                persist_manifest: false,
+                manifest_notes: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("different job posting"));
     }
 
     #[test]

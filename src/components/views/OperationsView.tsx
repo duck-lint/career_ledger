@@ -761,6 +761,15 @@ export default function OperationsView() {
                     </pre>
                   </div>
                 )}
+
+                {selectedManifest.requirementReview !== null && (
+                  <div>
+                    <div className="font-medium">Requirement Review</div>
+                    <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/30 p-3 text-xs">
+                      {renderJson(selectedManifest.requirementReview)}
+                    </pre>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

@@ -7,3 +7,4 @@ Nothing here should be treated as an active execution board unless a new plan ex
 ## Archived Programs
 
 - `2026-04-architectural-remediation-complete/`: closed six-workstream architectural remediation program, including tracker, workstream records, and closeout summary.
+- `2026-04-product-improvement-complete/`: closed five-workstream product-improvement program, including tracker, workstream records, and closeout summary.

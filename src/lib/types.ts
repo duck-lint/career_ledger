@@ -185,6 +185,17 @@ export type RequirementAnalysis = {
   atoms: RequirementAtom[]
 }
 
+export type RequirementReviewTermStatus = 'useful' | 'noise'
+
+export type RequirementReviewOverride = {
+  source_job_posting_sha256: string
+  reviewed_cluster_ids: string[]
+  excluded_cluster_ids: string[]
+  excluded_atom_ids: string[]
+  useful_terms: string[]
+  noise_terms: string[]
+}
+
 export type PreflightCounts = {
   records: number
   evidence: number
@@ -455,6 +466,8 @@ export type ResumeAssemblyResult = {
 
 export type ResumePipelineRequest = {
   job_posting_text: string
+  reviewed_requirement_analysis?: RequirementAnalysis | null
+  requirement_review?: RequirementReviewOverride | null
   artifact_output_dir?: string | null
   artifact_base_name?: string | null
   write_bundle_json?: boolean
@@ -483,6 +496,7 @@ export type ResumePipelineResult = {
   assembly_result: ResumeAssemblyResult
   generated_artifacts: ResumeGeneratedArtifacts | null
   generation_manifest: GenerationManifest | null
+  requirement_review: RequirementReviewOverride | null
 }
 
 export type CandidateContact = {
@@ -561,6 +575,7 @@ export type GenerationManifest = {
   gapReport: unknown | null
   artifactPaths: unknown | null
   artifactHashes: unknown | null
+  requirementReview: unknown | null
   notes: string | null
 }
 
@@ -700,6 +715,35 @@ export type RawIntakeImportResult = {
   error: string | null
 }
 
+export type RawIntakePreviewItem = {
+  item_ref: string
+  intake_id: string | null
+  source_area: string
+  action: string
+  outcome: 'would_import' | 'skipped'
+  target_record_id: string | null
+  target_record_slug: string | null
+  would_create_record: boolean
+  would_create_evidence: boolean
+  skip_reason: RawIntakeImportSkipReason | null
+  repair_hint: string | null
+  message: string
+}
+
+export type RawIntakePreviewResult = {
+  success: boolean
+  source_path: string
+  total_item_count: number
+  would_import_record_count: number
+  would_import_evidence_count: number
+  skipped_count: number
+  skip_reasons: RawIntakeImportSkipSummary[]
+  duplicate_intake_ids: string[]
+  items: RawIntakePreviewItem[]
+  messages: string[]
+  error: string | null
+}
+
 // ---------------------------------------------------------------------------
 // Service interface — every backend (local, Tauri IPC) implements this.
 // Views import from @/lib/service, never a concrete backend.
@@ -830,6 +874,7 @@ export interface TaxonomyService extends TagNormalizationService {
 }
 
 export interface IntakeService {
+  previewRawIntake(path: string): Promise<RawIntakePreviewResult>
   importRawIntake(path: string): Promise<RawIntakeImportResult>
 }
 

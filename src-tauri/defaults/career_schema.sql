@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS generation_manifests (
   gap_report_json TEXT,
   artifact_paths_json TEXT,
   artifact_hashes_json TEXT,
+  requirement_review_json TEXT,
   notes TEXT
 );
 

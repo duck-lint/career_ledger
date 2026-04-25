@@ -71,7 +71,7 @@ describe('appRuntime', () => {
 
     expect(runtimeModule.appRuntime.mode).toBe('browser-harness')
     expect(runtimeModule.appRuntime.isTauri).toBe(false)
-    expect(runtimeModule.appRuntime.label).toBe('Browser harness')
+    expect(runtimeModule.appRuntime.label).toBe('Browser harness only')
     expect(runtimeModule.runtimeSupports('resumePipeline')).toBe(false)
     expect(runtimeModule.runtimeSupports('rawIntakeImport')).toBe(false)
     expectAllServicesToReferenceAdapter(runtimeModule.appRuntime.services, runtimeModule.localAdapter)
@@ -82,7 +82,7 @@ describe('appRuntime', () => {
 
     expect(runtimeModule.appRuntime.mode).toBe('tauri')
     expect(runtimeModule.appRuntime.isTauri).toBe(true)
-    expect(runtimeModule.appRuntime.label).toBe('Tauri · SQLite')
+    expect(runtimeModule.appRuntime.label).toBe('Desktop runtime')
     expect(runtimeModule.runtimeSupports('resumePipeline')).toBe(true)
     expect(runtimeModule.runtimeSupports('rawIntakeImport')).toBe(true)
     expectAllServicesToReferenceAdapter(runtimeModule.appRuntime.services, runtimeModule.tauriAdapter)

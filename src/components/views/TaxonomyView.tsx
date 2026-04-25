@@ -29,6 +29,7 @@ import { Plus, Pencil, Trash2 as Trash, RefreshCw as ArrowsClockwise } from 'luc
 import { toast } from 'sonner'
 import TagDialog from '@/components/dialogs/TagDialog'
 import TagInferenceMarkerEditor from '@/components/taxonomy/TagInferenceMarkerEditor'
+import { TaxonomyDiagnosticsPanel } from '@/components/taxonomy/TaxonomyDiagnosticsPanel'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   type TagInferenceMarkerDraft,
@@ -80,6 +81,7 @@ export default function TaxonomyView() {
   const [markerTestText, setMarkerTestText] = useState('')
   const [markerTestResult, setMarkerTestResult] = useState<TestMarkersResult | null>(null)
   const [markerTestPending, setMarkerTestPending] = useState(false)
+  const [activeTaxonomyTab, setActiveTaxonomyTab] = useState('tags')
 
   const loadTaxonomyData = useCallback(async (): Promise<string> => {
     const [tagsData, categoryData] = await Promise.all([
@@ -264,6 +266,12 @@ export default function TaxonomyView() {
     } finally {
       setMarkerTestPending(false)
     }
+  }
+
+  const handleSelectDiagnosticMarkerTag = (tag: string | undefined) => {
+    if (!tag) return
+    setSelectedTag(tag)
+    setActiveTaxonomyTab('markers')
   }
 
   const handleBrowseImportTaxonomy = async () => {
@@ -514,6 +522,11 @@ export default function TaxonomyView() {
         </Card>
       )}
 
+      <TaxonomyDiagnosticsPanel
+        onSelectMarkerTag={handleSelectDiagnosticMarkerTag}
+        onReviewTags={() => setActiveTaxonomyTab('tags')}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Delivery Toolkit Categories ({categories.length})</CardTitle>
@@ -594,7 +607,7 @@ export default function TaxonomyView() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="tags" className="space-y-4">
+      <Tabs value={activeTaxonomyTab} onValueChange={setActiveTaxonomyTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="tags">Canonical Tags</TabsTrigger>
           <TabsTrigger value="markers">Inference Markers</TabsTrigger>

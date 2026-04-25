@@ -51,17 +51,17 @@ export const appRuntime: AppRuntime = isTauriRuntime
   ? {
       mode: 'tauri',
       isTauri: true,
-      label: 'Tauri · SQLite',
-      description: 'Running in the Tauri desktop shell with SQLite persistence.',
+      label: 'Desktop runtime',
+      description: 'Full Tauri desktop runtime with SQLite persistence, file access, and Rust pipeline commands.',
       capabilities: tauriCapabilities,
       services: tauriServices,
     }
   : {
       mode: 'browser-harness',
       isTauri: false,
-      label: 'Browser harness',
+      label: 'Browser harness only',
       description:
-        'Running in the browser dev harness; data is stored in localStorage and desktop-only features are unavailable.',
+        'Frontend harness using localStorage; desktop pipeline, file import/export, and SQLite path features are unavailable.',
       capabilities: browserHarnessCapabilities,
       services: localServices,
     }

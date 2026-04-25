@@ -180,11 +180,9 @@ fn taxonomy_metadata_now() -> &'static str {
 }
 
 fn current_taxonomy_metadata_timestamp(conn: &Connection) -> Result<String, String> {
-    conn.query_row(
-        &format!("SELECT {}", taxonomy_metadata_now()),
-        [],
-        |row| row.get(0),
-    )
+    conn.query_row(&format!("SELECT {}", taxonomy_metadata_now()), [], |row| {
+        row.get(0)
+    })
     .map_err(|e| e.to_string())
 }
 
@@ -203,9 +201,10 @@ fn get_taxonomy_metadata_i64(conn: &Connection, key: &str) -> Result<Option<i64>
         return Ok(None);
     };
 
-    value.parse::<i64>().map(Some).map_err(|error| {
-        format!("Invalid integer metadata value for {key:?}: {error}")
-    })
+    value
+        .parse::<i64>()
+        .map(Some)
+        .map_err(|error| format!("Invalid integer metadata value for {key:?}: {error}"))
 }
 
 fn upsert_taxonomy_metadata_value(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
@@ -226,9 +225,8 @@ fn upsert_taxonomy_metadata_value(conn: &Connection, key: &str, value: &str) -> 
 }
 
 fn mark_taxonomy_changed(conn: &Connection) -> Result<(i64, String), String> {
-    let next_generation = get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?
-        .unwrap_or(0)
-        + 1;
+    let next_generation =
+        get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?.unwrap_or(0) + 1;
     let timestamp = current_taxonomy_metadata_timestamp(conn)?;
 
     upsert_taxonomy_metadata_value(
@@ -242,8 +240,8 @@ fn mark_taxonomy_changed(conn: &Connection) -> Result<(i64, String), String> {
 }
 
 fn mark_library_tags_refreshed(conn: &Connection) -> Result<(i64, String), String> {
-    let generation = get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?
-        .unwrap_or(0);
+    let generation =
+        get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?.unwrap_or(0);
     let timestamp = current_taxonomy_metadata_timestamp(conn)?;
 
     upsert_taxonomy_metadata_value(
@@ -471,7 +469,10 @@ fn normalize_delivery_toolkit_categories(
     Ok(categories)
 }
 
-fn seed_taxonomy_contents_from_seed(conn: &Connection, seed: &TaxonomySeed) -> Result<String, String> {
+fn seed_taxonomy_contents_from_seed(
+    conn: &Connection,
+    seed: &TaxonomySeed,
+) -> Result<String, String> {
     let version =
         normalize_optional_text(seed.version.as_deref()).unwrap_or_else(|| "1.0".to_string());
     let canonical_tags = normalize_canonical_tags(seed)?;
@@ -669,7 +670,9 @@ fn export_runtime_taxonomy_document(conn: &Connection) -> Result<TaxonomySeed, S
     let mut tag_inference_markers = BTreeMap::new();
 
     for canonical_tag in &canonical_tags {
-        tag_inference_markers.entry(canonical_tag.tag.clone()).or_insert_with(Vec::new);
+        tag_inference_markers
+            .entry(canonical_tag.tag.clone())
+            .or_insert_with(Vec::new);
     }
 
     for marker in all_markers {
@@ -714,10 +717,16 @@ fn export_runtime_taxonomy_document(conn: &Connection) -> Result<TaxonomySeed, S
     let mut canonical_tag_names = Vec::new();
     for canonical_tag in canonical_tags {
         let category = canonical_tag.category.ok_or_else(|| {
-            format!("Canonical tag {:?} is missing delivery toolkit category metadata.", canonical_tag.tag)
+            format!(
+                "Canonical tag {:?} is missing delivery toolkit category metadata.",
+                canonical_tag.tag
+            )
         })?;
         let display_label = canonical_tag.display_label.ok_or_else(|| {
-            format!("Canonical tag {:?} is missing display label metadata.", canonical_tag.tag)
+            format!(
+                "Canonical tag {:?} is missing display label metadata.",
+                canonical_tag.tag
+            )
         })?;
         canonical_tag_names.push(canonical_tag.tag.clone());
         delivery_toolkit_metadata.insert(
@@ -767,12 +776,18 @@ fn read_taxonomy_seed_from_file(taxonomy_path: &str) -> Result<TaxonomySeed, Str
     }
 
     let raw_text = fs::read_to_string(&resolved_path).map_err(|error| {
-        format!("Failed to read taxonomy file {}: {error}", resolved_path.display())
+        format!(
+            "Failed to read taxonomy file {}: {error}",
+            resolved_path.display()
+        )
     })?;
     parse_taxonomy_json_str(&raw_text)
 }
 
-fn write_taxonomy_document_to_file(document: &TaxonomySeed, output_path: &str) -> Result<String, String> {
+fn write_taxonomy_document_to_file(
+    document: &TaxonomySeed,
+    output_path: &str,
+) -> Result<String, String> {
     let resolved_path = resolve_taxonomy_file_path(output_path)?;
     if let Some(parent) = resolved_path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
@@ -832,13 +847,24 @@ fn retag_evidence_and_rebuild_record_contexts(conn: &Connection) -> Result<(usiz
     let mut record_tag_map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut retagged_evidence_count = 0;
 
-    for (evidence_id, record_id, claim, evidence_note, raw_tags, record_type, organization, title) in evidence_rows {
+    for (
+        evidence_id,
+        record_id,
+        claim,
+        evidence_note,
+        raw_tags,
+        record_type,
+        organization,
+        title,
+    ) in evidence_rows
+    {
         let context = EvidenceRecordContext {
             record_type,
             organization,
             title,
         };
-        let inferred_tags = inference::infer_tags(conn, &context, &claim, evidence_note.as_deref())?;
+        let inferred_tags =
+            inference::infer_tags(conn, &context, &claim, evidence_note.as_deref())?;
         let existing_tags = parse_tags_json(raw_tags);
         if inferred_tags != existing_tags {
             conn.execute(
@@ -852,7 +878,9 @@ fn retag_evidence_and_rebuild_record_contexts(conn: &Connection) -> Result<(usiz
             retagged_evidence_count += 1;
         }
 
-        let entry = record_tag_map.entry(record_id).or_insert_with(BTreeSet::new);
+        let entry = record_tag_map
+            .entry(record_id)
+            .or_insert_with(BTreeSet::new);
         for tag in inferred_tags {
             entry.insert(tag);
         }
@@ -946,7 +974,8 @@ fn import_taxonomy_seed_inner(
 ) -> Result<TaxonomyImportResult, String> {
     clear_taxonomy_tables(conn)?;
     let imported_taxonomy_version = seed_taxonomy_contents_from_seed(conn, seed)?;
-    let (retagged_evidence_count, rebuilt_record_count) = retag_evidence_and_rebuild_record_contexts(conn)?;
+    let (retagged_evidence_count, rebuilt_record_count) =
+        retag_evidence_and_rebuild_record_contexts(conn)?;
     let unknown_candidate_profile_signal_tags = query_unknown_candidate_profile_signal_tags(conn)?;
     mark_taxonomy_and_library_tags_in_sync(conn)?;
 
@@ -983,11 +1012,9 @@ pub fn get_library_tag_sync_status(conn: &Connection) -> Result<LibraryTagSyncSt
 
     let current_generation =
         get_taxonomy_metadata_i64(conn, TAXONOMY_CHANGE_GENERATION_METADATA_KEY)?.unwrap_or(0);
-    let last_refresh_generation = get_taxonomy_metadata_i64(
-        conn,
-        LAST_LIBRARY_TAG_REFRESH_GENERATION_METADATA_KEY,
-    )?
-    .unwrap_or(0);
+    let last_refresh_generation =
+        get_taxonomy_metadata_i64(conn, LAST_LIBRARY_TAG_REFRESH_GENERATION_METADATA_KEY)?
+            .unwrap_or(0);
 
     Ok(LibraryTagSyncStatus {
         requires_reinference: current_generation > last_refresh_generation,
@@ -1026,7 +1053,9 @@ pub fn export_taxonomy_to_file(conn: &Connection, output_path: String) -> Result
     write_taxonomy_document_to_file(&document, &output_path)
 }
 
-pub fn reset_runtime_taxonomy_to_starter(conn: &Connection) -> Result<TaxonomyImportResult, String> {
+pub fn reset_runtime_taxonomy_to_starter(
+    conn: &Connection,
+) -> Result<TaxonomyImportResult, String> {
     let seed = parse_taxonomy_seed()?;
     with_transaction(conn, |conn| import_taxonomy_seed_inner(conn, &seed))
 }
@@ -1217,9 +1246,7 @@ pub fn rename_delivery_toolkit_category(
     .map_err(|e| e.to_string())?;
 
     query_delivery_toolkit_category(conn, &normalized_next_name)?.ok_or_else(|| {
-        format!(
-            "Delivery toolkit category {normalized_next_name:?} not found after rename."
-        )
+        format!("Delivery toolkit category {normalized_next_name:?} not found after rename.")
     })
 }
 
@@ -1728,7 +1755,12 @@ mod tests {
         let conn = setup_conn();
         ensure_runtime_taxonomy_seeded(&conn).unwrap();
         insert_record(&conn, "record-1", "Acme", "Engineer");
-        insert_evidence(&conn, "evidence-1", "record-1", "Led zebra delivery migration");
+        insert_evidence(
+            &conn,
+            "evidence-1",
+            "record-1",
+            "Led zebra delivery migration",
+        );
 
         create_canonical_tag(
             &conn,
@@ -1745,9 +1777,7 @@ mod tests {
         let result = re_infer_library_tags(&conn).unwrap();
         assert_eq!(result.retagged_evidence_count, 1);
         assert_eq!(result.rebuilt_record_count, 1);
-        assert!(result
-            .unknown_candidate_profile_signal_tags
-            .is_empty());
+        assert!(result.unknown_candidate_profile_signal_tags.is_empty());
 
         let evidence_tags: String = conn
             .query_row(
@@ -1778,7 +1808,12 @@ mod tests {
         let conn = setup_conn();
         ensure_runtime_taxonomy_seeded(&conn).unwrap();
         insert_record(&conn, "record-1", "Acme", "Engineer");
-        insert_evidence(&conn, "evidence-1", "record-1", "Led zebra delivery migration");
+        insert_evidence(
+            &conn,
+            "evidence-1",
+            "record-1",
+            "Led zebra delivery migration",
+        );
 
         create_canonical_tag(
             &conn,
@@ -1793,18 +1828,22 @@ mod tests {
         let second_run = re_infer_library_tags(&conn).unwrap();
         assert_eq!(second_run.retagged_evidence_count, 0);
         assert_eq!(second_run.rebuilt_record_count, 0);
-        assert!(!get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            !get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
     }
 
     #[test]
     fn taxonomy_edits_mark_library_tags_stale_until_reinference_or_reset() {
         let conn = setup_conn();
         ensure_runtime_taxonomy_seeded(&conn).unwrap();
-        assert!(!get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            !get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
 
         create_canonical_tag(
             &conn,
@@ -1814,14 +1853,18 @@ mod tests {
             "Workflow Review".to_string(),
         )
         .unwrap();
-        assert!(get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
 
         re_infer_library_tags(&conn).unwrap();
-        assert!(!get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            !get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
 
         update_canonical_tag(
             &conn,
@@ -1832,9 +1875,11 @@ mod tests {
             "Workflow Assessment".to_string(),
         )
         .unwrap();
-        assert!(get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
 
         re_infer_library_tags(&conn).unwrap();
         replace_tag_inference_markers(
@@ -1848,14 +1893,18 @@ mod tests {
             }],
         )
         .unwrap();
-        assert!(get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
 
         reset_runtime_taxonomy_to_starter(&conn).unwrap();
-        assert!(!get_library_tag_sync_status(&conn)
-            .unwrap()
-            .requires_reinference);
+        assert!(
+            !get_library_tag_sync_status(&conn)
+                .unwrap()
+                .requires_reinference
+        );
     }
 
     #[test]
@@ -1929,8 +1978,8 @@ mod tests {
             Some("Field Delivery".to_string())
         );
 
-        let delete_error = delete_delivery_toolkit_category(&conn, "Field Delivery".to_string())
-            .unwrap_err();
+        let delete_error =
+            delete_delivery_toolkit_category(&conn, "Field Delivery".to_string()).unwrap_err();
         assert!(delete_error.contains("Cannot delete category in use"));
 
         delete_canonical_tag(&conn, "field_enablement".to_string()).unwrap();
@@ -1973,10 +2022,13 @@ mod tests {
             .delivery_toolkit_categories
             .iter()
             .all(|category| category.sort_order >= 0));
-        assert!(exported.delivery_toolkit_metadata.values().all(|metadata| exported
-            .delivery_toolkit_categories
-            .iter()
-            .any(|category| category.name == metadata.category)));
+        assert!(exported
+            .delivery_toolkit_metadata
+            .values()
+            .all(|metadata| exported
+                .delivery_toolkit_categories
+                .iter()
+                .any(|category| category.name == metadata.category)));
     }
 
     #[test]
@@ -2034,7 +2086,8 @@ mod tests {
         )
         .unwrap();
 
-        let markers_after_metadata_update = get_tag_inference_markers(&conn, "python_platform").unwrap();
+        let markers_after_metadata_update =
+            get_tag_inference_markers(&conn, "python_platform").unwrap();
         let literals_after_metadata_update = markers_after_metadata_update
             .iter()
             .filter_map(|marker| marker.literal_value.clone())

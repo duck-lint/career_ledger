@@ -6,8 +6,8 @@ const MIN_WIDTH_PX = 1280
 /**
  * Shows a full-screen overlay when the viewport is narrower than the
  * minimum supported width. Career Ledger is explicitly a desktop app
- * (PRD: minimum 1280px); the overlay communicates this rather than
- * letting the app render in a broken layout.
+ * with a minimum 1280px layout; the overlay communicates this rather
+ * than letting the app render in a broken layout.
  */
 export function MinWidthGuard({ children }: { children: React.ReactNode }) {
   const [narrow, setNarrow] = useState(

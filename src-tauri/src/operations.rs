@@ -36,6 +36,7 @@ pub struct GenerationManifest {
     pub gap_report: Option<Value>,
     pub artifact_paths: Option<Value>,
     pub artifact_hashes: Option<Value>,
+    pub requirement_review: Option<Value>,
     pub notes: Option<String>,
 }
 
@@ -56,6 +57,7 @@ pub struct NewGenerationManifest {
     pub gap_report: Option<Value>,
     pub artifact_paths: Option<Value>,
     pub artifact_hashes: Option<Value>,
+    pub requirement_review: Option<Value>,
     pub notes: Option<String>,
 }
 
@@ -102,7 +104,8 @@ fn row_to_generation_manifest(row: &rusqlite::Row<'_>) -> rusqlite::Result<Gener
         gap_report: parse_json_opt(row.get(14)?),
         artifact_paths: parse_json_opt(row.get(15)?),
         artifact_hashes: parse_json_opt(row.get(16)?),
-        notes: row.get(17)?,
+        requirement_review: parse_json_opt(row.get(17)?),
+        notes: row.get(18)?,
     })
 }
 
@@ -172,7 +175,7 @@ pub fn get_generation_manifests(conn: &Connection) -> Result<Vec<GenerationManif
                     build_policy_path, build_policy_sha256, candidate_profile_path, candidate_profile_sha256,
                         library_export_path, library_export_sha256, selected_record_ids_json,
                         selected_evidence_ids_json, gap_report_json, artifact_paths_json,
-                        artifact_hashes_json, notes
+                        artifact_hashes_json, requirement_review_json, notes
              FROM generation_manifests
              ORDER BY created_at DESC, id DESC",
         )
@@ -193,7 +196,7 @@ pub fn get_generation_manifest(
                 build_policy_path, build_policy_sha256, candidate_profile_path, candidate_profile_sha256,
             library_export_path, library_export_sha256, selected_record_ids_json,
             selected_evidence_ids_json, gap_report_json, artifact_paths_json,
-            artifact_hashes_json, notes
+            artifact_hashes_json, requirement_review_json, notes
          FROM generation_manifests
          WHERE id = ?1",
         params![id],
@@ -258,9 +261,10 @@ pub fn create_generation_manifest(
             gap_report_json,
             artifact_paths_json,
             artifact_hashes_json,
+            requirement_review_json,
             notes
         ) VALUES (
-            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18
         )",
         params![
             id,
@@ -279,6 +283,7 @@ pub fn create_generation_manifest(
             json_text_opt(&manifest.gap_report)?,
             json_text_opt(&manifest.artifact_paths)?,
             json_text_opt(&manifest.artifact_hashes)?,
+            json_text_opt(&manifest.requirement_review)?,
             manifest.notes,
         ],
     )
@@ -349,6 +354,7 @@ mod tests {
                 gap_report: Some(json!({"supported_requirements": []})),
                 artifact_paths: None,
                 artifact_hashes: None,
+                requirement_review: Some(json!({"applied": true})),
                 notes: Some("preview pipeline".to_string()),
             },
         )
@@ -365,6 +371,7 @@ mod tests {
             Some(json!(["ev-1", "ev-2"]))
         );
         assert_eq!(manifest.notes.as_deref(), Some("preview pipeline"));
+        assert_eq!(manifest.requirement_review, Some(json!({"applied": true})));
     }
 
     #[test]
@@ -389,6 +396,7 @@ mod tests {
                 gap_report: None,
                 artifact_paths: None,
                 artifact_hashes: None,
+                requirement_review: None,
                 notes: None,
             },
         )
@@ -411,11 +419,8 @@ mod tests {
     #[test]
     fn update_generation_manifest_notes_rejects_missing_id() {
         let conn = setup_conn();
-        let result = update_generation_manifest_notes(
-            &conn,
-            "nonexistent-id",
-            Some("note".to_string()),
-        );
+        let result =
+            update_generation_manifest_notes(&conn, "nonexistent-id", Some("note".to_string()));
         assert!(result.is_err());
     }
 }
