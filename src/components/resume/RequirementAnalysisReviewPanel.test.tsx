@@ -57,20 +57,62 @@ const analysis: RequirementAnalysis = {
   ],
 }
 
+const singleClusterSuggestedTerms = new Map([['cluster-1', ['developer experience']]])
+
+const multiClusterAnalysis: RequirementAnalysis = {
+  ...analysis,
+  clusters: [
+    ...analysis.clusters,
+    {
+      cluster_id: 'cluster-2',
+      label: 'Delivery systems',
+      kind: 'should_have',
+      priority_rank: 2,
+      atom_ids: ['atom-3'],
+      matched_tags: ['kubernetes'],
+    },
+  ],
+  atoms: [
+    ...analysis.atoms,
+    {
+      requirement_id: 'atom-3',
+      cluster_id: 'cluster-2',
+      text: 'Improve developer experience for kubernetes delivery systems.',
+      kind: 'should_have',
+      priority_rank: 2,
+      source_order: 3,
+      normalized_terms: [
+        { term: 'developer experience', is_negated: false },
+        { term: 'kubernetes', is_negated: false },
+        { term: 'platform automation', is_negated: false },
+      ],
+      matched_tags: ['kubernetes'],
+      experience_years: null,
+      has_quantifier: false,
+      subject: 'delivery systems',
+    },
+  ],
+}
+
+const multiClusterSuggestedTerms = new Map([
+  ['cluster-1', ['developer experience']],
+  ['cluster-2', ['developer experience', 'platform automation']],
+])
+
 describe('RequirementAnalysisReviewPanel', () => {
   it('renders local extraction framing and extracted requirement details', () => {
     render(
       <RequirementAnalysisReviewPanel
         analysis={analysis}
-        suggestedTermsByCluster={new Map([['cluster-1', ['developer experience']]])}
+        suggestedTermsByCluster={singleClusterSuggestedTerms}
         onSuggestedTermClick={vi.fn()}
       />,
     )
 
     expect(screen.getByText('Requirement Review')).toBeInTheDocument()
-    expect(screen.getByText(/local surface-term extraction and taxonomy matching/i)).toBeInTheDocument()
-    expect(screen.getByText(/flow into generation for this run/i)).toBeInTheDocument()
-    expect(screen.getByText('Platform tooling')).toBeInTheDocument()
+    expect(screen.getAllByText(/Cluster\s+1\s+of\s+1/i)).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Open Platform tooling review' })).toBeInTheDocument()
+    expect(screen.getByText('Suggested taxonomy terms')).toBeInTheDocument()
     expect(screen.getByText('Build Rust developer tooling for platform teams.')).toBeInTheDocument()
     expect(screen.getByText('No legacy waterfall delivery required.')).toBeInTheDocument()
     expect(screen.getByText('waterfall')).toBeInTheDocument()
@@ -83,7 +125,7 @@ describe('RequirementAnalysisReviewPanel', () => {
     render(
       <RequirementAnalysisReviewPanel
         analysis={analysis}
-        suggestedTermsByCluster={new Map([['cluster-1', ['developer experience']]])}
+        suggestedTermsByCluster={singleClusterSuggestedTerms}
         onSuggestedTermClick={vi.fn()}
         onReviewChange={onReviewChange}
       />,
@@ -91,10 +133,13 @@ describe('RequirementAnalysisReviewPanel', () => {
 
     expect(screen.getByText('0 / 1')).toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: 'Mark Platform tooling reviewed' }))
-    await user.click(screen.getByRole('button', { name: 'Useful' }))
+    await user.click(screen.getByRole('button', { name: 'Mark developer experience useful' }))
 
     expect(screen.getByText('1 / 1')).toBeInTheDocument()
     expect(screen.getByText('Useful terms').nextElementSibling).toHaveTextContent('1')
+    expect(
+      screen.getByRole('button', { name: 'Mark developer experience useful' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(onReviewChange).toHaveBeenCalled()
   })
 
@@ -105,14 +150,14 @@ describe('RequirementAnalysisReviewPanel', () => {
     render(
       <RequirementAnalysisReviewPanel
         analysis={analysis}
-        suggestedTermsByCluster={new Map([['cluster-1', ['developer experience']]])}
+        suggestedTermsByCluster={singleClusterSuggestedTerms}
         onSuggestedTermClick={vi.fn()}
         onReviewChange={onReviewChange}
       />,
     )
 
     await user.click(screen.getByRole('checkbox', { name: 'Use Platform tooling in generation' }))
-    await user.click(screen.getByRole('button', { name: 'Noise' }))
+    await user.click(screen.getByRole('button', { name: 'Mark developer experience noise' }))
 
     const lastCall = onReviewChange.mock.calls[onReviewChange.mock.calls.length - 1]
     expect(lastCall?.[0].clusters).toEqual([])
@@ -130,7 +175,7 @@ describe('RequirementAnalysisReviewPanel', () => {
     render(
       <RequirementAnalysisReviewPanel
         analysis={analysis}
-        suggestedTermsByCluster={new Map([['cluster-1', ['developer experience']]])}
+        suggestedTermsByCluster={singleClusterSuggestedTerms}
         onSuggestedTermClick={onSuggestedTermClick}
       />,
     )
@@ -138,5 +183,29 @@ describe('RequirementAnalysisReviewPanel', () => {
     await user.click(screen.getByRole('button', { name: 'developer experience' }))
 
     expect(onSuggestedTermClick).toHaveBeenCalledWith('developer experience', ['rust'])
+  })
+
+  it('navigates between clusters without losing term decisions', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RequirementAnalysisReviewPanel
+        analysis={multiClusterAnalysis}
+        suggestedTermsByCluster={multiClusterSuggestedTerms}
+        onSuggestedTermClick={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Mark developer experience useful' }))
+    await user.click(screen.getByRole('button', { name: 'Next cluster' }))
+
+    expect(screen.getAllByText(/Cluster\s+2\s+of\s+2/i)).toHaveLength(2)
+    expect(
+      screen.getByText('Improve developer experience for kubernetes delivery systems.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next cluster' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Mark developer experience useful' }),
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 })
