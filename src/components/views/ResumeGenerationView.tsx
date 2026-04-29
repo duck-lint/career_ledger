@@ -31,6 +31,10 @@ import { RequirementAnalysisReviewPanel } from '@/components/resume/RequirementA
 import { ResumeAssemblyAuditPanel, ResumeGapReportPanel } from '@/components/resume/ResumeAuditPanels'
 import { ResumeEvidenceSources } from '@/components/resume/ResumeEvidenceSources'
 import {
+  buildRequirementReviewOverride,
+  buildReviewedRequirementAnalysis,
+} from '@/lib/requirement-review'
+import {
   operationsService,
   pipelineService,
   tagNormalizationService,
@@ -124,10 +128,6 @@ function countUnknownListItems(value: unknown): number | null {
   return Array.isArray(value) ? value.length : null
 }
 
-function renderJson(value: unknown): string {
-  return JSON.stringify(value, null, 2)
-}
-
 function formatShortHash(value: string): string {
   if (value.length <= 20) {
     return value
@@ -160,6 +160,27 @@ function mapResumeGenerationError(error: unknown): string {
   }
 
   return message
+}
+
+function sameStringArray(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function buildReusableRequirementReviewDefaults(
+  analysis: RequirementAnalysis,
+  persistedNoiseTerms: string[],
+): { reviewedAnalysis: RequirementAnalysis; review: RequirementReviewOverride } {
+  const draft = {
+    reviewedClusterIds: [],
+    excludedClusterIds: [],
+    usefulTerms: [],
+    noiseTerms: persistedNoiseTerms,
+  }
+
+  return {
+    reviewedAnalysis: buildReviewedRequirementAnalysis(analysis, draft),
+    review: buildRequirementReviewOverride(analysis, draft),
+  }
 }
 
 function PolicyToggleField({
@@ -292,6 +313,7 @@ export default function ResumeGenerationView() {
   const [buildPolicyError, setBuildPolicyError] = useState<string | null>(null)
   const [buildPolicyDraft, setBuildPolicyDraft] = useState<BuildPolicy | null>(null)
   const [savedBuildPolicy, setSavedBuildPolicy] = useState<BuildPolicy | null>(null)
+  const [storedRequirementReviewNoiseTerms, setStoredRequirementReviewNoiseTerms] = useState<string[]>([])
   const [tagDialogOpen, setTagDialogOpen] = useState(false)
   const [tagDialogDraft, setTagDialogDraft] = useState<TagDialogCreateDraft | null>(null)
   const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
@@ -391,23 +413,12 @@ export default function ResumeGenerationView() {
     [anomalies]
   )
 
-  const artifactJson = useMemo(
-    () =>
-      deferredPipelineResult
-        ? renderJson(deferredPipelineResult.assembly_result.artifact)
-        : '',
-    [deferredPipelineResult]
-  )
-
-  const pipelineJson = useMemo(
-    () => (deferredPipelineResult ? renderJson(deferredPipelineResult) : ''),
-    [deferredPipelineResult]
-  )
+  const displayedAnalysis = reviewedRequirementAnalysis ?? analysisResult
 
   const reviewedAnalysisAvailable = Boolean(analysisResult && reviewedRequirementAnalysis && requirementReview)
 
   const analysisSummaryCards = useMemo(() => {
-    if (!analysisResult) {
+    if (!displayedAnalysis) {
       return []
     }
 
@@ -417,10 +428,10 @@ export default function ResumeGenerationView() {
         lines: [
           {
             label: 'Role family',
-            value: analysisResult.source.target_role_family || 'n/a',
+            value: displayedAnalysis.source.target_role_family || 'n/a',
           },
-          { label: 'Clusters', value: analysisResult.clusters.length },
-          { label: 'Atoms', value: analysisResult.atoms.length },
+          { label: 'Clusters', value: displayedAnalysis.clusters.length },
+          { label: 'Atoms', value: displayedAnalysis.atoms.length },
         ],
       },
       {
@@ -428,44 +439,49 @@ export default function ResumeGenerationView() {
         lines: [
           {
             label: 'Matched keywords',
-            value: analysisResult.source.posting_keyword_bank.length,
+            value: displayedAnalysis.source.posting_keyword_bank.length,
           },
           {
             label: 'Suggested terms',
-            value: analysisResult.source.unrecognized_notable_terms.length,
+            value: displayedAnalysis.source.unrecognized_notable_terms.length,
           },
           {
             label: 'Method',
-            value: analysisResult.source.extraction_method,
+            value: displayedAnalysis.source.extraction_method,
           },
         ],
       },
     ]
-  }, [analysisResult])
+  }, [displayedAnalysis])
 
   const suggestedTerms = useMemo(
+    () => displayedAnalysis?.source.unrecognized_notable_terms ?? [],
+    [displayedAnalysis]
+  )
+
+  const matchedPostingKeywords = useMemo(
+    () => displayedAnalysis?.source.posting_keyword_bank ?? [],
+    [displayedAnalysis]
+  )
+
+  const rawSuggestedTerms = useMemo(
     () => analysisResult?.source.unrecognized_notable_terms ?? [],
     [analysisResult]
   )
 
-  const matchedPostingKeywords = useMemo(
-    () => analysisResult?.source.posting_keyword_bank ?? [],
-    [analysisResult]
-  )
+  const rawAnalysisClusters = useMemo(() => analysisResult?.clusters ?? [], [analysisResult])
 
-  const analysisClusters = useMemo(() => analysisResult?.clusters ?? [], [analysisResult])
-
-  const analysisAtoms = useMemo(() => analysisResult?.atoms ?? [], [analysisResult])
+  const rawAnalysisAtoms = useMemo(() => analysisResult?.atoms ?? [], [analysisResult])
 
   const clusterSuggestedTerms = useMemo(() => {
     const result = new Map<string, string[]>()
-    if (analysisClusters.length === 0 || suggestedTerms.length === 0) return result
+    if (rawAnalysisClusters.length === 0 || rawSuggestedTerms.length === 0) return result
 
-    const unrecognizedSet = new Set(suggestedTerms.map((t) => t.term))
+    const unrecognizedSet = new Set(rawSuggestedTerms.map((t) => t.term))
 
-    for (const cluster of analysisClusters) {
+    for (const cluster of rawAnalysisClusters) {
       const matchedSet = new Set(cluster.matched_tags)
-      const clusterAtoms = analysisAtoms.filter((a) => a.cluster_id === cluster.cluster_id)
+      const clusterAtoms = rawAnalysisAtoms.filter((a) => a.cluster_id === cluster.cluster_id)
       const seen = new Set<string>()
       const terms: string[] = []
 
@@ -488,7 +504,7 @@ export default function ResumeGenerationView() {
     }
 
     return result
-  }, [analysisClusters, analysisAtoms, suggestedTerms])
+  }, [rawAnalysisAtoms, rawAnalysisClusters, rawSuggestedTerms])
 
   // Opens the adopt-or-create triage dialog for a suggested term
   const handleSuggestedTermClick = (term: string, clusterMatchedTags?: string[]) => {
@@ -534,6 +550,23 @@ export default function ResumeGenerationView() {
     const term = adoptDialogTerm
     setAdoptDialogOpen(false)
     if (term) handleOpenTagDialog(term)
+  }
+
+  const syncRequirementReviewNoiseTerms = async (noiseTerms: string[]) => {
+    if (sameStringArray(noiseTerms, storedRequirementReviewNoiseTerms)) {
+      return
+    }
+
+    try {
+      const savedNoiseTerms = await pipelineService.saveRequirementReviewNoiseTerms(noiseTerms)
+      setStoredRequirementReviewNoiseTerms(savedNoiseTerms)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to save reusable requirement-review noise terms'
+      toast.error(message)
+    }
   }
 
   const pipelineSummaryCards = useMemo(() => {
@@ -739,10 +772,19 @@ export default function ResumeGenerationView() {
     setAnalysisError(null)
 
     try {
-      const result = await pipelineService.buildRequirementAnalysis(normalizedPostingText)
+      const [result, persistedNoiseTerms] = await Promise.all([
+        pipelineService.buildRequirementAnalysis(normalizedPostingText),
+        pipelineService.getRequirementReviewNoiseTerms(),
+      ])
+      const { reviewedAnalysis, review } = buildReusableRequirementReviewDefaults(
+        result,
+        persistedNoiseTerms,
+      )
+
       setAnalysisResult(result)
-      setReviewedRequirementAnalysis(null)
-      setRequirementReview(null)
+      setReviewedRequirementAnalysis(reviewedAnalysis)
+      setRequirementReview(review)
+      setStoredRequirementReviewNoiseTerms(persistedNoiseTerms)
       toast.success('Posting analysis updated')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Posting analysis failed'
@@ -801,10 +843,32 @@ export default function ResumeGenerationView() {
       if (normalizedPostingText) setStoredJobPostingText(normalizedPostingText)
 
       const normalizedBaseName = artifactBaseName.trim()
+      let pipelineAnalysis = reviewedAnalysisAvailable ? reviewedRequirementAnalysis : null
+      let pipelineReview = reviewedAnalysisAvailable ? requirementReview : null
+
+      if (!pipelineAnalysis || !pipelineReview) {
+        const [baseAnalysis, persistedNoiseTerms] = await Promise.all([
+          pipelineService.buildRequirementAnalysis(normalizedPostingText),
+          pipelineService.getRequirementReviewNoiseTerms(),
+        ])
+        const defaults = buildReusableRequirementReviewDefaults(baseAnalysis, persistedNoiseTerms)
+
+        pipelineAnalysis = defaults.reviewedAnalysis
+        pipelineReview = defaults.review
+        setAnalysisResult(baseAnalysis)
+        setReviewedRequirementAnalysis(defaults.reviewedAnalysis)
+        setRequirementReview(defaults.review)
+        setStoredRequirementReviewNoiseTerms(persistedNoiseTerms)
+      }
+
+      if (!pipelineAnalysis || !pipelineReview) {
+        throw new Error('Failed to prepare reusable requirement-review defaults.')
+      }
+
       const result = await pipelineService.runResumePipeline({
         job_posting_text: normalizedPostingText,
-        reviewed_requirement_analysis: reviewedAnalysisAvailable ? reviewedRequirementAnalysis : null,
-        requirement_review: reviewedAnalysisAvailable ? requirementReview : null,
+        reviewed_requirement_analysis: pipelineAnalysis,
+        requirement_review: pipelineReview,
         artifact_output_dir: normalizedArtifactOutputDir || null,
         artifact_base_name: normalizedBaseName || null,
         write_bundle_json: normalizedArtifactOutputDir ? writeBundleJson : false,
@@ -1201,9 +1265,11 @@ export default function ResumeGenerationView() {
                     analysis={analysisResult}
                     suggestedTermsByCluster={clusterSuggestedTerms}
                     onSuggestedTermClick={handleSuggestedTermClick}
+                    persistedNoiseTerms={storedRequirementReviewNoiseTerms}
                     onReviewChange={(reviewedAnalysis, review) => {
                       setReviewedRequirementAnalysis(reviewedAnalysis)
                       setRequirementReview(review)
+                      void syncRequirementReviewNoiseTerms(review.noise_terms)
                     }}
                     disabled={isAnalyzing || isSubmitting}
                   />
@@ -1213,10 +1279,9 @@ export default function ResumeGenerationView() {
           </Card>
 
           <Tabs value={detailTab} onValueChange={setDetailTab}>
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="preview">Preview</TabsTrigger>
           <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="json">JSON</TabsTrigger>
         </TabsList>
 
         <TabsContent value="preview" className="mt-0 space-y-6">
@@ -1688,44 +1753,6 @@ export default function ResumeGenerationView() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="json" className="mt-0 space-y-6">
-          {previewPending && pipelineResult && (
-            <Alert>
-              <AlertDescription>Rendering the latest JSON payloads...</AlertDescription>
-            </Alert>
-          )}
-
-          {!displayResult ? (
-            <Alert>
-              <AlertDescription>Run the pipeline to inspect the raw JSON output.</AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Assembly Artifact JSON</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="max-h-[32rem] overflow-auto rounded-lg border bg-muted/20 p-4 text-xs leading-5 whitespace-pre-wrap break-words">
-                    {artifactJson}
-                  </pre>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Full Pipeline Result JSON</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="max-h-[40rem] overflow-auto rounded-lg border bg-muted/20 p-4 text-xs leading-5 whitespace-pre-wrap break-words">
-                    {pipelineJson}
-                  </pre>
-                </CardContent>
-              </Card>
-            </>
-          )}
         </TabsContent>
 
           </Tabs>

@@ -760,6 +760,8 @@ export interface PipelineService {
   buildRequirementAnalysis(jobPostingText: string): Promise<RequirementAnalysis>
   getBuildPolicy(): Promise<BuildPolicy>
   saveBuildPolicy(buildPolicy: BuildPolicy): Promise<BuildPolicy>
+  getRequirementReviewNoiseTerms(): Promise<string[]>
+  saveRequirementReviewNoiseTerms(noiseTerms: string[]): Promise<string[]>
   buildBundleSemantics(
     careerLibraryExport: CareerLibraryExport,
     requirementAnalysis: RequirementAnalysis,

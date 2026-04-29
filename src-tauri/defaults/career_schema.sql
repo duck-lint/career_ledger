@@ -147,6 +147,13 @@ CREATE TABLE IF NOT EXISTS resume_build_policy_settings (
   updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS resume_requirement_review_settings (
+  id TEXT PRIMARY KEY CHECK (id = 'active'),
+  noise_terms_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_experience_records_slug
   ON experience_records(slug);
 

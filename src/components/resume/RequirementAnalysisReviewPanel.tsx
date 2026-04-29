@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import {
   buildRequirementReviewOverride,
   buildReviewedRequirementAnalysis,
+  filterApplicableReviewTerms,
   splitTermStatuses,
 } from '@/lib/requirement-review'
 import type {
@@ -32,6 +33,7 @@ type RequirementAnalysisReviewPanelProps = {
   suggestedTermsByCluster: Map<string, string[]>
   onSuggestedTermClick: (term: string, clusterMatchedTags: string[]) => void
   onReviewChange?: (reviewedAnalysis: RequirementAnalysis, review: RequirementReviewOverride) => void
+  persistedNoiseTerms?: string[]
   disabled?: boolean
 }
 
@@ -71,19 +73,44 @@ function countReviewedTerms(terms: string[], termStatuses: Record<string, TermRe
   return terms.filter((term) => Boolean(termStatuses[term])).length
 }
 
+function buildPersistedNoiseTermStatuses(
+  analysis: RequirementAnalysis,
+  persistedNoiseTerms: string[],
+): Record<string, TermReviewStatus> {
+  return Object.fromEntries(
+    filterApplicableReviewTerms(analysis, persistedNoiseTerms).map((term) => [term, 'noise']),
+  )
+}
+
 export function RequirementAnalysisReviewPanel({
   analysis,
   suggestedTermsByCluster,
   onSuggestedTermClick,
   onReviewChange,
+  persistedNoiseTerms = [],
   disabled = false,
 }: RequirementAnalysisReviewPanelProps) {
+  const hydratedAnalysisRef = useRef(analysis)
   const [reviewedClusterIds, setReviewedClusterIds] = useState<Set<string>>(() => new Set())
   const [excludedClusterIds, setExcludedClusterIds] = useState<Set<string>>(() => new Set())
-  const [termStatuses, setTermStatuses] = useState<Record<string, TermReviewStatus>>({})
+  const [termStatuses, setTermStatuses] = useState<Record<string, TermReviewStatus>>(() =>
+    buildPersistedNoiseTermStatuses(analysis, persistedNoiseTerms),
+  )
   const [activeClusterId, setActiveClusterId] = useState<string | null>(
     analysis.clusters[0]?.cluster_id ?? null,
   )
+
+  useEffect(() => {
+    if (hydratedAnalysisRef.current === analysis) {
+      return
+    }
+
+    hydratedAnalysisRef.current = analysis
+    setReviewedClusterIds(new Set())
+    setExcludedClusterIds(new Set())
+    setTermStatuses(buildPersistedNoiseTermStatuses(analysis, persistedNoiseTerms))
+    setActiveClusterId(analysis.clusters[0]?.cluster_id ?? null)
+  }, [analysis, persistedNoiseTerms])
 
   const reviewItems = useMemo<ClusterReviewItem[]>(() => {
     return analysis.clusters.map((cluster) => {

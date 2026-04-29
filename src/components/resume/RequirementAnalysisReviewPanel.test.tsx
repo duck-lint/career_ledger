@@ -143,6 +143,48 @@ describe('RequirementAnalysisReviewPanel', () => {
     expect(onReviewChange).toHaveBeenCalled()
   })
 
+  it('hydrates persisted noise terms and resets them when a new analysis arrives', async () => {
+    const user = userEvent.setup()
+    const nextAnalysis: RequirementAnalysis = {
+      ...multiClusterAnalysis,
+      source: {
+        ...multiClusterAnalysis.source,
+        job_posting_sha256: 'def456',
+      },
+    }
+    const { rerender } = render(
+      <RequirementAnalysisReviewPanel
+        analysis={analysis}
+        suggestedTermsByCluster={singleClusterSuggestedTerms}
+        onSuggestedTermClick={vi.fn()}
+        persistedNoiseTerms={['developer experience']}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Mark developer experience noise' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+
+    rerender(
+      <RequirementAnalysisReviewPanel
+        analysis={nextAnalysis}
+        suggestedTermsByCluster={multiClusterSuggestedTerms}
+        onSuggestedTermClick={vi.fn()}
+        persistedNoiseTerms={['platform automation']}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Mark developer experience noise' }),
+    ).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(screen.getByRole('button', { name: 'Next cluster' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Mark platform automation noise' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('reports excluded clusters and noise terms for generation', async () => {
     const user = userEvent.setup()
     const onReviewChange = vi.fn()

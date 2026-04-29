@@ -24,7 +24,7 @@ export type TaxonomyDiagnosticsInput = {
 export type TaxonomyDiagnostics = {
   canonicalTagCount: number
   evidenceCount: number
-  tagsWithoutEvidence: string[]
+  tagsWithoutSupportingSources: string[]
   tagsWithoutMarkers: string[]
   tagsWithoutMetadata: string[]
   evidenceWithoutTags: Array<{ id: string; claim: string }>
@@ -54,6 +54,30 @@ function candidateProfileSignalTags(profile: CandidateProfile | undefined): stri
     ...(profile.staticSections.education ?? []).flatMap((entry) => entry.signalTags ?? []),
     ...(profile.staticSections.certifications ?? []).flatMap((entry) => entry.signalTags ?? []),
   ]
+}
+
+function candidateProfileSearchText(profile: CandidateProfile | undefined): string {
+  if (!profile?.staticSections) {
+    return ''
+  }
+
+  return normalizeSearchText(
+    [
+      ...(profile.staticSections.education ?? []).flatMap((entry) => [
+        entry.institution,
+        entry.credential,
+        entry.fieldNotes.major ?? '',
+        entry.fieldNotes.minor ?? '',
+        ...(entry.signalTags ?? []),
+      ]),
+      ...(profile.staticSections.certifications ?? []).flatMap((entry) => [
+        entry.name,
+        entry.issuer,
+        entry.credentialDetail ?? '',
+        ...(entry.signalTags ?? []),
+      ]),
+    ].join(' '),
+  )
 }
 
 function markerLabel(marker: TagInferenceMarker): string {
@@ -99,7 +123,11 @@ function markerMatchesText(marker: TagInferenceMarker, searchableText: string): 
   )
 }
 
-function buildLibrarySearchText(records: ExperienceRecord[], evidence: Evidence[]): string {
+function buildLibrarySearchText(
+  records: ExperienceRecord[],
+  evidence: Evidence[],
+  candidateProfile: CandidateProfile | undefined,
+): string {
   return normalizeSearchText(
     [
       ...records.flatMap((record) => [
@@ -115,6 +143,7 @@ function buildLibrarySearchText(records: ExperienceRecord[], evidence: Evidence[
         item.evidence_note ?? '',
         ...(item.tags ?? []),
       ]),
+      candidateProfileSearchText(candidateProfile),
     ].join(' '),
   )
 }
@@ -151,14 +180,19 @@ export function buildTaxonomyDiagnostics(input: TaxonomyDiagnosticsInput): Taxon
   const evidenceTagSet = new Set(evidenceTags)
   const recordContextTags = input.records.flatMap((record) => record.context_tags ?? [])
   const profileSignalTags = candidateProfileSignalTags(input.candidateProfile)
-  const librarySearchText = buildLibrarySearchText(input.records, input.evidence)
+  const supportingSourceTags = new Set([...evidenceTags, ...profileSignalTags])
+  const librarySearchText = buildLibrarySearchText(
+    input.records,
+    input.evidence,
+    input.candidateProfile,
+  )
 
   return {
     canonicalTagCount: input.canonicalTags.length,
     evidenceCount: input.evidence.length,
-    tagsWithoutEvidence: input.canonicalTags
+    tagsWithoutSupportingSources: input.canonicalTags
       .map((tag) => tag.tag)
-      .filter((tag) => !evidenceTagSet.has(tag)),
+      .filter((tag) => !supportingSourceTags.has(tag)),
     tagsWithoutMarkers: input.canonicalTags
       .map((tag) => tag.tag)
       .filter((tag) => (input.markersByTag[tag] ?? []).length === 0),
@@ -190,7 +224,7 @@ export function buildTaxonomyDiagnostics(input: TaxonomyDiagnosticsInput): Taxon
 
 export function taxonomyDiagnosticsIssueCount(diagnostics: TaxonomyDiagnostics): number {
   return (
-    diagnostics.tagsWithoutEvidence.length +
+    diagnostics.tagsWithoutSupportingSources.length +
     diagnostics.tagsWithoutMarkers.length +
     diagnostics.tagsWithoutMetadata.length +
     diagnostics.evidenceWithoutTags.length +

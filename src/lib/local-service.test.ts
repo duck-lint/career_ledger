@@ -96,6 +96,9 @@ describe('localService shared adapter contract', () => {
     await expect(localService.buildRequirementAnalysis('job posting text')).rejects.toThrow(
       'Requirement analysis is available only in the Tauri desktop runtime.'
     )
+    await expect(localService.getRequirementReviewNoiseTerms()).rejects.toThrow(
+      'Requirement-review noise settings are available only in the Tauri desktop runtime.'
+    )
   })
 
   it('supports record and evidence lifecycle behavior for the shared library seam', async () => {

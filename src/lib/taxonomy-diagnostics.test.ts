@@ -122,7 +122,7 @@ describe('buildTaxonomyDiagnostics', () => {
       storedPostingText: 'We need Rust tooling experience.',
     })
 
-    expect(diagnostics.tagsWithoutEvidence).toEqual(['kubernetes'])
+    expect(diagnostics.tagsWithoutSupportingSources).toEqual(['kubernetes'])
     expect(diagnostics.tagsWithoutMarkers).toEqual(['kubernetes'])
     expect(diagnostics.tagsWithoutMetadata).toEqual(['kubernetes'])
     expect(diagnostics.markersWithoutLibraryHits).toEqual([
@@ -163,5 +163,63 @@ describe('buildTaxonomyDiagnostics', () => {
     })
 
     expect(taxonomyDiagnosticsIssueCount(diagnostics)).toBe(0)
+  })
+
+  it('treats education and certification inputs as supporting taxonomy coverage and marker hits', () => {
+    const diagnostics = buildTaxonomyDiagnostics({
+      canonicalTags: [
+        canonicalTags[0],
+        {
+          id: 'tag-3',
+          tag: 'aws',
+          description: null,
+          category: 'Technical Skills',
+          display_label: 'AWS',
+          created_at: '2026-04-24T00:00:00Z',
+        },
+      ],
+      records: [],
+      evidence: [],
+      candidateProfile: {
+        ...candidateProfile,
+        staticSections: {
+          ...candidateProfile.staticSections,
+          education: [
+            {
+              ...candidateProfile.staticSections.education[0],
+              credential: 'BS in Rust Tooling',
+              signalTags: ['rust'],
+            },
+          ],
+          certifications: [
+            {
+              id: 'cert-1',
+              name: 'AWS Certified Developer',
+              issuer: 'Amazon',
+              credentialDetail: '',
+              signalTags: ['aws'],
+            },
+          ],
+        },
+      },
+      markersByTag: {
+        rust: markersByTag.rust,
+        aws: [
+          {
+            id: 'marker-aws-1',
+            canonicalTag: 'aws',
+            markerKind: 'literal',
+            literalValue: 'AWS Certified Developer',
+            terms: [],
+            createdAt: '2026-04-24T00:00:00Z',
+          },
+        ],
+      },
+    })
+
+    expect(diagnostics.tagsWithoutSupportingSources).toEqual([])
+    expect(diagnostics.markersWithoutLibraryHits).toEqual([
+      { id: 'marker-2', tag: 'rust', label: 'never observed marker' },
+    ])
   })
 })

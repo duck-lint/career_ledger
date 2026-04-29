@@ -173,7 +173,7 @@ export function TaxonomyDiagnosticsPanel({
               )}
             </div>
             <CardDescription>
-              Library-level checks for taxonomy coverage, marker coverage, and orphaned tag strings.
+              Ledger-level checks for taxonomy coverage across evidence and candidate profile sources, marker coverage, and orphaned tag strings.
             </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
@@ -213,8 +213,14 @@ export function TaxonomyDiagnosticsPanel({
             </div>
 
             <div className="grid gap-3 xl:grid-cols-2">
-              <DiagnosticBlock title="Tags With No Evidence" count={diagnostics.tagsWithoutEvidence.length}>
-                {previewList(diagnostics.tagsWithoutEvidence, 'Every canonical tag appears on at least one evidence item.')}
+              <DiagnosticBlock
+                title="Tags With No Supporting Sources"
+                count={diagnostics.tagsWithoutSupportingSources.length}
+              >
+                {previewList(
+                  diagnostics.tagsWithoutSupportingSources,
+                  'Every canonical tag appears in evidence, education, or certification sources.',
+                )}
               </DiagnosticBlock>
 
               <DiagnosticBlock
@@ -236,13 +242,13 @@ export function TaxonomyDiagnosticsPanel({
               </DiagnosticBlock>
 
               <DiagnosticBlock
-                title="Markers With No Library Hits"
+                title="Markers With No Source Hits"
                 count={diagnostics.markersWithoutLibraryHits.length}
                 actionLabel="Test first"
                 onAction={() => onSelectMarkerTag?.(diagnostics.markersWithoutLibraryHits[0]?.tag)}
               >
                 {diagnostics.markersWithoutLibraryHits.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Every marker currently matches at least one library record or evidence item.</p>
+                  <p className="text-sm text-muted-foreground">Every marker currently matches at least one evidence, education, or certification source.</p>
                 ) : (
                   <div className="space-y-2 text-sm text-muted-foreground">
                     {diagnostics.markersWithoutLibraryHits.slice(0, 8).map((marker) => (

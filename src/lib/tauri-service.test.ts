@@ -113,6 +113,18 @@ describe('tauriService shared adapter contract', () => {
     })
   })
 
+  it('maps reusable requirement-review noise settings onto stable Tauri commands', async () => {
+    invokeMock.mockResolvedValue([])
+
+    await tauriService.getRequirementReviewNoiseTerms()
+    await tauriService.saveRequirementReviewNoiseTerms(['you', 'developer experience'])
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'get_requirement_review_noise_terms')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'save_requirement_review_noise_terms', {
+      noiseTerms: ['you', 'developer experience'],
+    })
+  })
+
   it('coerces nullable record lookups to undefined', async () => {
     invokeMock.mockResolvedValueOnce(null)
     invokeMock.mockResolvedValueOnce(null)

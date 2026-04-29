@@ -98,4 +98,23 @@ describe('requirement review helpers', () => {
       noise_terms: ['waterfall'],
     })
   })
+
+  it('drops stored review terms that are not present in the current analysis', () => {
+    const reviewed = buildReviewedRequirementAnalysis(analysis, {
+      reviewedClusterIds: [],
+      excludedClusterIds: [],
+      usefulTerms: ['developer experience', 'platform automation'],
+      noiseTerms: ['waterfall', 'you'],
+    })
+    const review = buildRequirementReviewOverride(analysis, {
+      reviewedClusterIds: [],
+      excludedClusterIds: [],
+      usefulTerms: ['developer experience', 'platform automation'],
+      noiseTerms: ['waterfall', 'you'],
+    })
+
+    expect(reviewed.source.posting_keyword_bank).toEqual(['rust'])
+    expect(review.useful_terms).toEqual(['developer experience'])
+    expect(review.noise_terms).toEqual(['waterfall'])
+  })
 })

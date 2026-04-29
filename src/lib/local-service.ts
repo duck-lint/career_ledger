@@ -691,6 +691,14 @@ class LocalCareerService
     throw new Error('Build policy saving is available only in the Tauri desktop runtime.')
   }
 
+  async getRequirementReviewNoiseTerms(): Promise<string[]> {
+    throw new Error('Requirement-review noise settings are available only in the Tauri desktop runtime.')
+  }
+
+  async saveRequirementReviewNoiseTerms(_noiseTerms: string[]): Promise<string[]> {
+    throw new Error('Requirement-review noise settings are available only in the Tauri desktop runtime.')
+  }
+
   async buildBundleSemantics(
     _careerLibraryExport: CareerLibraryExport,
     _requirementAnalysis: RequirementAnalysis,

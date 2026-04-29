@@ -80,7 +80,15 @@ function mockDiagnosticState() {
   ])
   libraryServiceMock.getCandidateProfile.mockResolvedValue({
     staticSections: {
-      education: [{ signalTags: ['orphan_profile'] }],
+      education: [
+        {
+          id: 'education-1',
+          institution: 'Example University',
+          credential: 'BS',
+          signalTags: ['orphan_profile'],
+          fieldNotes: { major: null, minor: null },
+        },
+      ],
       certifications: [],
     },
   })
@@ -100,8 +108,8 @@ describe('TaxonomyDiagnosticsPanel', () => {
 
     await screen.findByText('Taxonomy Diagnostics')
     await screen.findAllByText('8 issues')
-    expect(screen.getByText('Tags With No Evidence')).toBeInTheDocument()
-    expect(screen.getByText('Markers With No Library Hits')).toBeInTheDocument()
+    expect(screen.getByText('Tags With No Supporting Sources')).toBeInTheDocument()
+    expect(screen.getByText('Markers With No Source Hits')).toBeInTheDocument()
     expect(screen.getAllByText('kubernetes').length).toBeGreaterThan(0)
     expect(screen.getByText('unobserved phrase')).toBeInTheDocument()
     expect(screen.getByText('Captured untagged work.')).toBeInTheDocument()
@@ -145,7 +153,7 @@ describe('TaxonomyDiagnosticsPanel', () => {
     render(<TaxonomyDiagnosticsPanel />)
 
     expect(await screen.findByText('No issues found')).toBeInTheDocument()
-    expect(screen.getByText('Every canonical tag appears on at least one evidence item.')).toBeInTheDocument()
+    expect(screen.getByText('Every canonical tag appears in evidence, education, or certification sources.')).toBeInTheDocument()
   })
 
   it('uses diagnostic action hooks for repair paths', async () => {

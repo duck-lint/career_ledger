@@ -10,6 +10,7 @@ mod operations;
 mod preflight_filter;
 mod project_paths;
 mod requirement_analysis;
+mod requirement_review_settings;
 mod resume_assembler;
 mod resume_pipeline;
 mod taxonomy;
@@ -1009,6 +1010,23 @@ fn save_build_policy(
 }
 
 #[tauri::command]
+fn get_requirement_review_noise_terms(
+    state: tauri::State<ActiveDbState>,
+) -> Result<Vec<String>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    requirement_review_settings::get_requirement_review_noise_terms(&conn)
+}
+
+#[tauri::command]
+fn save_requirement_review_noise_terms(
+    state: tauri::State<ActiveDbState>,
+    noise_terms: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let conn = open_active_runtime_connection(state.inner())?;
+    requirement_review_settings::save_requirement_review_noise_terms(&conn, noise_terms)
+}
+
+#[tauri::command]
 fn build_bundle_semantics(
     state: tauri::State<ActiveDbState>,
     career_library_export: CareerLibraryExport,
@@ -1094,10 +1112,12 @@ fn reset_db(state: tauri::State<ActiveDbState>) -> Result<(), String> {
          DELETE FROM candidate_profile_certifications;
          DELETE FROM candidate_profile_education;
             DELETE FROM candidate_profiles;
-            DELETE FROM resume_build_policy_settings;",
+            DELETE FROM resume_build_policy_settings;
+            DELETE FROM resume_requirement_review_settings;",
     )
     .map_err(|e| e.to_string())?;
     build_policy::ensure_build_policy_seeded(&conn)?;
+        requirement_review_settings::ensure_requirement_review_settings_seeded(&conn)?;
     taxonomy::clear_runtime_taxonomy(&conn).map(|_| ())
 }
 
@@ -1798,6 +1818,8 @@ pub fn run() {
             build_requirement_analysis,
             get_build_policy,
             save_build_policy,
+            get_requirement_review_noise_terms,
+            save_requirement_review_noise_terms,
             build_bundle_semantics,
             run_preflight_filter,
             prepare_resume_bundle,

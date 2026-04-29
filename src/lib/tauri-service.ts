@@ -77,6 +77,14 @@ class TauriCareerService
     return invoke('save_build_policy', { buildPolicy })
   }
 
+  async getRequirementReviewNoiseTerms(): Promise<string[]> {
+    return invoke('get_requirement_review_noise_terms')
+  }
+
+  async saveRequirementReviewNoiseTerms(noiseTerms: string[]): Promise<string[]> {
+    return invoke('save_requirement_review_noise_terms', { noiseTerms })
+  }
+
   async buildBundleSemantics(
     careerLibraryExport: CareerLibraryExport,
     requirementAnalysis: RequirementAnalysis,
