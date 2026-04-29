@@ -557,6 +557,12 @@ export type Anomaly = {
   resolvedAt: string | null
 }
 
+export type GenerationManifestArtifactMap = {
+  assembled_json: string
+  bundle_json?: string | null
+  rendered_docx?: string | null
+}
+
 export type GenerationManifest = {
   id: string
   createdAt: string
@@ -570,12 +576,12 @@ export type GenerationManifest = {
   candidateProfileSha256: string | null
   libraryExportPath: string | null
   libraryExportSha256: string | null
-  selectedRecordIds: unknown | null
-  selectedEvidenceIds: unknown | null
-  gapReport: unknown | null
-  artifactPaths: unknown | null
-  artifactHashes: unknown | null
-  requirementReview: unknown | null
+  selectedRecordIds: string[] | null
+  selectedEvidenceIds: string[] | null
+  gapReport: GapReport | null
+  artifactPaths: GenerationManifestArtifactMap | null
+  artifactHashes: GenerationManifestArtifactMap | null
+  requirementReview: RequirementReviewOverride | null
   notes: string | null
 }
 

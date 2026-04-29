@@ -3,14 +3,15 @@ use crate::bundle_prep::ResumeBundleInput;
 use crate::candidate_profile::{self, CandidateProfile};
 use crate::docx_renderer;
 use crate::library_export::{self, CareerLibraryExport};
-use crate::operations::{self, GenerationManifest, NewGenerationManifest};
+use crate::operations::{
+    self, GenerationManifest, GenerationManifestArtifactMap, NewGenerationManifest,
+};
 use crate::preflight_filter::{self, PreflightFilterResult};
 use crate::project_paths::runtime_repo_root;
 use crate::requirement_analysis::{self, RequirementAnalysis};
 use crate::resume_assembler::{self, ResumeAssemblyResult};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -271,69 +272,45 @@ fn persist_generation_manifest(
             candidate_profile_sha256: Some(sha256_json(candidate_profile)?),
             library_export_path: None,
             library_export_sha256: Some(sha256_json(career_library_export)?),
-            selected_record_ids: Some(
-                serde_json::to_value(&assembly_result.selected_record_ids)
-                    .map_err(|error| error.to_string())?,
-            ),
-            selected_evidence_ids: Some(
-                serde_json::to_value(&assembly_result.selected_evidence_ids)
-                    .map_err(|error| error.to_string())?,
-            ),
-            gap_report: Some(
-                serde_json::to_value(&assembly_result.artifact.gap_report)
-                    .map_err(|error| error.to_string())?,
-            ),
+            selected_record_ids: Some(assembly_result.selected_record_ids.clone()),
+            selected_evidence_ids: Some(assembly_result.selected_evidence_ids.clone()),
+            gap_report: Some(assembly_result.artifact.gap_report.clone()),
             artifact_paths: generated_artifacts.map(artifact_paths_json),
             artifact_hashes: generated_artifacts.map(artifact_hashes_json),
-            requirement_review: requirement_review
-                .map(serde_json::to_value)
-                .transpose()
-                .map_err(|error| error.to_string())?,
+            requirement_review: requirement_review.cloned(),
             notes: manifest_notes,
         },
     )
 }
 
-fn artifact_paths_json(generated_artifacts: &ResumeGeneratedArtifacts) -> Value {
-    let mut paths = Map::new();
-    paths.insert(
-        "assembled_json".to_string(),
-        Value::String(generated_artifacts.assembled_json.path.clone()),
-    );
-    if let Some(bundle_json) = &generated_artifacts.bundle_json {
-        paths.insert(
-            "bundle_json".to_string(),
-            Value::String(bundle_json.path.clone()),
-        );
+fn artifact_paths_json(generated_artifacts: &ResumeGeneratedArtifacts) -> GenerationManifestArtifactMap {
+    GenerationManifestArtifactMap {
+        assembled_json: generated_artifacts.assembled_json.path.clone(),
+        bundle_json: generated_artifacts
+            .bundle_json
+            .as_ref()
+            .map(|bundle_json| bundle_json.path.clone()),
+        rendered_docx: generated_artifacts
+            .rendered_docx
+            .as_ref()
+            .map(|rendered_docx| rendered_docx.path.clone()),
     }
-    if let Some(rendered_docx) = &generated_artifacts.rendered_docx {
-        paths.insert(
-            "rendered_docx".to_string(),
-            Value::String(rendered_docx.path.clone()),
-        );
-    }
-    Value::Object(paths)
 }
 
-fn artifact_hashes_json(generated_artifacts: &ResumeGeneratedArtifacts) -> Value {
-    let mut hashes = Map::new();
-    hashes.insert(
-        "assembled_json".to_string(),
-        Value::String(generated_artifacts.assembled_json.sha256.clone()),
-    );
-    if let Some(bundle_json) = &generated_artifacts.bundle_json {
-        hashes.insert(
-            "bundle_json".to_string(),
-            Value::String(bundle_json.sha256.clone()),
-        );
+fn artifact_hashes_json(
+    generated_artifacts: &ResumeGeneratedArtifacts,
+) -> GenerationManifestArtifactMap {
+    GenerationManifestArtifactMap {
+        assembled_json: generated_artifacts.assembled_json.sha256.clone(),
+        bundle_json: generated_artifacts
+            .bundle_json
+            .as_ref()
+            .map(|bundle_json| bundle_json.sha256.clone()),
+        rendered_docx: generated_artifacts
+            .rendered_docx
+            .as_ref()
+            .map(|rendered_docx| rendered_docx.sha256.clone()),
     }
-    if let Some(rendered_docx) = &generated_artifacts.rendered_docx {
-        hashes.insert(
-            "rendered_docx".to_string(),
-            Value::String(rendered_docx.sha256.clone()),
-        );
-    }
-    Value::Object(hashes)
 }
 
 fn resolve_output_dir(artifact_output_dir: &str) -> Result<PathBuf, String> {
@@ -688,28 +665,30 @@ mod tests {
         assert_eq!(manifests[0].id, manifest.id);
         assert_eq!(
             manifests[0].selected_record_ids,
-            Some(json!(result.assembly_result.selected_record_ids))
+            Some(result.assembly_result.selected_record_ids.clone())
         );
         assert_eq!(
             manifests[0].selected_evidence_ids,
-            Some(json!(result.assembly_result.selected_evidence_ids))
+            Some(result.assembly_result.selected_evidence_ids.clone())
         );
         assert!(Path::new(&generated_artifacts.assembled_json.path).exists());
         assert!(Path::new(&generated_artifacts.bundle_json.as_ref().unwrap().path).exists());
         assert!(generated_artifacts.rendered_docx.is_none());
         assert_eq!(
             manifests[0].artifact_paths,
-            Some(json!({
-                "assembled_json": generated_artifacts.assembled_json.path,
-                "bundle_json": generated_artifacts.bundle_json.as_ref().unwrap().path,
-            }))
+            Some(GenerationManifestArtifactMap {
+                assembled_json: generated_artifacts.assembled_json.path.clone(),
+                bundle_json: Some(generated_artifacts.bundle_json.as_ref().unwrap().path.clone()),
+                rendered_docx: None,
+            })
         );
         assert_eq!(
             manifests[0].artifact_hashes,
-            Some(json!({
-                "assembled_json": generated_artifacts.assembled_json.sha256,
-                "bundle_json": generated_artifacts.bundle_json.as_ref().unwrap().sha256,
-            }))
+            Some(GenerationManifestArtifactMap {
+                assembled_json: generated_artifacts.assembled_json.sha256.clone(),
+                bundle_json: Some(generated_artifacts.bundle_json.as_ref().unwrap().sha256.clone()),
+                rendered_docx: None,
+            })
         );
         assert_eq!(
             manifest.build_policy_path.as_deref(),
@@ -870,7 +849,7 @@ mod tests {
         assert!(result.requirement_analysis.atoms.is_empty());
         assert_eq!(result.requirement_review, Some(review.clone()));
         let manifest = result.generation_manifest.unwrap();
-        assert_eq!(manifest.requirement_review, Some(json!(review)));
+        assert_eq!(manifest.requirement_review, Some(review));
     }
 
     #[test]

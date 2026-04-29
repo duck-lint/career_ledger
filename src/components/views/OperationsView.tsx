@@ -6,6 +6,7 @@ import type {
   Evidence,
   ExperienceRecord,
   GapReport,
+  GenerationManifestArtifactMap,
   GenerationManifest,
   RequirementReviewOverride,
 } from '@/lib/types'
@@ -77,43 +78,6 @@ function formatShortHash(value: string): string {
   return `${value.slice(0, 12)}...${value.slice(-8)}`
 }
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseManifestIdList(value: unknown): string[] | null {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : null
-}
-
-function parseManifestStringMap(value: unknown): Record<string, string> | null {
-  if (!isObjectRecord(value)) {
-    return null
-  }
-
-  return Object.values(value).every((entry) => typeof entry === 'string')
-    ? (value as Record<string, string>)
-    : null
-}
-
-function isGapReport(value: unknown): value is GapReport {
-  return isObjectRecord(value)
-    && Array.isArray(value.supported_requirements)
-    && Array.isArray(value.partially_supported_requirements)
-    && Array.isArray(value.unsupported_requirements)
-    && Array.isArray(value.compensation_strategy)
-    && Array.isArray(value.risk_flags)
-}
-
-function isRequirementReviewOverride(value: unknown): value is RequirementReviewOverride {
-  return isObjectRecord(value)
-    && typeof value.source_job_posting_sha256 === 'string'
-    && Array.isArray(value.reviewed_cluster_ids)
-    && Array.isArray(value.excluded_cluster_ids)
-    && Array.isArray(value.excluded_atom_ids)
-    && Array.isArray(value.useful_terms)
-    && Array.isArray(value.noise_terms)
-}
-
 function formatManifestArtifactLabel(value: string): string {
   return value
     .split('_')
@@ -157,14 +121,28 @@ function ManifestArtifactFiles({
   paths,
   hashes,
 }: {
-  paths: Record<string, string>
-  hashes: Record<string, string>
+  paths: GenerationManifestArtifactMap | null
+  hashes: GenerationManifestArtifactMap | null
 }) {
-  const artifactKeys = Array.from(new Set([...Object.keys(paths), ...Object.keys(hashes)])).sort((left, right) =>
-    left.localeCompare(right),
-  )
+  const artifactEntries = [
+    {
+      key: 'assembled_json',
+      path: paths?.assembled_json ?? null,
+      hash: hashes?.assembled_json ?? null,
+    },
+    {
+      key: 'bundle_json',
+      path: paths?.bundle_json ?? null,
+      hash: hashes?.bundle_json ?? null,
+    },
+    {
+      key: 'rendered_docx',
+      path: paths?.rendered_docx ?? null,
+      hash: hashes?.rendered_docx ?? null,
+    },
+  ].filter((entry) => entry.path || entry.hash)
 
-  if (artifactKeys.length === 0) {
+  if (artifactEntries.length === 0) {
     return null
   }
 
@@ -172,14 +150,14 @@ function ManifestArtifactFiles({
     <div className="space-y-2">
       <div className="font-medium">Artifact Outputs</div>
       <div className="grid gap-3 xl:grid-cols-2">
-        {artifactKeys.map((artifactKey) => (
-          <div key={artifactKey} className="space-y-2 rounded-lg border bg-muted/20 p-3">
-            <div className="font-medium">{formatManifestArtifactLabel(artifactKey)}</div>
-            {paths[artifactKey] && (
-              <div className="break-all text-muted-foreground">{paths[artifactKey]}</div>
+        {artifactEntries.map((artifactEntry) => (
+          <div key={artifactEntry.key} className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            <div className="font-medium">{formatManifestArtifactLabel(artifactEntry.key)}</div>
+            {artifactEntry.path && (
+              <div className="break-all text-muted-foreground">{artifactEntry.path}</div>
             )}
-            {hashes[artifactKey] && (
-              <div className="text-xs text-muted-foreground">SHA256: {formatShortHash(hashes[artifactKey])}</div>
+            {artifactEntry.hash && (
+              <div className="text-xs text-muted-foreground">SHA256: {formatShortHash(artifactEntry.hash)}</div>
             )}
           </div>
         ))}
@@ -295,30 +273,27 @@ export default function OperationsView() {
     [manifests, selectedManifestId]
   )
   const selectedManifestRecordIds = useMemo(
-    () => parseManifestIdList(selectedManifest?.selectedRecordIds ?? null),
+    () => selectedManifest?.selectedRecordIds ?? [],
     [selectedManifest]
   )
   const selectedManifestEvidenceIds = useMemo(
-    () => parseManifestIdList(selectedManifest?.selectedEvidenceIds ?? null),
+    () => selectedManifest?.selectedEvidenceIds ?? [],
     [selectedManifest]
   )
   const selectedManifestArtifactPaths = useMemo(
-    () => parseManifestStringMap(selectedManifest?.artifactPaths ?? null),
+    () => selectedManifest?.artifactPaths ?? null,
     [selectedManifest]
   )
   const selectedManifestArtifactHashes = useMemo(
-    () => parseManifestStringMap(selectedManifest?.artifactHashes ?? null),
+    () => selectedManifest?.artifactHashes ?? null,
     [selectedManifest]
   )
   const selectedManifestGapReport = useMemo(
-    () => (isGapReport(selectedManifest?.gapReport) ? selectedManifest.gapReport : null),
+    () => selectedManifest?.gapReport ?? null,
     [selectedManifest]
   )
   const selectedManifestRequirementReview = useMemo(
-    () =>
-      isRequirementReviewOverride(selectedManifest?.requirementReview)
-        ? selectedManifest.requirementReview
-        : null,
+    () => selectedManifest?.requirementReview ?? null,
     [selectedManifest]
   )
 
@@ -939,8 +914,8 @@ export default function OperationsView() {
 
                 {(selectedManifestArtifactPaths || selectedManifestArtifactHashes) && (
                   <ManifestArtifactFiles
-                    paths={selectedManifestArtifactPaths ?? {}}
-                    hashes={selectedManifestArtifactHashes ?? {}}
+                    paths={selectedManifestArtifactPaths}
+                    hashes={selectedManifestArtifactHashes}
                   />
                 )}
 

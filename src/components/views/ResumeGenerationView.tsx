@@ -124,8 +124,8 @@ function formatContactLine(result: ResumePipelineResult): string {
     .join(' | ')
 }
 
-function countUnknownListItems(value: unknown): number | null {
-  return Array.isArray(value) ? value.length : null
+function countManifestSelectionItems(value: string[] | null | undefined): number | null {
+  return value ? value.length : null
 }
 
 function formatShortHash(value: string): string {
@@ -1641,11 +1641,11 @@ export default function ResumeGenerationView() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Selected records:</span>{' '}
-                        {countUnknownListItems(currentManifest.selectedRecordIds) ?? 'n/a'}
+                        {countManifestSelectionItems(currentManifest.selectedRecordIds) ?? 'n/a'}
                       </div>
                       <div>
                         <span className="text-muted-foreground">Selected evidence:</span>{' '}
-                        {countUnknownListItems(currentManifest.selectedEvidenceIds) ?? 'n/a'}
+                        {countManifestSelectionItems(currentManifest.selectedEvidenceIds) ?? 'n/a'}
                       </div>
                     </div>
                     {currentManifest.notes && (
@@ -1690,10 +1690,10 @@ export default function ResumeGenerationView() {
                       </div>
                       <div className="flex flex-wrap gap-3 text-muted-foreground">
                         <span>
-                          Records: {countUnknownListItems(manifest.selectedRecordIds) ?? 'n/a'}
+                          Records: {countManifestSelectionItems(manifest.selectedRecordIds) ?? 'n/a'}
                         </span>
                         <span>
-                          Evidence: {countUnknownListItems(manifest.selectedEvidenceIds) ?? 'n/a'}
+                          Evidence: {countManifestSelectionItems(manifest.selectedEvidenceIds) ?? 'n/a'}
                         </span>
                       </div>
                       {manifest.notes && <div>{manifest.notes}</div>}
