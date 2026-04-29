@@ -43,6 +43,7 @@
 - `npx vitest run src/lib/taxonomy-diagnostics.test.ts src/components/taxonomy/TaxonomyDiagnosticsPanel.test.tsx`
 - `npx vitest run src/lib/requirement-review.test.ts src/components/resume/RequirementAnalysisReviewPanel.test.tsx src/lib/tauri-service.test.ts src/lib/local-service.test.ts`
 - `npx vitest run src/components/views/OperationsView.test.tsx`
+- `npx vitest run src/components/views/ResumeGenerationView.test.tsx`
 - `Push-Location src-tauri; cargo test requirement_review_settings; Pop-Location`
 - Editor diagnostics clean for [src/components/views/ResumeGenerationView.tsx](../../src/components/views/ResumeGenerationView.tsx), [src/components/resume/RequirementAnalysisReviewPanel.tsx](../../src/components/resume/RequirementAnalysisReviewPanel.tsx), [src/components/views/OperationsView.tsx](../../src/components/views/OperationsView.tsx), [src/components/views/OperationsView.test.tsx](../../src/components/views/OperationsView.test.tsx), [src/lib/types.ts](../../src/lib/types.ts), [src-tauri/src/lib.rs](../../src-tauri/src/lib.rs), and [src-tauri/src/requirement_review_settings.rs](../../src-tauri/src/requirement_review_settings.rs)
 
@@ -65,3 +66,4 @@
 - Updated the requirement review helpers and panel so persisted noise terms prehydrate the review UI, reset on new analyses, and only apply terms that actually exist in the current analysis.
 - Expanded taxonomy diagnostics coverage and marker-hit analysis to include candidate-profile education and certification inputs, and updated the panel copy to match the broader ledger-level scope.
 - Replaced the raw manifest JSON blocks in [src/components/views/OperationsView.tsx](../../src/components/views/OperationsView.tsx) with native sections for selected ids, artifact outputs, requirement review summaries, and the shared gap report panel, and added focused coverage in [src/components/views/OperationsView.test.tsx](../../src/components/views/OperationsView.test.tsx).
+- Added focused manifest-summary coverage in [src/components/views/ResumeGenerationView.test.tsx](../../src/components/views/ResumeGenerationView.test.tsx) so the current-run and recent-manifest count cards stay covered after the typed manifest-contract hardening.
