@@ -174,16 +174,26 @@ function buildManifest(overrides: Partial<GenerationManifest>): GenerationManife
 function buildPipelineResult(generationManifest: GenerationManifest): ResumePipelineResult {
   return {
     career_library_export: {
-      source_db_name: 'career.db',
-      exported_at: '2026-04-29T09:30:00Z',
+      export_type: 'career_library_extract',
       experience_records: [],
+      export_meta: {
+        schema_version: '2.0',
+        exported_at: '2026-04-29T09:30:00Z',
+        taxonomy_version: '2026-04-29',
+        source_db_name: 'career.db',
+      },
     },
     requirement_analysis: analysis,
     preflight_result: {
       career_library_export: {
-        source_db_name: 'career.db',
-        exported_at: '2026-04-29T09:30:00Z',
+        export_type: 'career_library_extract',
         experience_records: [],
+        export_meta: {
+          schema_version: '2.0',
+          exported_at: '2026-04-29T09:30:00Z',
+          taxonomy_version: '2026-04-29',
+          source_db_name: 'career.db',
+        },
       },
       preflight_report: {
         threshold: 0.5,

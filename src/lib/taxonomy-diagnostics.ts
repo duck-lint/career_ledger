@@ -177,7 +177,6 @@ function buildStoredPostingCoverage(
 export function buildTaxonomyDiagnostics(input: TaxonomyDiagnosticsInput): TaxonomyDiagnostics {
   const canonicalTagSet = new Set(input.canonicalTags.map((tag) => tag.tag))
   const evidenceTags = input.evidence.flatMap((item) => item.tags ?? [])
-  const evidenceTagSet = new Set(evidenceTags)
   const recordContextTags = input.records.flatMap((record) => record.context_tags ?? [])
   const profileSignalTags = candidateProfileSignalTags(input.candidateProfile)
   const supportingSourceTags = new Set([...evidenceTags, ...profileSignalTags])
