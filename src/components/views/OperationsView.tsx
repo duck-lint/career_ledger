@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { libraryService, operationsService } from '@/lib/service'
-import type { Anomaly, Evidence, ExperienceRecord, GenerationManifest } from '@/lib/types'
+import { ResumeGapReportPanel } from '@/components/resume/ResumeAuditPanels'
+import type {
+  Anomaly,
+  Evidence,
+  ExperienceRecord,
+  GapReport,
+  GenerationManifest,
+  RequirementReviewOverride,
+} from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -61,8 +69,170 @@ function formatDateTime(value: string | null | undefined): string {
   return date.toLocaleString()
 }
 
-function renderJson(value: unknown): string {
-  return JSON.stringify(value, null, 2)
+function formatShortHash(value: string): string {
+  if (value.length <= 20) {
+    return value
+  }
+
+  return `${value.slice(0, 12)}...${value.slice(-8)}`
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseManifestIdList(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : null
+}
+
+function parseManifestStringMap(value: unknown): Record<string, string> | null {
+  if (!isObjectRecord(value)) {
+    return null
+  }
+
+  return Object.values(value).every((entry) => typeof entry === 'string')
+    ? (value as Record<string, string>)
+    : null
+}
+
+function isGapReport(value: unknown): value is GapReport {
+  return isObjectRecord(value)
+    && Array.isArray(value.supported_requirements)
+    && Array.isArray(value.partially_supported_requirements)
+    && Array.isArray(value.unsupported_requirements)
+    && Array.isArray(value.compensation_strategy)
+    && Array.isArray(value.risk_flags)
+}
+
+function isRequirementReviewOverride(value: unknown): value is RequirementReviewOverride {
+  return isObjectRecord(value)
+    && typeof value.source_job_posting_sha256 === 'string'
+    && Array.isArray(value.reviewed_cluster_ids)
+    && Array.isArray(value.excluded_cluster_ids)
+    && Array.isArray(value.excluded_atom_ids)
+    && Array.isArray(value.useful_terms)
+    && Array.isArray(value.noise_terms)
+}
+
+function formatManifestArtifactLabel(value: string): string {
+  return value
+    .split('_')
+    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : part))
+    .join(' ')
+    .replace(/Json/g, 'JSON')
+    .replace(/Docx/g, 'DOCX')
+}
+
+function ManifestTokenList({
+  title,
+  values,
+  emptyLabel,
+}: {
+  title: string
+  values: string[]
+  emptyLabel: string
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="font-medium">{title}</div>
+        <Badge variant="outline">{values.length}</Badge>
+      </div>
+      {values.length === 0 ? (
+        <div className="text-muted-foreground">{emptyLabel}</div>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {values.map((value) => (
+            <Badge key={value} variant="secondary" className="mono text-xs">
+              {value}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ManifestArtifactFiles({
+  paths,
+  hashes,
+}: {
+  paths: Record<string, string>
+  hashes: Record<string, string>
+}) {
+  const artifactKeys = Array.from(new Set([...Object.keys(paths), ...Object.keys(hashes)])).sort((left, right) =>
+    left.localeCompare(right),
+  )
+
+  if (artifactKeys.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="font-medium">Artifact Outputs</div>
+      <div className="grid gap-3 xl:grid-cols-2">
+        {artifactKeys.map((artifactKey) => (
+          <div key={artifactKey} className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            <div className="font-medium">{formatManifestArtifactLabel(artifactKey)}</div>
+            {paths[artifactKey] && (
+              <div className="break-all text-muted-foreground">{paths[artifactKey]}</div>
+            )}
+            {hashes[artifactKey] && (
+              <div className="text-xs text-muted-foreground">SHA256: {formatShortHash(hashes[artifactKey])}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ManifestRequirementReviewSummary({ review }: { review: RequirementReviewOverride }) {
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+      <div className="flex items-center gap-2">
+        <div className="font-medium">Requirement Review</div>
+        <Badge variant="outline">{review.noise_terms.length} noise</Badge>
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <div>
+          <div className="text-sm text-muted-foreground">Reviewed clusters</div>
+          <div className="font-medium">{review.reviewed_cluster_ids.length}</div>
+        </div>
+        <div>
+          <div className="text-sm text-muted-foreground">Excluded clusters</div>
+          <div className="font-medium">{review.excluded_cluster_ids.length}</div>
+        </div>
+        <div>
+          <div className="text-sm text-muted-foreground">Useful terms</div>
+          <div className="font-medium">{review.useful_terms.length}</div>
+        </div>
+        <div>
+          <div className="text-sm text-muted-foreground">Noise terms</div>
+          <div className="font-medium">{review.noise_terms.length}</div>
+        </div>
+      </div>
+      <div className="text-xs text-muted-foreground break-all">
+        Source posting SHA256: {review.source_job_posting_sha256}
+      </div>
+      <ManifestTokenList
+        title="Useful Terms"
+        values={review.useful_terms}
+        emptyLabel="No useful terms were recorded for this manifest."
+      />
+      <ManifestTokenList
+        title="Noise Terms"
+        values={review.noise_terms}
+        emptyLabel="No noise terms were recorded for this manifest."
+      />
+      <ManifestTokenList
+        title="Excluded Cluster IDs"
+        values={review.excluded_cluster_ids}
+        emptyLabel="No clusters were excluded for this manifest."
+      />
+    </div>
+  )
 }
 
 export default function OperationsView() {
@@ -123,6 +293,33 @@ export default function OperationsView() {
   const selectedManifest = useMemo(
     () => manifests.find((manifest) => manifest.id === selectedManifestId) ?? null,
     [manifests, selectedManifestId]
+  )
+  const selectedManifestRecordIds = useMemo(
+    () => parseManifestIdList(selectedManifest?.selectedRecordIds ?? null),
+    [selectedManifest]
+  )
+  const selectedManifestEvidenceIds = useMemo(
+    () => parseManifestIdList(selectedManifest?.selectedEvidenceIds ?? null),
+    [selectedManifest]
+  )
+  const selectedManifestArtifactPaths = useMemo(
+    () => parseManifestStringMap(selectedManifest?.artifactPaths ?? null),
+    [selectedManifest]
+  )
+  const selectedManifestArtifactHashes = useMemo(
+    () => parseManifestStringMap(selectedManifest?.artifactHashes ?? null),
+    [selectedManifest]
+  )
+  const selectedManifestGapReport = useMemo(
+    () => (isGapReport(selectedManifest?.gapReport) ? selectedManifest.gapReport : null),
+    [selectedManifest]
+  )
+  const selectedManifestRequirementReview = useMemo(
+    () =>
+      isRequirementReviewOverride(selectedManifest?.requirementReview)
+        ? selectedManifest.requirementReview
+        : null,
+    [selectedManifest]
   )
 
   const loadData = async () => {
@@ -659,6 +856,7 @@ export default function OperationsView() {
           </Card>
 
           {selectedManifest && (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle>Manifest Detail</CardTitle>
@@ -683,6 +881,19 @@ export default function OperationsView() {
                       {selectedManifest.jobPostingPath ?? 'n/a'}
                     </div>
                   </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <ManifestTokenList
+                    title="Selected Records"
+                    values={selectedManifestRecordIds ?? []}
+                    emptyLabel="No selected record ids were recorded for this manifest."
+                  />
+                  <ManifestTokenList
+                    title="Selected Evidence"
+                    values={selectedManifestEvidenceIds ?? []}
+                    emptyLabel="No selected evidence ids were recorded for this manifest."
+                  />
                 </div>
 
                 {selectedManifest.notes && !editingNotes && (
@@ -726,52 +937,20 @@ export default function OperationsView() {
                   </div>
                 )}
 
-                {selectedManifest.selectedRecordIds !== null && (
-                  <div>
-                    <div className="font-medium">Selected Record Ids</div>
-                    <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/30 p-3 text-xs">
-                      {renderJson(selectedManifest.selectedRecordIds)}
-                    </pre>
-                  </div>
+                {(selectedManifestArtifactPaths || selectedManifestArtifactHashes) && (
+                  <ManifestArtifactFiles
+                    paths={selectedManifestArtifactPaths ?? {}}
+                    hashes={selectedManifestArtifactHashes ?? {}}
+                  />
                 )}
 
-                {selectedManifest.selectedEvidenceIds !== null && (
-                  <div>
-                    <div className="font-medium">Selected Evidence Ids</div>
-                    <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/30 p-3 text-xs">
-                      {renderJson(selectedManifest.selectedEvidenceIds)}
-                    </pre>
-                  </div>
-                )}
-
-                {selectedManifest.artifactPaths !== null && (
-                  <div>
-                    <div className="font-medium">Artifact Paths</div>
-                    <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/30 p-3 text-xs">
-                      {renderJson(selectedManifest.artifactPaths)}
-                    </pre>
-                  </div>
-                )}
-
-                {selectedManifest.artifactHashes !== null && (
-                  <div>
-                    <div className="font-medium">Artifact Hashes</div>
-                    <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/30 p-3 text-xs">
-                      {renderJson(selectedManifest.artifactHashes)}
-                    </pre>
-                  </div>
-                )}
-
-                {selectedManifest.requirementReview !== null && (
-                  <div>
-                    <div className="font-medium">Requirement Review</div>
-                    <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/30 p-3 text-xs">
-                      {renderJson(selectedManifest.requirementReview)}
-                    </pre>
-                  </div>
+                {selectedManifestRequirementReview && (
+                  <ManifestRequirementReviewSummary review={selectedManifestRequirementReview} />
                 )}
               </CardContent>
             </Card>
+            {selectedManifestGapReport && <ResumeGapReportPanel gapReport={selectedManifestGapReport} />}
+            </>
           )}
         </TabsContent>
       </Tabs>
