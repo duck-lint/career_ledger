@@ -220,4 +220,26 @@ describe('TaxonomyView diagnostics interaction', () => {
     expect(screen.getByText('tag-dialog-label: Orphan Profile')).toBeInTheDocument()
     expect(screen.getByText('tag-dialog-editing: none')).toBeInTheDocument()
   })
+
+  it('routes tag and marker repair buttons into visible editor surfaces', async () => {
+    const user = userEvent.setup()
+
+    render(<TaxonomyView />)
+
+    await screen.findByText('Taxonomy Diagnostics')
+
+    await user.click(screen.getByRole('button', { name: 'Inspect tag kubernetes' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tag-dialog')).toBeInTheDocument()
+    })
+    expect(screen.getByText('tag-dialog-editing: kubernetes')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Edit markers for kubernetes' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/for kubernetes/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText('No markers loaded for the selected tag.')).toBeInTheDocument()
+  })
 })

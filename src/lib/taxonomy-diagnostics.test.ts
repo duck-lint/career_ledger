@@ -125,9 +125,7 @@ describe('buildTaxonomyDiagnostics', () => {
     expect(diagnostics.tagsWithoutSupportingSources).toEqual(['kubernetes'])
     expect(diagnostics.tagsWithoutMarkers).toEqual(['kubernetes'])
     expect(diagnostics.tagsWithoutMetadata).toEqual(['kubernetes'])
-    expect(diagnostics.markersWithoutLibraryHits).toEqual([
-      { id: 'marker-2', tag: 'rust', label: 'never observed marker' },
-    ])
+    expect(diagnostics.markersWithoutLibraryHits).toEqual([])
     expect(diagnostics.storedPostingCoverage).toEqual({
       available: true,
       matchedTags: ['rust'],
@@ -139,7 +137,7 @@ describe('buildTaxonomyDiagnostics', () => {
     expect(diagnostics.unknownEvidenceTags).toEqual(['orphan_evidence'])
     expect(diagnostics.unknownRecordContextTags).toEqual(['orphan_context'])
     expect(diagnostics.unknownCandidateProfileSignalTags).toEqual(['orphan_profile'])
-    expect(taxonomyDiagnosticsIssueCount(diagnostics)).toBe(8)
+    expect(taxonomyDiagnosticsIssueCount(diagnostics)).toBe(7)
   })
 
   it('returns clean diagnostics when all references are covered', () => {
@@ -218,8 +216,26 @@ describe('buildTaxonomyDiagnostics', () => {
     })
 
     expect(diagnostics.tagsWithoutSupportingSources).toEqual([])
+    expect(diagnostics.markersWithoutLibraryHits).toEqual([])
+  })
+
+  it('reports marker no-hit diagnostics only when the entire tag has no source hit', () => {
+    const diagnostics = buildTaxonomyDiagnostics({
+      canonicalTags: [canonicalTags[0]],
+      records: [],
+      evidence: [],
+      candidateProfile: undefined,
+      markersByTag: {
+        rust: markersByTag.rust,
+      },
+    })
+
     expect(diagnostics.markersWithoutLibraryHits).toEqual([
-      { id: 'marker-2', tag: 'rust', label: 'never observed marker' },
+      {
+        id: 'tag-1',
+        tag: 'rust',
+        label: 'No source hits for this tag. Markers: Rust tooling, never observed marker',
+      },
     ])
   })
 })

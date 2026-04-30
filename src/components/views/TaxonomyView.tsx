@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { tagNormalizationService, taxonomyService } from '@/lib/service'
 import { runtimeSupports } from '@/lib/runtime'
@@ -97,9 +97,18 @@ export default function TaxonomyView() {
   const [markerTestPending, setMarkerTestPending] = useState(false)
   const [activeTaxonomyTab, setActiveTaxonomyTab] = useState('tags')
   const [diagnosticsRefreshKey, setDiagnosticsRefreshKey] = useState(0)
+  const taxonomyTabsAnchorRef = useRef<HTMLDivElement | null>(null)
 
   const refreshDiagnostics = () => {
     setDiagnosticsRefreshKey((current) => current + 1)
+  }
+
+  const scrollTaxonomyEditorsIntoView = () => {
+    requestAnimationFrame(() => {
+      if (typeof taxonomyTabsAnchorRef.current?.scrollIntoView === 'function') {
+        taxonomyTabsAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    })
   }
 
   const loadTaxonomyData = useCallback(async (): Promise<string> => {
@@ -339,6 +348,12 @@ export default function TaxonomyView() {
     if (!tag) return
     setSelectedTag(tag)
     setActiveTaxonomyTab('markers')
+    scrollTaxonomyEditorsIntoView()
+  }
+
+  const handleReviewDiagnosticTags = () => {
+    setActiveTaxonomyTab('tags')
+    scrollTaxonomyEditorsIntoView()
   }
 
   const handleAdoptDialogAdopt = async () => {
@@ -611,7 +626,7 @@ export default function TaxonomyView() {
       <TaxonomyDiagnosticsPanel
         key={diagnosticsRefreshKey}
         onSelectMarkerTag={handleSelectDiagnosticMarkerTag}
-        onReviewTags={() => setActiveTaxonomyTab('tags')}
+        onReviewTags={handleReviewDiagnosticTags}
         onEditTag={handleEditDiagnosticTag}
         onResolveUnknownTag={handleResolveUnknownTag}
       />
@@ -696,7 +711,8 @@ export default function TaxonomyView() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTaxonomyTab} onValueChange={setActiveTaxonomyTab} className="space-y-4">
+      <div ref={taxonomyTabsAnchorRef}>
+        <Tabs value={activeTaxonomyTab} onValueChange={setActiveTaxonomyTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="tags">Canonical Tags</TabsTrigger>
           <TabsTrigger value="markers">Inference Markers</TabsTrigger>
@@ -877,7 +893,8 @@ export default function TaxonomyView() {
             </div>
           )}
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
 
       <TagDialog
         open={tagDialogOpen}

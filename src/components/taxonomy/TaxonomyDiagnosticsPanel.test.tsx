@@ -107,15 +107,15 @@ describe('TaxonomyDiagnosticsPanel', () => {
     render(<TaxonomyDiagnosticsPanel />)
 
     await screen.findByText('Taxonomy Diagnostics')
-    await screen.findAllByText('8 issues')
+    await screen.findAllByText('7 issues')
     expect(screen.getByText('Tags With No Supporting Sources')).toBeInTheDocument()
     expect(screen.getByText('Markers With No Source Hits')).toBeInTheDocument()
     expect(screen.getAllByText('kubernetes').length).toBeGreaterThan(0)
-    expect(screen.getByText('unobserved phrase')).toBeInTheDocument()
     expect(screen.getByText('Captured untagged work.')).toBeInTheDocument()
     expect(screen.getByText('orphan_evidence')).toBeInTheDocument()
     expect(screen.getByText('orphan_context')).toBeInTheDocument()
     expect(screen.getByText('orphan_profile')).toBeInTheDocument()
+    expect(screen.getByText('Every marker currently matches at least one evidence, education, or certification source.')).toBeInTheDocument()
   })
 
   it('refreshes diagnostics on demand', async () => {
@@ -124,7 +124,7 @@ describe('TaxonomyDiagnosticsPanel', () => {
 
     render(<TaxonomyDiagnosticsPanel />)
 
-    await screen.findAllByText('8 issues')
+    await screen.findAllByText('7 issues')
     await user.click(screen.getByRole('button', { name: 'Refresh' }))
 
     await waitFor(() => {
@@ -173,15 +173,13 @@ describe('TaxonomyDiagnosticsPanel', () => {
       />,
     )
 
-    await screen.findAllByText('8 issues')
+    await screen.findAllByText('7 issues')
     await user.click(screen.getAllByRole('button', { name: 'Edit first' })[0])
     await user.click(screen.getByRole('button', { name: 'Review tags' }))
     await user.click(screen.getByRole('button', { name: 'Inspect tag kubernetes' }))
     await user.click(screen.getByRole('button', { name: 'Resolve unknown tag orphan_profile' }))
-    await user.click(screen.getByRole('button', { name: 'Edit markers for rust' }))
 
     expect(onSelectMarkerTag).toHaveBeenCalledWith('kubernetes')
-    expect(onSelectMarkerTag).toHaveBeenCalledWith('rust')
     expect(onReviewTags).toHaveBeenCalled()
     expect(onEditTag).toHaveBeenCalledWith('kubernetes')
     expect(onResolveUnknownTag).toHaveBeenCalledWith('orphan_profile')

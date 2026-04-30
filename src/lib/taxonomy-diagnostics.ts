@@ -123,6 +123,28 @@ function markerMatchesText(marker: TagInferenceMarker, searchableText: string): 
   )
 }
 
+function tagNameMatchesText(tag: string, searchableText: string): boolean {
+  const normalizedTag = normalizeSearchText(tag.replace(/_/g, ' '))
+  return normalizedTag.length > 0 && searchableText.includes(normalizedTag)
+}
+
+function summarizeMarkerSet(markers: TagInferenceMarker[]): string {
+  const labels = markers
+    .map((marker) => markerLabel(marker))
+    .filter(Boolean)
+
+  if (labels.length === 0) {
+    return 'No source hits across this tag or its configured markers.'
+  }
+
+  const preview = labels.slice(0, 2).join(', ')
+  if (labels.length <= 2) {
+    return `No source hits for this tag. Markers: ${preview}`
+  }
+
+  return `No source hits for this tag. Markers: ${preview}, +${labels.length - 2} more`
+}
+
 function buildLibrarySearchText(
   records: ExperienceRecord[],
   evidence: Evidence[],
@@ -201,11 +223,26 @@ export function buildTaxonomyDiagnostics(input: TaxonomyDiagnosticsInput): Taxon
     evidenceWithoutTags: input.evidence
       .filter((item) => (item.tags ?? []).length === 0)
       .map((item) => ({ id: item.id, claim: item.claim })),
-    markersWithoutLibraryHits: input.canonicalTags.flatMap((tag) =>
-      (input.markersByTag[tag.tag] ?? [])
-        .filter((marker) => !markerMatchesText(marker, librarySearchText))
-        .map((marker) => ({ id: marker.id, tag: tag.tag, label: markerLabel(marker) })),
-    ),
+    markersWithoutLibraryHits: input.canonicalTags.flatMap((tag) => {
+      const markers = input.markersByTag[tag.tag] ?? []
+      if (markers.length === 0) {
+        return []
+      }
+
+      if (tagNameMatchesText(tag.tag, librarySearchText)) {
+        return []
+      }
+
+      if (markers.some((marker) => markerMatchesText(marker, librarySearchText))) {
+        return []
+      }
+
+      return [{
+        id: tag.id,
+        tag: tag.tag,
+        label: summarizeMarkerSet(markers),
+      }]
+    }),
     storedPostingCoverage: buildStoredPostingCoverage(
       input.canonicalTags,
       input.markersByTag,
