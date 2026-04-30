@@ -1,26 +1,30 @@
 # Live Implementation Projects
 
-This directory holds active repo-local plan/tracker pairs. It exists so new work starts with an explicit seam map instead of rediscovering scope from archived programs.
+This directory holds active repo-local working memory for multi-step or repo-scoped work. The active project list lives in [index.md](index.md), and reusable scaffold lives under [templates/](templates/).
 
-## Naming
+## Current Layout
 
-- `implementation-01-plan.md`
-- `implementation-01-tracker.md`
-- Future efforts increment the shared number and keep the plan/tracker pair aligned.
+- [index.md](index.md): repo-local active-project index.
+- `implementation-02-*`: current live plan, tracker, and UAT artifact set.
+- `templates/`: reusable scaffold mirrored from the canonical harness seed.
 
-## File Roles
+## Naming Rules
 
-- Plan: intent, non-goals, observed evidence, assumptions, affected surfaces, ordered seams, approval gates, verification contract, and handoff packet.
-- Tracker: current status, decisions, open questions, risks, completed validations, and checklist state.
+- Use matching numbered prefixes such as `implementation-02-plan.md` and `implementation-02-tracker.md`.
+- Add `implementation-XX-verification-contract.md`, `implementation-XX-decisions.md`, `implementation-XX-seams/`, and `implementation-XX-evidence/` when the work needs stronger continuity or provenance.
+- Keep the shared number aligned across all files for a project.
 
 ## Lifecycle
 
-- Open the plan first.
-- Open the tracker when execution starts.
+- Start from [index.md](index.md) and open or update the numbered plan/tracker pair.
 - Keep the tracker factual; do not turn it into a second plan.
-- Archive completed efforts under a dated folder in [docs/archive/README.md](../archive/README.md) once they stop being useful as the live exemplar.
+- Archive completed efforts under [../archive/README.md](../archive/README.md) once they stop being useful as live execution memory.
 
-## Current Baseline
+## Archived Baseline
 
-- [implementation-01-plan.md](implementation-01-plan.md) and [implementation-01-tracker.md](implementation-01-tracker.md) bootstrap this harness surface itself.
-- The next distinct effort should start at `implementation-02-*` unless `implementation-01` is explicitly archived and replaced.
+- The harness bootstrap pair lives at [../archive/implementation-01-plan.md](../archive/implementation-01-plan.md) and [../archive/implementation-01-tracker.md](../archive/implementation-01-tracker.md).
+- Larger completed programs remain listed in [../archive/README.md](../archive/README.md).
+
+## Next Number
+
+- Unless there is an explicit renumbering decision, the next distinct live effort should start at `implementation-03-*`.
