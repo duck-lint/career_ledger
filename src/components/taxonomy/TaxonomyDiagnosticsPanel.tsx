@@ -38,6 +38,74 @@ function previewList(values: string[], emptyLabel: string) {
   )
 }
 
+function ToggleButton({
+  expanded,
+  total,
+  onToggle,
+}: {
+  expanded: boolean
+  total: number
+  onToggle: () => void
+}) {
+  return (
+    <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onToggle}>
+      {expanded ? 'Show fewer' : `Show all ${total}`}
+    </Button>
+  )
+}
+
+function InteractiveTokenList({
+  values,
+  emptyLabel,
+  expanded,
+  onToggleExpanded,
+  onItemClick,
+  getAriaLabel,
+}: {
+  values: string[]
+  emptyLabel: string
+  expanded: boolean
+  onToggleExpanded: () => void
+  onItemClick?: (value: string) => void
+  getAriaLabel?: (value: string) => string
+}) {
+  if (values.length === 0) {
+    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+  }
+
+  const previewCount = 12
+  const visibleValues = expanded ? values : values.slice(0, previewCount)
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {visibleValues.map((value) =>
+          onItemClick ? (
+            <Button
+              key={value}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mono h-7 px-2 text-[10px]"
+              aria-label={getAriaLabel?.(value)}
+              onClick={() => onItemClick(value)}
+            >
+              {value}
+            </Button>
+          ) : (
+            <Badge key={value} variant="outline" className="mono text-[10px]">
+              {value}
+            </Badge>
+          ),
+        )}
+      </div>
+      {values.length > previewCount && (
+        <ToggleButton expanded={expanded} total={values.length} onToggle={onToggleExpanded} />
+      )}
+    </div>
+  )
+}
+
 function DiagnosticBlock({
   title,
   count,
@@ -96,15 +164,24 @@ async function loadDiagnostics(): Promise<TaxonomyDiagnostics> {
 type TaxonomyDiagnosticsPanelProps = {
   onSelectMarkerTag?: (tag: string) => void
   onReviewTags?: () => void
+  onEditTag?: (tag: string) => void
+  onResolveUnknownTag?: (tag: string) => void
 }
 
 export function TaxonomyDiagnosticsPanel({
   onSelectMarkerTag,
   onReviewTags,
+  onEditTag,
+  onResolveUnknownTag,
 }: TaxonomyDiagnosticsPanelProps = {}) {
   const [diagnostics, setDiagnostics] = useState<TaxonomyDiagnostics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((current) => ({ ...current, [section]: !current[section] }))
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -175,6 +252,9 @@ export function TaxonomyDiagnosticsPanel({
             <CardDescription>
               Ledger-level checks for taxonomy coverage across evidence and candidate profile sources, marker coverage, and orphaned tag strings.
             </CardDescription>
+            <p className="text-xs text-muted-foreground">
+              Click individual items to jump into tag or marker repair where a direct path exists.
+            </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
             <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
@@ -217,10 +297,14 @@ export function TaxonomyDiagnosticsPanel({
                 title="Tags With No Supporting Sources"
                 count={diagnostics.tagsWithoutSupportingSources.length}
               >
-                {previewList(
-                  diagnostics.tagsWithoutSupportingSources,
-                  'Every canonical tag appears in evidence, education, or certification sources.',
-                )}
+                <InteractiveTokenList
+                  values={diagnostics.tagsWithoutSupportingSources}
+                  emptyLabel="Every canonical tag appears in evidence, education, or certification sources."
+                  expanded={expandedSections.tagsWithoutSupportingSources ?? false}
+                  onToggleExpanded={() => toggleSection('tagsWithoutSupportingSources')}
+                  onItemClick={onEditTag}
+                  getAriaLabel={(value) => `Inspect tag ${value}`}
+                />
               </DiagnosticBlock>
 
               <DiagnosticBlock
@@ -229,7 +313,14 @@ export function TaxonomyDiagnosticsPanel({
                 actionLabel="Edit first"
                 onAction={() => onSelectMarkerTag?.(diagnostics.tagsWithoutMarkers[0])}
               >
-                {previewList(diagnostics.tagsWithoutMarkers, 'Every canonical tag has at least one inference marker.')}
+                <InteractiveTokenList
+                  values={diagnostics.tagsWithoutMarkers}
+                  emptyLabel="Every canonical tag has at least one inference marker."
+                  expanded={expandedSections.tagsWithoutMarkers ?? false}
+                  onToggleExpanded={() => toggleSection('tagsWithoutMarkers')}
+                  onItemClick={onSelectMarkerTag}
+                  getAriaLabel={(value) => `Edit markers for ${value}`}
+                />
               </DiagnosticBlock>
 
               <DiagnosticBlock
@@ -238,7 +329,14 @@ export function TaxonomyDiagnosticsPanel({
                 actionLabel="Review tags"
                 onAction={onReviewTags}
               >
-                {previewList(diagnostics.tagsWithoutMetadata, 'Every canonical tag has display metadata and category assignment.')}
+                <InteractiveTokenList
+                  values={diagnostics.tagsWithoutMetadata}
+                  emptyLabel="Every canonical tag has display metadata and category assignment."
+                  expanded={expandedSections.tagsWithoutMetadata ?? false}
+                  onToggleExpanded={() => toggleSection('tagsWithoutMetadata')}
+                  onItemClick={onEditTag}
+                  getAriaLabel={(value) => `Edit tag ${value}`}
+                />
               </DiagnosticBlock>
 
               <DiagnosticBlock
@@ -251,14 +349,36 @@ export function TaxonomyDiagnosticsPanel({
                   <p className="text-sm text-muted-foreground">Every marker currently matches at least one evidence, education, or certification source.</p>
                 ) : (
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    {diagnostics.markersWithoutLibraryHits.slice(0, 8).map((marker) => (
+                    {(expandedSections.markersWithoutLibraryHits
+                      ? diagnostics.markersWithoutLibraryHits
+                      : diagnostics.markersWithoutLibraryHits.slice(0, 8)
+                    ).map((marker) => (
                       <div key={marker.id} className="rounded border bg-muted/20 p-2">
-                        <Badge variant="outline" className="mono mr-2 text-[10px]">{marker.tag}</Badge>
-                        {marker.label}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <Badge variant="outline" className="mono mr-2 text-[10px]">{marker.tag}</Badge>
+                            {marker.label}
+                          </div>
+                          {onSelectMarkerTag && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Edit markers for ${marker.tag}`}
+                              onClick={() => onSelectMarkerTag(marker.tag)}
+                            >
+                              Edit markers
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {diagnostics.markersWithoutLibraryHits.length > 8 && (
-                      <div>+{diagnostics.markersWithoutLibraryHits.length - 8} more</div>
+                      <ToggleButton
+                        expanded={expandedSections.markersWithoutLibraryHits ?? false}
+                        total={diagnostics.markersWithoutLibraryHits.length}
+                        onToggle={() => toggleSection('markersWithoutLibraryHits')}
+                      />
                     )}
                   </div>
                 )}
@@ -269,28 +389,56 @@ export function TaxonomyDiagnosticsPanel({
                   <p className="text-sm text-muted-foreground">Every evidence item currently has at least one tag.</p>
                 ) : (
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    {diagnostics.evidenceWithoutTags.slice(0, 8).map((item) => (
+                    {(expandedSections.evidenceWithoutTags
+                      ? diagnostics.evidenceWithoutTags
+                      : diagnostics.evidenceWithoutTags.slice(0, 8)
+                    ).map((item) => (
                       <div key={item.id} className="rounded border bg-muted/20 p-2">
                         {item.claim}
                       </div>
                     ))}
                     {diagnostics.evidenceWithoutTags.length > 8 && (
-                      <div>+{diagnostics.evidenceWithoutTags.length - 8} more</div>
+                      <ToggleButton
+                        expanded={expandedSections.evidenceWithoutTags ?? false}
+                        total={diagnostics.evidenceWithoutTags.length}
+                        onToggle={() => toggleSection('evidenceWithoutTags')}
+                      />
                     )}
                   </div>
                 )}
               </DiagnosticBlock>
 
               <DiagnosticBlock title="Unknown Evidence Tags" count={diagnostics.unknownEvidenceTags.length}>
-                {previewList(diagnostics.unknownEvidenceTags, 'No evidence tags are orphaned from the canonical taxonomy.')}
+                <InteractiveTokenList
+                  values={diagnostics.unknownEvidenceTags}
+                  emptyLabel="No evidence tags are orphaned from the canonical taxonomy."
+                  expanded={expandedSections.unknownEvidenceTags ?? false}
+                  onToggleExpanded={() => toggleSection('unknownEvidenceTags')}
+                  onItemClick={onResolveUnknownTag}
+                  getAriaLabel={(value) => `Resolve unknown tag ${value}`}
+                />
               </DiagnosticBlock>
 
               <DiagnosticBlock title="Unknown Record Context Tags" count={diagnostics.unknownRecordContextTags.length}>
-                {previewList(diagnostics.unknownRecordContextTags, 'No record context tags are orphaned from the canonical taxonomy.')}
+                <InteractiveTokenList
+                  values={diagnostics.unknownRecordContextTags}
+                  emptyLabel="No record context tags are orphaned from the canonical taxonomy."
+                  expanded={expandedSections.unknownRecordContextTags ?? false}
+                  onToggleExpanded={() => toggleSection('unknownRecordContextTags')}
+                  onItemClick={onResolveUnknownTag}
+                  getAriaLabel={(value) => `Resolve unknown tag ${value}`}
+                />
               </DiagnosticBlock>
 
               <DiagnosticBlock title="Unknown Candidate Profile Signal Tags" count={diagnostics.unknownCandidateProfileSignalTags.length}>
-                {previewList(diagnostics.unknownCandidateProfileSignalTags, 'Candidate profile signal tags all resolve to canonical tags.')}
+                <InteractiveTokenList
+                  values={diagnostics.unknownCandidateProfileSignalTags}
+                  emptyLabel="Candidate profile signal tags all resolve to canonical tags."
+                  expanded={expandedSections.unknownCandidateProfileSignalTags ?? false}
+                  onToggleExpanded={() => toggleSection('unknownCandidateProfileSignalTags')}
+                  onItemClick={onResolveUnknownTag}
+                  getAriaLabel={(value) => `Resolve unknown tag ${value}`}
+                />
               </DiagnosticBlock>
 
               <DiagnosticBlock

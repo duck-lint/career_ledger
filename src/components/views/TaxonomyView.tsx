@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { taxonomyService } from '@/lib/service'
+import { tagNormalizationService, taxonomyService } from '@/lib/service'
 import { runtimeSupports } from '@/lib/runtime'
 import type {
   CanonicalTag,
   DeliveryToolkitCategory,
   LibraryTagRefreshResult,
   LibraryTagSyncStatus,
+  TagDialogCreateDraft,
   TestMarkersResult,
   TaxonomyImportResult,
 } from '@/lib/types'
@@ -27,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Plus, Pencil, Trash2 as Trash, RefreshCw as ArrowsClockwise } from 'lucide-react'
 import { toast } from 'sonner'
+import AdoptTagDialog from '@/components/dialogs/AdoptTagDialog'
 import TagDialog from '@/components/dialogs/TagDialog'
 import TagInferenceMarkerEditor from '@/components/taxonomy/TagInferenceMarkerEditor'
 import { TaxonomyDiagnosticsPanel } from '@/components/taxonomy/TaxonomyDiagnosticsPanel'
@@ -52,6 +54,15 @@ function formatSyncTimestamp(value: string | null): string {
   return value ?? 'Not yet recorded'
 }
 
+function formatSuggestedDisplayLabel(term: string): string {
+  return term
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
+    .join(' ')
+}
+
 export default function TaxonomyView() {
   const canImportExportTaxonomy = runtimeSupports('taxonomyFileImportExport')
   const canClearTaxonomy = runtimeSupports('taxonomyClear')
@@ -67,6 +78,9 @@ export default function TaxonomyView() {
   const [categoryPending, setCategoryPending] = useState(false)
   const [tagDialogOpen, setTagDialogOpen] = useState(false)
   const [editingTag, setEditingTag] = useState<CanonicalTag | null>(null)
+  const [tagDialogDraft, setTagDialogDraft] = useState<TagDialogCreateDraft | null>(null)
+  const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
+  const [adoptDialogTerm, setAdoptDialogTerm] = useState<string | null>(null)
   const [taxonomyOpPending, setTaxonomyOpPending] = useState(false)
   const [taxonomyImportResult, setTaxonomyImportResult] = useState<TaxonomyImportResult | null>(null)
   const [libraryTagRefreshResult, setLibraryTagRefreshResult] = useState<LibraryTagRefreshResult | null>(null)
@@ -82,6 +96,11 @@ export default function TaxonomyView() {
   const [markerTestResult, setMarkerTestResult] = useState<TestMarkersResult | null>(null)
   const [markerTestPending, setMarkerTestPending] = useState(false)
   const [activeTaxonomyTab, setActiveTaxonomyTab] = useState('tags')
+  const [diagnosticsRefreshKey, setDiagnosticsRefreshKey] = useState(0)
+
+  const refreshDiagnostics = () => {
+    setDiagnosticsRefreshKey((current) => current + 1)
+  }
 
   const loadTaxonomyData = useCallback(async (): Promise<string> => {
     const [tagsData, categoryData] = await Promise.all([
@@ -180,6 +199,7 @@ export default function TaxonomyView() {
       }
 
       await refreshTaxonomySurface()
+      refreshDiagnostics()
       resetCategoryEditor()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save category')
@@ -198,6 +218,7 @@ export default function TaxonomyView() {
     try {
       await taxonomyService.deleteDeliveryToolkitCategory(category.name)
       await refreshTaxonomySurface()
+      refreshDiagnostics()
       if (editingCategoryName === category.name) {
         resetCategoryEditor()
       }
@@ -211,23 +232,68 @@ export default function TaxonomyView() {
 
   const handleCreateTag = () => {
     setEditingTag(null)
+    setTagDialogDraft(null)
     setTagDialogOpen(true)
   }
 
   const handleEditTag = (tag: CanonicalTag) => {
     setEditingTag(tag)
+    setTagDialogDraft(null)
     setTagDialogOpen(true)
+  }
+
+  const handleEditDiagnosticTag = (tagName: string) => {
+    const tag = canonicalTags.find((item) => item.tag === tagName)
+    if (!tag) {
+      toast.error(`Canonical tag "${tagName}" could not be found`)
+      return
+    }
+
+    handleEditTag(tag)
+  }
+
+  const handleOpenDraftTagDialog = (term: string) => {
+    setEditingTag(null)
+    setTagDialogDraft({
+      tagValue: tagNormalizationService.normalizeTag(term),
+      description: '',
+      displayLabel: formatSuggestedDisplayLabel(term),
+      categoryName: null,
+    })
+    setTagDialogOpen(true)
+  }
+
+  const handleTagDialogOpenChange = (open: boolean) => {
+    setTagDialogOpen(open)
+    if (!open) {
+      setEditingTag(null)
+      setTagDialogDraft(null)
+    }
+  }
+
+  const handleResolveUnknownTag = (term: string) => {
+    const normalized = term.trim()
+    if (!normalized) {
+      return
+    }
+
+    setAdoptDialogTerm(normalized)
+    setAdoptDialogOpen(true)
   }
 
   const handleDeleteTag = async (tag: CanonicalTag) => {
     await taxonomyService.deleteCanonicalTag(tag.tag)
     await refreshTaxonomySurface()
+    refreshDiagnostics()
     toast.success(`Tag "${tag.tag}" deleted`)
   }
 
   const handleSaveTag = async () => {
     await refreshTaxonomySurface()
+    refreshDiagnostics()
     setTagDialogOpen(false)
+    setEditingTag(null)
+    setTagDialogDraft(null)
   }
 
   const handleSaveMarkers = async () => {
@@ -243,6 +309,7 @@ export default function TaxonomyView() {
       )
       setMarkerDrafts(tagInferenceMarkersToDrafts(updated))
       await loadLibraryTagSyncStatus()
+      refreshDiagnostics()
       toast.success(`Markers updated for "${selectedTag}"`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save markers')
@@ -272,6 +339,23 @@ export default function TaxonomyView() {
     if (!tag) return
     setSelectedTag(tag)
     setActiveTaxonomyTab('markers')
+  }
+
+  const handleAdoptDialogAdopt = async () => {
+    setAdoptDialogOpen(false)
+    setAdoptDialogTerm(null)
+    await refreshTaxonomySurface()
+    refreshDiagnostics()
+  }
+
+  const handleAdoptDialogCreate = () => {
+    const term = adoptDialogTerm
+    setAdoptDialogOpen(false)
+    setAdoptDialogTerm(null)
+
+    if (term) {
+      handleOpenDraftTagDialog(term)
+    }
   }
 
   const handleBrowseImportTaxonomy = async () => {
@@ -344,6 +428,7 @@ export default function TaxonomyView() {
           : await taxonomyService.clearTaxonomy()
 
       await refreshTaxonomySurface()
+      refreshDiagnostics()
       setTaxonomyImportResult(result)
       setLibraryTagRefreshResult(null)
       setConfirmState(null)
@@ -369,6 +454,7 @@ export default function TaxonomyView() {
     try {
       const result = await taxonomyService.reInferLibraryTags()
       await refreshTaxonomySurface()
+      refreshDiagnostics()
       setLibraryTagRefreshResult(result)
       toast.success('Library tags re-inferred from the current taxonomy')
     } catch (error) {
@@ -523,8 +609,11 @@ export default function TaxonomyView() {
       )}
 
       <TaxonomyDiagnosticsPanel
+        key={diagnosticsRefreshKey}
         onSelectMarkerTag={handleSelectDiagnosticMarkerTag}
         onReviewTags={() => setActiveTaxonomyTab('tags')}
+        onEditTag={handleEditDiagnosticTag}
+        onResolveUnknownTag={handleResolveUnknownTag}
       />
 
       <Card>
@@ -792,10 +881,19 @@ export default function TaxonomyView() {
 
       <TagDialog
         open={tagDialogOpen}
-        onOpenChange={setTagDialogOpen}
+        onOpenChange={handleTagDialogOpenChange}
         tag={editingTag}
-        draft={null}
+        draft={tagDialogDraft}
         onSave={handleSaveTag}
+      />
+
+      <AdoptTagDialog
+        open={adoptDialogOpen}
+        onOpenChange={setAdoptDialogOpen}
+        term={adoptDialogTerm}
+        clusterMatchedTags={[]}
+        onAdopt={handleAdoptDialogAdopt}
+        onCreate={handleAdoptDialogCreate}
       />
 
       <AlertDialog open={confirmState !== null} onOpenChange={(open) => !open && setConfirmState(null)}>

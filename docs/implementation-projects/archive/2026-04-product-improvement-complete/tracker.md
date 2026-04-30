@@ -142,7 +142,7 @@ This is the archived execution tracker for the product improvement program. It r
 - Validation: `npm test -- SettingsView.test.tsx ReadinessDashboard.test.tsx` passed with 10 tests.
 - Full closeout validation: `npm run verify:frontend` passed with lint, typecheck, and 59 frontend tests green.
 - Full closeout validation: `cargo test` passed with 110 Rust tests green.
-- Archived this folder under `docs/archive/2026-04-product-improvement-complete/` with `00-closeout-summary.md`.
+- Archived this folder under `docs/implementation-projects/archive/2026-04-product-improvement-complete/` with `00-closeout-summary.md`.
 
 ## WS5 Remaining Surfaces
 

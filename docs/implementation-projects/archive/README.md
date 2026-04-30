@@ -2,6 +2,8 @@
 
 This folder holds completed planning and remediation artifacts that are kept for traceability and future reference.
 
+It is the canonical archive surface for repo-local implementation projects and prior completed programs.
+
 Nothing here should be treated as an active execution board unless a new plan explicitly reopens it.
 
 ## Archived Harness Bootstrap

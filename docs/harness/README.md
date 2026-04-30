@@ -2,7 +2,7 @@
 
 This directory mirrors the stable shared harness seed for career_ledger and localizes only the repo workflow details that differ from canon.
 
-Stable harness rules live here. Live implementation memory lives in [../implementation-projects/README.md](../implementation-projects/README.md). Completed work is preserved in [../archive/README.md](../archive/README.md).
+Stable harness rules live here. Live implementation memory lives in [../implementation-projects/README.md](../implementation-projects/README.md). Completed work is preserved in [../implementation-projects/archive/README.md](../implementation-projects/archive/README.md).
 
 ## Intent
 
@@ -24,7 +24,7 @@ Stable harness rules live here. Live implementation memory lives in [../implemen
 ## Repo-Local Workflow Notes
 
 - The folder entrypoint remains `README.md` for easy browsing, while the rest of the canon is split across the files above.
-- Completed work archives under [../archive/README.md](../archive/README.md), not under `docs/implementation-projects/archive/`.
+- Completed work archives under [../implementation-projects/archive/README.md](../implementation-projects/archive/README.md).
 - Reusable implementation scaffolding lives under [../implementation-projects/templates/](../implementation-projects/templates/).
 - The live project list lives in [../implementation-projects/index.md](../implementation-projects/index.md).
 

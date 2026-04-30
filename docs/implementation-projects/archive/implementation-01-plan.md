@@ -14,10 +14,10 @@
 
 ## Observed Evidence
 
-- [docs/archive/2026-04-architectural-remediation-complete/README.md](../archive/2026-04-architectural-remediation-complete/README.md) uses a program README plus a tracker and numbered workstream docs.
-- [docs/archive/2026-04-architectural-remediation-complete/tracker.md](../archive/2026-04-architectural-remediation-complete/tracker.md) keeps decisions, risks, open questions, and completion facts in one factual tracker.
-- [docs/archive/2026-04-product-improvement-complete/README.md](../archive/2026-04-product-improvement-complete/README.md) repeats the same structure for a second completed program.
-- [README.md](../../README.md) currently shows `docs/taxonomy-quickstart.md` and `docs/archive/` in the repo tree, but not a live harness or implementation-project surface.
+- [docs/implementation-projects/archive/2026-04-architectural-remediation-complete/README.md](2026-04-architectural-remediation-complete/README.md) uses a program README plus a tracker and numbered workstream docs.
+- [docs/implementation-projects/archive/2026-04-architectural-remediation-complete/tracker.md](2026-04-architectural-remediation-complete/tracker.md) keeps decisions, risks, open questions, and completion facts in one factual tracker.
+- [docs/implementation-projects/archive/2026-04-product-improvement-complete/README.md](2026-04-product-improvement-complete/README.md) repeats the same structure for a second completed program.
+- [README.md](../../README.md) currently shows `docs/taxonomy-quickstart.md` and `docs/implementation-projects/archive/` in the repo tree, but not a live harness or implementation-project surface.
 
 ## Assumptions And Unknowns
 

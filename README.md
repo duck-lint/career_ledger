@@ -167,8 +167,11 @@ career_ledger/
 │       ├── empty_taxonomy.json # Blank taxonomy
 │       └── build_policy.json   # Default resume build policy
 ├── docs/
-│   ├── taxonomy-quickstart.md  # LLM prompt for generating a personal taxonomy
-│   └── archive/                # Completed implementation plans and closeout records
+│   ├── harness/                # Repo-local harness contract and reference docs
+│   ├── implementation-projects/
+│   │   ├── archive/            # Completed implementation plans and closeout records
+│   │   └── templates/          # Canonical implementation-project scaffold
+│   └── taxonomy-quickstart.md  # LLM prompt for generating a personal taxonomy
 └── package.json
 ```
 

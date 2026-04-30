@@ -1,0 +1,12 @@
+# Implementation 02 Decisions
+
+Record decisions here, not recurring failure patterns.
+
+| ID | Decision | Source | Alternatives Considered | Reason | Date |
+| --- | --- | --- | --- | --- | --- |
+| D-001 | Keep the four UAT items in one implementation-02 plan with a hard seam boundary before storage work. | [implementation-02-tracker.md](implementation-02-tracker.md) | Split persistence into a separate effort immediately. | The items shared one operator loop, while storage was the only real approval boundary. | 2026-04-29 |
+| D-002 | Use "Resume Audit Surfaces And Persistent Review Intent" as the implementation-02 theme. | [implementation-02-tracker.md](implementation-02-tracker.md) | Use a generic polish label. | The chosen name described the actual blast radius and kept the plan legible. | 2026-04-29 |
+| D-003 | Store reusable noise terms in the active database as one global per-ledger set. | [implementation-02-tracker.md](implementation-02-tracker.md) | Local storage, candidate profile rows, or manifest-scoped persistence. | Noise suppression changes analysis and generation behavior and should travel with the active ledger. | 2026-04-29 |
+| D-004 | Remove the Resume JSON tab from [../../src/components/views/ResumeGenerationView.tsx](../../src/components/views/ResumeGenerationView.tsx). | [implementation-02-tracker.md](implementation-02-tracker.md) | Keep the raw JSON tab in the main operator flow. | Preview and pipeline surfaces already covered the normal audit path, making the JSON tab redundant. | 2026-04-29 |
+| D-005 | Treat the latest explicit review noise set as the reusable default set. | [implementation-02-tracker.md](implementation-02-tracker.md) | Add a second persistence concept for defaults vs session review. | This kept “mark it noise so it stays gone later” as the primary contract without inventing a second state surface. | 2026-04-29 |
+| D-006 | Replace raw manifest JSON blocks in [../../src/components/views/OperationsView.tsx](../../src/components/views/OperationsView.tsx) with native audit sections. | [implementation-02-tracker.md](implementation-02-tracker.md) | Keep manifest details as raw JSON or defer the work. | The remaining JSON surface no longer matched the operator path after the resume audit improvements. | 2026-04-29 |

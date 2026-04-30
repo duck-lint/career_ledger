@@ -146,7 +146,7 @@ Status:
 Current status:
 
 - Product docs and first-pass in-app runtime copy are aligned with the current desktop product.
-- README is now the root product/user/developer document; this completed planning record is archived under `docs/archive/2026-04-product-improvement-complete/`.
+- README is now the root product/user/developer document; this completed planning record is archived under `docs/implementation-projects/archive/2026-04-product-improvement-complete/`.
 - Browser harness limitations are explicit in README, app header, readiness, and Settings disabled states.
 - Build policy presets are staged, previewable, and use the existing save path.
 - Raw-intake preflight is implemented and requires preview before import from Settings.

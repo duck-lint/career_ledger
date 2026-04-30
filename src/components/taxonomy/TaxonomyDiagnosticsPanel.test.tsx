@@ -160,15 +160,30 @@ describe('TaxonomyDiagnosticsPanel', () => {
     const user = userEvent.setup()
     const onSelectMarkerTag = vi.fn()
     const onReviewTags = vi.fn()
+    const onEditTag = vi.fn()
+    const onResolveUnknownTag = vi.fn()
     mockDiagnosticState()
 
-    render(<TaxonomyDiagnosticsPanel onSelectMarkerTag={onSelectMarkerTag} onReviewTags={onReviewTags} />)
+    render(
+      <TaxonomyDiagnosticsPanel
+        onSelectMarkerTag={onSelectMarkerTag}
+        onReviewTags={onReviewTags}
+        onEditTag={onEditTag}
+        onResolveUnknownTag={onResolveUnknownTag}
+      />,
+    )
 
     await screen.findAllByText('8 issues')
     await user.click(screen.getAllByRole('button', { name: 'Edit first' })[0])
     await user.click(screen.getByRole('button', { name: 'Review tags' }))
+    await user.click(screen.getByRole('button', { name: 'Inspect tag kubernetes' }))
+    await user.click(screen.getByRole('button', { name: 'Resolve unknown tag orphan_profile' }))
+    await user.click(screen.getByRole('button', { name: 'Edit markers for rust' }))
 
     expect(onSelectMarkerTag).toHaveBeenCalledWith('kubernetes')
+    expect(onSelectMarkerTag).toHaveBeenCalledWith('rust')
     expect(onReviewTags).toHaveBeenCalled()
+    expect(onEditTag).toHaveBeenCalledWith('kubernetes')
+    expect(onResolveUnknownTag).toHaveBeenCalledWith('orphan_profile')
   })
 })

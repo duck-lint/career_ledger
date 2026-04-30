@@ -28,6 +28,4 @@ Archive completed implementation work so future agents can resume from repo-loca
 
 ## Archive Location
 
-Use [../archive/README.md](../archive/README.md) as the repo-local archive entrypoint for completed summaries and preserved historical program docs. Keep active numbered project files at the root of [../implementation-projects/](../implementation-projects/README.md) so agents can find them quickly.
-
-If this repo later moves archive material under `docs/implementation-projects/archive/`, make that a deliberate repo-wide documentation change rather than an ad hoc per-project move.
+Use [../implementation-projects/archive/README.md](../implementation-projects/archive/README.md) as the repo-local archive entrypoint for completed summaries and preserved historical program docs. Keep active numbered project files at the root of [../implementation-projects/](../implementation-projects/README.md) so agents can find them quickly.
