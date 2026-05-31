@@ -51,3 +51,5 @@ src-tauri/gen/schemas/
 *.sqlite3-journal
 *.sqlite3-shm
 *.sqlite3-wal
+!src-tauri/fixtures/
+!src-tauri/fixtures/career.db

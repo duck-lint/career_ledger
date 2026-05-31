@@ -4,7 +4,7 @@
 
 - State: blocked
 - Current seam: `I06-S1: Read-only SQLite source-authority extraction into the approved source-shaped contract` is planned only and not yet authorized for implementation
-- Next action: add the sanitized sample DB to `src-tauri/fixtures/career.db` and allowlist that path from `.gitignore`, then implementation can begin under PD-02
+- Next action: add the sanitized sample DB to `src-tauri/fixtures/career.db`, then implementation can begin under PD-02
 
 ## Work Log
 
@@ -24,7 +24,7 @@
 
 | Blocker | Boundary | Owner Agent | Resolution |
 | --- | --- | --- | --- |
-| The D1 validation artifact is still not repo-local. The sanitized sample DB chosen for implementation-06 is attached in chat, but no `src-tauri/fixtures/career.db` file exists in the workspace and `.gitignore` currently excludes `.db` files. | Seam validation artifact / workspace state | User | Place the sanitized sample DB at `src-tauri/fixtures/career.db`. When implementation begins, allowlist that path in `.gitignore` so the seam can be implemented and verified against the chosen D1 artifact. |
+| The D1 validation artifact is still not repo-local. The sanitized sample DB chosen for implementation-06 is attached in chat, but no `src-tauri/fixtures/career.db` file exists in the workspace. | Seam validation artifact / workspace state | User | Place the sanitized sample DB at `src-tauri/fixtures/career.db`. The `.gitignore` path blocker has already been cleared. |
 
 ## Closeout Note
 

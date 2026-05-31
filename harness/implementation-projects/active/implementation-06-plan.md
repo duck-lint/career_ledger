@@ -2,18 +2,18 @@
 
 ## Intent
 
-Implementation-06 opens exactly one planning-only seam for the first real SQLite-backed source-authority extraction into the existing approved source-shaped contract already consumed by the desktop seam. This aligns with the approved project direction in PD-01. The user has now supplied both a schema snapshot and a sample SQLite database and has explicitly chosen the first-seam mapping direction under PD-02. The remaining blocker is now mechanical rather than conceptual: the sanitized sample database is not yet present as a repo-local validation artifact, and the repo currently ignores `.db` files. This bundle does not authorize SQLite implementation yet.
+Implementation-06 opens exactly one planning-only seam for the first real SQLite-backed source-authority extraction into the existing approved source-shaped contract already consumed by the desktop seam. This aligns with the approved project direction in PD-01. The user has now supplied both a schema snapshot and a sample SQLite database and has explicitly chosen the first-seam mapping direction under PD-02. The remaining blocker is now purely workspace state: the sanitized sample database is not yet present as a repo-local validation artifact at the approved path. This bundle does not authorize SQLite implementation yet.
 
 ## Admissibility Report
 
 - Invariant constraints: Canonical persisted authority stays limited to `experience_records`, `evidence_items`, taxonomy, profiles, and settings. Semantic projection, traversal, target-region selection, ranked paths, and assembled output remain runtime-only, deterministic, explainable, and evidence-bounded. Unsupported requirements remain visible. No AI, embeddings, network, telemetry, cloud behavior, workflow-status state, persisted semantic workspaces, or transition tables may be introduced.
 - Task constraints: This bundle is planning-only and defines exactly one future seam for read-only SQLite extraction into the current approved source-shaped contract. `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` must remain unchanged unless a separate admissibility question is opened later. `harness/open-decisions.md` now records the chosen implementation-06 seam directions in PD-02.
-- Constraint conflicts: Project direction explicitly retains SQLite as source authority, the user has now supplied a schema snapshot plus a sample SQLite database, and PD-02 resolves the mapping and seam-scope decisions needed to continue. The remaining conflict is mechanical: the sanitized sample database selected under D1 is not yet repo-local, and `.gitignore` currently excludes `.db` artifacts.
-- Allowed transformation types: Refine the planning bundle now to encode PD-02; later, once the sanitized sample DB is repo-local and allowlisted, implement one read-only Tauri extraction seam that maps SQLite-backed source facts into the existing approved source-shaped contract without changing the current desktop result contract beyond the approved behavior-parity boundary.
-- Affected surfaces: This plan/tracker bundle now. If later authorized, the seam must move together across the Tauri bridge surface in `src-tauri/src/main.rs`, the Rust dependency surface in `src-tauri/Cargo.toml`, the live desktop probe surface, the repo-local sanitized sample database at `src-tauri/fixtures/career.db`, and the `.gitignore` allowlist needed to keep that validation artifact in the repo.
+- Constraint conflicts: Project direction explicitly retains SQLite as source authority, the user has now supplied a schema snapshot plus a sample SQLite database, and PD-02 resolves the mapping and seam-scope decisions needed to continue. The remaining conflict is mechanical: the sanitized sample database selected under D1 is not yet repo-local at the approved path.
+- Allowed transformation types: Refine the planning bundle now to encode PD-02; later, once the sanitized sample DB is repo-local, implement one read-only Tauri extraction seam that maps SQLite-backed source facts into the existing approved source-shaped contract without changing the current desktop result contract beyond the approved behavior-parity boundary.
+- Affected surfaces: This plan/tracker bundle now. If later authorized, the seam must move together across the Tauri bridge surface in `src-tauri/src/main.rs`, the Rust dependency surface in `src-tauri/Cargo.toml`, the live desktop probe surface, and the repo-local sanitized sample database at `src-tauri/fixtures/career.db`.
 - Non-affected surfaces: `proof-slices/ps01/runtime-core.mjs`, `proof-slices/ps01/source-authority-adapter.mjs`, current fixture semantics, project spec, governance, `harness/open-decisions.md`, archived bundles, UI layout, schema invention beyond the supplied basis artifacts, write paths, migrations, auth, deployment, network, telemetry, cloud, and any broader desktop IA work.
-- Admissibility checks: Only the planning bundle is admissible now. Future implementation becomes admissible only if the sanitized sample DB selected under D1 is made repo-local and allowlisted, and the seam can then implement PD-02 without inventing missing semantics from fixture behavior alone, without changing the current desktop result contract beyond the approved behavior-parity boundary, and without forcing proof-slice edits.
-- Stop conditions: Stop before implementation if the seam would still require inventing canonical tables or source shape from fixture behavior alone; if the bridge would need to change `runtime-core.mjs` or `source-authority-adapter.mjs`; if the sanitized sample DB cannot be committed at the approved repo-local path `src-tauri/fixtures/career.db`; or if the supplied basis artifacts expose a new schema, storage, compatibility, or architecture approval-boundary question.
+- Admissibility checks: Only the planning bundle is admissible now. Future implementation becomes admissible only if the sanitized sample DB selected under D1 is made repo-local, and the seam can then implement PD-02 without inventing missing semantics from fixture behavior alone, without changing the current desktop result contract beyond the approved behavior-parity boundary, and without forcing proof-slice edits.
+- Stop conditions: Stop before implementation if the seam would still require inventing canonical tables or source shape from fixture behavior alone; if the bridge would need to change `runtime-core.mjs` or `source-authority-adapter.mjs`; if the sanitized sample DB is not present at the approved repo-local path `src-tauri/fixtures/career.db`; or if the supplied basis artifacts expose a new schema, storage, compatibility, or architecture approval-boundary question.
 
 ## Observed Evidence
 
@@ -28,7 +28,7 @@ Implementation-06 opens exactly one planning-only seam for the first real SQLite
 - `src-tauri/Cargo.toml` has no SQLite dependency surface.
 - `career_schema.sql` grounds persisted tables for `experience_records`, `evidence_items`, canonical tag vocabulary, and candidate profile surfaces, but it does not directly define the richer approved source-shaped contract fields currently consumed by `source-authority-adapter.mjs`, such as weighted `tag_links`, `experience_link.weight`, `taxonomy.tag_requirement_links`, `taxonomy.requirements`, or `taxonomy.target_regions`.
 - The supplied sample SQLite database is now approved as the seam validation artifact under D1, but it is not yet present in the repo at the selected path `src-tauri/fixtures/career.db`.
-- `.gitignore` currently excludes `*.db`, so the selected D1 artifact path still needs an explicit allowlist when implementation begins.
+- `.gitignore` now allowlists `src-tauri/fixtures/career.db`, but that file still does not exist in the workspace.
 
 ## Planned Seam
 
@@ -66,7 +66,7 @@ Downstream consequence:
 ## Acceptance Criteria
 
 - This bundle remains planning-only and names exactly one future implementation seam: `I06-S1`.
-- The bundle states explicitly that only planning is admissible now and that SQLite implementation is blocked on materializing the approved D1 sample database into the repo-local path and allowlisting it from `.gitignore`.
+- The bundle states explicitly that only planning is admissible now and that SQLite implementation is blocked on materializing the approved D1 sample database into the repo-local path.
 - The future seam is constrained to read-only SQLite extraction into the current approved source-shaped contract and current desktop result contract.
 - The bundle preserves `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` as unchanged surfaces unless a new admissibility question is opened.
 - The bundle includes one explicit named desktop acceptance probe for later implementation and one explicit blocker owned outside this bundle.
@@ -74,7 +74,7 @@ Downstream consequence:
 ## Delivery Posture And User-Facing Acceptance Criteria
 
 - State of this bundle: proposed and blocked for implementation; planning-only is the only admissible posture now.
-- Dominant fact: real SQLite-backed source-authority wiring matches project direction, the user has supplied real SQLite basis evidence, and PD-02 resolves the seam contract. The remaining blocker is getting the sanitized sample DB into the repo-local validation path so the seam can be implemented and verified truthfully.
+- Dominant fact: real SQLite-backed source-authority wiring matches project direction, the user has supplied real SQLite basis evidence, and PD-02 resolves the seam contract. The remaining blocker is getting the sanitized sample DB into the approved repo-local validation path so the seam can be implemented and verified truthfully.
 - User-facing acceptance for the later seam: from the same existing desktop screen, the operator can run the current analysis flow against SQLite-backed source authority and still see supported `Backend Systems` plus explicit unsupported `Mentoring`, with the same requirement-result visibility, visible provenance and path shape, and unsupported-note visibility now locked by the live desktop probe, while allowing DB-derived supporting ids and exact path weights to differ from the synthetic fixture under the approved behavior-parity contract.
 - Truth rule: a SQLite connection alone is not acceptable evidence. The later seam is only complete when the live desktop acceptance probe passes end to end without fixture fallback and while preserving the approved behavior-parity contract.
 
@@ -95,7 +95,7 @@ Downstream consequence:
 ## Affected And Non-Affected Surfaces
 
 - Affected now: `harness/implementation-projects/active/implementation-06-plan.md` and `harness/implementation-projects/active/implementation-06-tracker.md`.
-- Affected when later implementation is authorized: `src-tauri/src/main.rs`, `src-tauri/Cargo.toml`, `.gitignore`, the live desktop probe surface, the sample SQLite database at `src-tauri/fixtures/career.db`, and any explicit semantic overlay surface approved for the seam.
+- Affected when later implementation is authorized: `src-tauri/src/main.rs`, `src-tauri/Cargo.toml`, the live desktop probe surface, the sample SQLite database at `src-tauri/fixtures/career.db`, and any explicit semantic overlay surface approved for the seam.
 - Read-only dependency surfaces: `desktop/main.js`, `desktop/probes/i04-desktop-probe.mjs`, `desktop/fixtures/i04-approved-source-facts.json`, `proof-slices/ps01/source-authority-adapter.mjs`, `proof-slices/ps01/runtime-core.mjs`, `harness/open-decisions.md`, and the governing project-spec docs.
 - Non-affected: archived implementation bundles, open decisions for now, current UI layout, proof-slice behavior surfaces, write-path/storage-mutation surfaces, auth, deployment, cloud, telemetry, AI, embeddings, and any broader app topology work.
 
@@ -120,10 +120,10 @@ Downstream consequence:
 
 ## Handoff Packet For The Next Agent
 
-- Goal: implement only `I06-S1` after the sanitized sample DB is added at `src-tauri/fixtures/career.db` and allowlisted from `.gitignore`.
+- Goal: implement only `I06-S1` after the sanitized sample DB is added at `src-tauri/fixtures/career.db`.
 - Preserve unchanged: `proof-slices/ps01/runtime-core.mjs`, `proof-slices/ps01/source-authority-adapter.mjs`, the current desktop UI contract, and the current supported-versus-unsupported result contract.
-- Required missing input: the sanitized sample DB committed at `src-tauri/fixtures/career.db` and allowlisted from `.gitignore`.
-- Touch budget when later authorized: the Tauri Rust bridge, Rust dependency surface, `.gitignore`, the narrowest probe-facing changes needed to prove the same current desktop result contract against SQLite-backed data, and one explicit semantic overlay surface for `tag_requirement_links`, `requirements`, and `target_regions`.
+- Required missing input: the sanitized sample DB committed at `src-tauri/fixtures/career.db`.
+- Touch budget when later authorized: the Tauri Rust bridge, Rust dependency surface, the narrowest probe-facing changes needed to prove the same current desktop result contract against SQLite-backed data, and one explicit semantic overlay surface for `tag_requirement_links`, `requirements`, and `target_regions`.
 - Required proof before closeout: the named probe `I06 Desktop Probe: SQLite Source Authority Preserves I04 Result Contract` passes end to end without fixture fallback.
 - Explicit stop rule: if the sample DB is not made repo-local, or if the supplied SQLite basis implies contract drift that would touch the ps01 proof surfaces, stop and open a fresh admissibility question before implementation.
 
