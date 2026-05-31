@@ -31,10 +31,10 @@ async function runAnalysis({ shouldReportProbe }) {
 
   analysisRunning = true;
   elements.analyzeButton.disabled = true;
-  elements.statusMessage.textContent = 'Running the local fixture through assembleApprovedSourceFactsProof…';
+  elements.statusMessage.textContent = 'Running the local SQLite source authority through assembleApprovedSourceFactsProof…';
 
   try {
-    const sourceAuthority = await invoke('load_i04_fixture');
+    const sourceAuthority = await invoke('load_source_authority');
     const result = assembleApprovedSourceFactsProof(sourceAuthority);
 
     renderSuccessState(result);
@@ -47,7 +47,7 @@ async function runAnalysis({ shouldReportProbe }) {
     renderErrorState(message);
 
     if (shouldReportProbe) {
-      await invoke('report_i04_probe', {
+      await invoke('report_i06_probe', {
         summary: {
           runtimeError: message,
           renderedResultIds: [],
@@ -78,7 +78,7 @@ function renderIdleState() {
 
   elements.resultsRoot.replaceChildren(createEmptyState(
     'No analysis yet',
-    'Use the single action above to run the local desktop caller against the built-in fixture.',
+    'Use the single action above to run the local desktop caller against the SQLite source authority.',
   ));
 }
 
@@ -96,7 +96,7 @@ function renderSuccessState(result) {
     ['Unused source authorities', result.adapterMetadata.unusedSourceAuthorities.join(', ')],
   ]);
 
-  elements.statusMessage.textContent = 'Rendered one supported and one unsupported requirement from the built-in local fixture.';
+  elements.statusMessage.textContent = 'Rendered one supported and one unsupported requirement from the local SQLite source authority.';
   elements.resultsRoot.replaceChildren(
     createResultCard(supportedResult),
     createResultCard(unsupportedResult),
@@ -286,7 +286,7 @@ async function reportProbeSummary(result) {
     ),
   };
 
-  await invoke('report_i04_probe', { summary });
+  await invoke('report_i06_probe', { summary });
 }
 
 function nextFrame() {

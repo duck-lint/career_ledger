@@ -1,5 +1,7 @@
 # Implementation 06 Plan
 
+Historical planning artifact: the workspace-state blocker described below was resolved later the same day, `I06-S1` was implemented within the approved seam, and the bundle was archived. See `harness/implementation-projects/archive/implementation-06-summary.md` for final status and verification evidence.
+
 ## Intent
 
 Implementation-06 opens exactly one planning-only seam for the first real SQLite-backed source-authority extraction into the existing approved source-shaped contract already consumed by the desktop seam. This aligns with the approved project direction in PD-01. The user has now supplied both a schema snapshot and a sample SQLite database and has explicitly chosen the first-seam mapping direction under PD-02. The remaining blocker is now purely workspace state: the sanitized sample database is not yet present as a repo-local validation artifact at the approved path. This bundle does not authorize SQLite implementation yet.

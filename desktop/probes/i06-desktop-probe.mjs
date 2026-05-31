@@ -22,25 +22,25 @@ if (buildResult.exitCode !== 0) {
 const probeResult = await runStep(
   'cargo-run-probe',
   cargoCommand,
-  ['run', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--i04-probe'],
+  ['run', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--i06-probe'],
   600_000,
 );
 
 const probeLine = probeResult.output
   .split(/\r?\n/)
-  .find((line) => line.startsWith('I04_PROBE:'));
+  .find((line) => line.startsWith('I06_PROBE:'));
 
 if (!probeLine) {
   console.error(JSON.stringify({
     pass: false,
-    reason: 'Missing I04_PROBE line from live desktop run.',
+    reason: 'Missing I06_PROBE line from live desktop run.',
     buildExitCode: buildResult.exitCode,
     probeExitCode: probeResult.exitCode,
   }, null, 2));
   process.exit(1);
 }
 
-const summary = JSON.parse(probeLine.slice('I04_PROBE:'.length));
+const summary = JSON.parse(probeLine.slice('I06_PROBE:'.length));
 const failureReasons = [];
 
 assertEqual(summary.runtimeError, null, 'runtimeError', failureReasons);
@@ -55,38 +55,15 @@ assertArrayEqual(
   'renderedResultIds',
   failureReasons,
 );
-assertArrayEqual(
-  summary.supportingExperienceRecordIds,
-  ['exp-payments'],
-  'supportingExperienceRecordIds',
-  failureReasons,
-);
-assertArrayEqual(
-  summary.supportingEvidenceItemIds,
-  ['evidence-adr', 'evidence-runbook'],
-  'supportingEvidenceItemIds',
-  failureReasons,
-);
+assertNonEmptyArray(summary.supportingExperienceRecordIds, 'supportingExperienceRecordIds', failureReasons);
+assertNonEmptyArray(summary.supportingEvidenceItemIds, 'supportingEvidenceItemIds', failureReasons);
 assertArrayEqual(
   summary.semanticPositions,
   ['source-experience', 'source-evidence', 'semantic-tag', 'target-requirement'],
   'semanticPositions',
   failureReasons,
 );
-assertArrayEqual(
-  summary.orderedSequence,
-  [
-    'Experience: exp-payments',
-    'demonstrates: 4',
-    'Evidence: evidence-adr',
-    'uses: 5',
-    'Tag: tag-backend',
-    'supports: 6',
-    'Requirement: req-backend-systems',
-  ],
-  'orderedSequence',
-  failureReasons,
-);
+assertPathShape(summary.orderedSequence, failureReasons);
 
 const pass = probeResult.exitCode === 0 && failureReasons.length === 0;
 
@@ -113,6 +90,38 @@ function assertArrayEqual(actual, expected, label, failureReasons) {
   if (JSON.stringify(actualArray) !== JSON.stringify(expected)) {
     failureReasons.push(`${label} expected ${JSON.stringify(expected)} but received ${JSON.stringify(actualArray)}.`);
   }
+}
+
+function assertNonEmptyArray(actual, label, failureReasons) {
+  const actualArray = Array.isArray(actual) ? actual : [];
+  if (actualArray.length === 0 || actualArray.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
+    failureReasons.push(`${label} must contain at least one non-empty string.`);
+  }
+}
+
+function assertPathShape(actual, failureReasons) {
+  const actualArray = Array.isArray(actual) ? actual : [];
+
+  if (actualArray.length !== 7) {
+    failureReasons.push(`orderedSequence expected 7 entries but received ${actualArray.length}.`);
+    return;
+  }
+
+  const patterns = [
+    /^Experience: .+/,
+    /^demonstrates: \d+$/,
+    /^Evidence: .+/,
+    /^uses: \d+$/,
+    /^Tag: .+/,
+    /^supports: \d+$/,
+    /^Requirement: req-backend-systems$/,
+  ];
+
+  patterns.forEach((pattern, index) => {
+    if (!pattern.test(actualArray[index] ?? '')) {
+      failureReasons.push(`orderedSequence[${index}] expected to match ${pattern} but received ${JSON.stringify(actualArray[index] ?? '')}.`);
+    }
+  });
 }
 
 async function runStep(label, command, args, timeoutMs) {
