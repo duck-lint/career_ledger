@@ -2,128 +2,132 @@
 
 ## Intent
 
-Implementation-07 opens exactly one planning-only seam for the post-I06 requirement-region authority question. This bundle does not implement either near-term option. It compares the two admissible immediate directions now visible after I06: keep `src-tauri/fixtures/source-authority-semantic-overlay.json` as an explicit local authority surface for requirement-region semantics, or seek explicit approval to move requirement-region authority into SQLite. `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` remain unchanged in either case, and profiles/settings widening stays deferred until this authority question is resolved or separately reprioritized.
+Implementation-07 now defines exactly one approval-gated executable seam: move requirement-region authority into SQLite-backed taxonomy authority while preserving the current visible desktop contract. The move applies only to `tag_requirement_links`, `requirements`, and `target_regions`, treated as taxonomy relationships and requirement-region definitions inside the existing approved taxonomy source category. `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` stay unchanged, profiles/settings widening stays deferred, and the fixed sample `jobPostingInput` remains seam-local runtime input rather than canonical persisted authority.
 
 ## Admissibility Report
 
-- Invariant constraints: Canonical persisted authority remains limited to `experience_records`, `evidence_items`, taxonomy, profiles, and settings. Semantic projection, target-region selection, traversal, ranked paths, and assembled output remain runtime-only, deterministic, explainable, and evidence-bounded. Unsupported requirements remain visible. No AI, embeddings, network, telemetry, cloud behavior, workflow-status state, persisted semantic workspaces, or transition tables may be introduced.
-- Task constraints: This bundle is planning-only, edits only planning and decision surfaces, defines exactly one future seam, compares two near-term authority options without implementing either, preserves `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` unchanged, and defers profiles/settings widening.
-- Constraint conflicts: The live runtime already composes requirement-region semantics from `src-tauri/fixtures/source-authority-semantic-overlay.json`, while `PD-02` and the implementation-06 summary both name that surface as a revisit trigger rather than settled long-term authority. Leaving the overlay in place requires making that authority posture explicit. Moving requirement-region authority into SQLite would cross a source-authority and likely storage/schema approval boundary. `harness/open-decisions.md` now carries this as pending decision `PD-03`.
-- Allowed transformation types: Create the active implementation-07 plan and tracker, record the live pending decision in `harness/open-decisions.md`, compare the two near-term options, define one future executable seam, and define one future desktop acceptance probe without answering the authority question by drift.
-- Affected surfaces: This plan, this tracker, and pending decision `PD-03` in `harness/open-decisions.md` now. If later authorized, the seam must move together across `harness/open-decisions.md`, the Tauri bridge in `src-tauri/src/main.rs`, the live desktop probe surface, and exactly one chosen requirement-region authority surface: either `src-tauri/fixtures/source-authority-semantic-overlay.json` as explicit local authority or approved SQLite-backed requirement-region storage/query surfaces.
-- Non-affected surfaces: `proof-slices/ps01/runtime-core.mjs`, `proof-slices/ps01/source-authority-adapter.mjs`, profiles, settings, the current desktop information architecture, write paths, migrations, auth, deployment, network, telemetry, cloud, AI, embeddings, and any broader taxonomy or resume-assembly redesign.
-- Admissibility checks: This bundle is admissible only as planning. Later implementation of `I07-S1` becomes admissible only after the requirement-region authority question is explicitly captured in decision authority, the user chooses one option, and any SQLite move receives explicit approval before code changes begin.
-- Stop conditions: Stop before implementation if the authority choice remains implicit; if moving authority into SQLite would require unapproved schema/storage invention; if either option would force `runtime-core.mjs` or `source-authority-adapter.mjs` changes; if profiles/settings widening is treated as bundled follow-on work; or if no desktop probe can falsify mixed or fallback requirement-region authority.
+- Invariant constraints: Canonical persisted source authority remains limited to `experience_records`, `evidence_items`, taxonomy, profiles, and settings. Semantic projection, target semantic region selection, traversal scores and ranked paths, provenance chains, and assembled artifacts remain runtime-only, deterministic, explainable, and evidence-bounded. Unsupported requirements stay visible. No persisted semantic workspace, traversal ledger, transition table, workflow-status state, AI, embeddings, network, telemetry, or cloud behavior may be introduced.
+- Task constraints: This bundle resolves PD-03 at decision-authority level in favor of SQLite-backed taxonomy authority for requirement-region semantics, stops before implementation work starts, keeps `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` explicitly unchanged, continues to defer profiles/settings widening, keeps the fixed sample `jobPostingInput` seam-local runtime input, and defines one successor desktop probe that proves SQLite-only requirement-region authority with no overlay fallback.
+- Constraint conflicts: The current runtime still merges requirement-region semantics from `src-tauri/fixtures/source-authority-semantic-overlay.json`, but PD-03 now resolves that this is not the long-term authority surface. Moving `tag_requirement_links`, `requirements`, and `target_regions` into SQLite crosses a storage/schema approval boundary and is not implementation-approved by this bundle. This bundle relies on the user-approved thesis that those requirement-region semantics belong inside the existing taxonomy source category; if later implementation cannot represent them truthfully as taxonomy authority, implementation must stop and reopen governance rather than widen source authority by drift.
+- Allowed transformation types: decision-level updates only in this plan, this tracker, and `harness/open-decisions.md`. No runtime, probe, SQLite, overlay, or ps01 edits are admissible in this task.
+- Affected surfaces now: `harness/open-decisions.md`, this plan, and this tracker.
+- Downstream surfaces when implementation is explicitly approved: `src-tauri/src/main.rs`, the successor desktop probe surface, and the SQLite-backed taxonomy authority path for requirement-region semantics. `desktop/probes/i06-desktop-probe.mjs` is the current fixture-level proof of the visible desktop contract that the successor probe must preserve.
+- Non-affected surfaces: `proof-slices/ps01/runtime-core.mjs`, `proof-slices/ps01/source-authority-adapter.mjs`, profiles/settings behavior, the current desktop information architecture, SQLite artifacts, overlay JSON, migrations, auth, deployment, compatibility promises, external APIs, AI, embeddings, telemetry, cloud behavior, and any broader taxonomy or resume-assembly redesign.
+- Admissibility checks: This bundle is admissible only as planning. Later implementation of `I07-S1` becomes admissible only after explicit implementation approval is granted for the SQLite authority move.
+- Stop conditions: Stop before implementation if explicit approval is missing, if the move would require unapproved storage/schema invention, if overlay fallback remains acceptable, if the fixed sample `jobPostingInput` is silently promoted into canonical persisted authority, if `proof-slices/ps01/runtime-core.mjs` or `proof-slices/ps01/source-authority-adapter.mjs` would need to change, or if profiles/settings widening is bundled into the seam.
 
 ## Observed Evidence
 
 - `harness/project-spec/career-ledger-project-spec.md` and `harness/project-spec/career-ledger-governance-primitives.md` remain the invariant authority.
-- `harness/open-decisions.md` keeps `PD-02` current and explicitly names two revisit triggers relevant here: the semantic overlay becoming persisted SQLite authority, and profiles/settings widening.
-- `harness/open-decisions.md` now carries pending decision `PD-03` for the requirement-region authority question.
-- `harness/implementation-projects/archive/implementation-06-summary.md` records implementation-06 as complete and states that the semantic overlay remains seam-local and should be revisited if requirement-region authority needs to become persisted SQLite authority.
-- `src-tauri/src/main.rs` now loads canonical tags, `experience_records`, and `evidence_items` from SQLite read-only, then merges requirement-region semantics and job-posting input from `src-tauri/fixtures/source-authority-semantic-overlay.json` behind the generic `load_source_authority` path.
-- `desktop/main.js` invokes `load_source_authority` and passes the returned object into `assembleApprovedSourceFactsProof`.
-- `desktop/probes/i06-desktop-probe.mjs` proves the current live desktop result contract: `Backend Systems` supported, `Mentoring` unsupported, stable rendered requirement ids, non-empty supporting ids, stable semantic-position shape, stable ordered path shape, and visible unsupported note.
-- `proof-slices/ps01/source-authority-adapter.mjs` still reports `profiles` and `settings` as unused source authorities.
-- `harness/implementation-projects/active/` contained only `.gitkeep` before this bundle.
+- `harness/open-decisions.md` now carries PD-03 as a current decision rather than a pending comparison.
+- `harness/implementation-projects/archive/implementation-06-summary.md` records the current overlay-backed requirement-region posture as a revisit trigger rather than a final authority choice.
+- `src-tauri/src/main.rs` currently reads canonical tags, `experience_records`, and `evidence_items` from SQLite, then merges requirement-region semantics and the fixed sample `jobPostingInput` from `src-tauri/fixtures/source-authority-semantic-overlay.json` through `load_source_authority`.
+- `desktop/main.js` already uses the generic `load_source_authority` path.
+- `desktop/probes/i06-desktop-probe.mjs` is the current user-facing proof surface for the visible desktop contract: `Backend Systems` supported, `Mentoring` unsupported, stable rendered requirement ids, non-empty supporting ids, stable semantic-position shape, stable ordered path shape, and visible unsupported note.
+- `proof-slices/ps01/source-authority-adapter.mjs` still marks `profiles` and `settings` as unused source authorities.
 
 ## Planned Seam
 
-1. `I07-S1: Make the requirement-region authority source explicit and probeable without widening the ps01 contract`
+1. `I07-S1: Move requirement-region authority into SQLite-backed taxonomy authority while preserving the current desktop contract`
 
 Seam boundary:
 
-- The seam does not answer the authority question in planning by drift. It prepares the narrowest later implementation boundary that can truthfully support either approved direction while preserving the current I06 desktop result contract.
-- Near-term option A keeps `src-tauri/fixtures/source-authority-semantic-overlay.json` as an explicit local authority surface for `tag_requirement_links`, `requirements`, `target_regions`, and the fixed job-posting input. If this option is chosen later, implementation-07 should only make that local-authority posture explicit in decision authority and probe-visible runtime evidence while keeping SQLite limited to canonical tags, `experience_records`, and `evidence_items`.
-- Near-term option B seeks explicit approval to move requirement-region authority into SQLite. If this option is chosen later, implementation-07 must stop for approval before code because it changes where authoritative requirement-region semantics live and may open schema/storage review depending on what the current SQLite basis can actually represent.
-- The narrowest next executable seam after the decision is therefore the same in both cases: one bridge-and-probe slice that exposes exactly one chosen requirement-region authority source through `load_source_authority`, preserves `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` unchanged, preserves the current visible desktop contract, and keeps profiles/settings unused.
+- Future implementation moves `tag_requirement_links`, `requirements`, and `target_regions` into SQLite-backed taxonomy authority and removes overlay fallback for those requirement-region semantics.
+- The seam preserves the current visible desktop contract reached through `load_source_authority`.
+- `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` remain unchanged.
+- Profiles/settings remain deferred and unused by this seam.
+- The fixed sample `jobPostingInput` remains seam-local runtime input. Persisting that sample input is out of scope and requires a separate explicit decision.
+- This seam is blocked on explicit implementation approval because the approved direction crosses a storage/schema boundary.
+- If later design work cannot keep these requirement-region semantics inside the approved taxonomy source category, stop and reopen governance before code rather than widening canonical persisted authority by implication.
 
 Upstream dependency:
 
-- Yes: `harness/open-decisions.md` now carries pending decision `PD-03` for the requirement-region authority question because the next seam is blocked on a real unresolved authority choice.
+- PD-03 is already resolved in `harness/open-decisions.md`; this bundle is no longer comparing authority options.
 
 Downstream consequence:
 
-- If option A is later chosen, the repo can truthfully claim that requirement-region semantics are supplied by an explicit local authority surface paired with SQLite-backed source facts, rather than by an accidental temporary overlay.
-- If option B is later chosen and approved, the repo can truthfully claim that requirement-region authority is SQLite-backed, but only after the storage/source-authority move is implemented and proven without overlay fallback.
+- After later implementation and proof, the repo can truthfully claim that requirement-region semantics are supplied by SQLite-backed taxonomy authority and that overlay fallback is no longer part of the contract for `tag_requirement_links`, `requirements`, or `target_regions`.
 
 ## Non-Goals
 
 - No implementation in this bundle.
-- No decision resolution in `harness/open-decisions.md` in this task beyond recording the pending question.
-- No change to `src-tauri/src/main.rs`, `desktop/main.js`, `desktop/probes/i06-desktop-probe.mjs`, `src-tauri/fixtures/source-authority-semantic-overlay.json`, or SQLite artifacts in this bundle.
-- No change to `proof-slices/ps01/runtime-core.mjs` or `proof-slices/ps01/source-authority-adapter.mjs`.
-- No profiles/settings widening or adapter-contract widening.
-- No schema/storage approval by implication, no taxonomy redesign beyond the requirement-region authority choice, and no broader desktop, auth, deployment, network, telemetry, cloud, AI, or embedding work.
+- No runtime, desktop, probe, overlay, SQLite, or ps01 edits.
+- No profiles/settings widening.
+- No persistence of the fixed sample `jobPostingInput`.
+- No schema details by implication, no migration design, and no broader desktop, auth, deployment, network, telemetry, cloud, AI, or embedding work.
 
 ## Acceptance Criteria
 
-- This bundle remains planning-only and defines exactly one future seam: `I07-S1`.
-- The bundle compares the two near-term authority options without implementing either one.
-- The bundle states explicitly that `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` stay unchanged and that profiles/settings widening remains deferred.
-- The bundle states clearly that `harness/open-decisions.md` now carries pending decision `PD-03` and that the authority choice itself remains unresolved.
-- The bundle defines one named desktop acceptance probe for the later seam that can falsify the chosen authority source while preserving the current visible desktop contract.
+- This bundle remains planning-only and defines exactly one seam: `I07-S1`.
+- PD-03 is treated as resolved in favor of SQLite-backed taxonomy authority for requirement-region semantics rather than as a pending comparison.
+- The bundle states explicitly that the approved move stays inside the existing taxonomy source category and does not create a new canonical persisted truth category.
+- The bundle states explicitly that `tag_requirement_links`, `requirements`, and `target_regions` are the only approved requirement-region authority move in scope.
+- The bundle states explicitly that `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` stay unchanged, profiles/settings widening remains deferred, and the fixed sample `jobPostingInput` remains seam-local runtime input.
+- The bundle is blocked on explicit implementation approval for the SQLite authority move, not on unresolved decision authority.
+- The bundle defines one named successor desktop probe that proves SQLite-only requirement-region authority with no overlay fallback while preserving the current visible desktop contract.
 
 ## Delivery Posture And User-Facing Acceptance Criteria
 
-- State of this bundle: planning-only and blocked on decision authority.
-- Dominant fact: after I06, the remaining live question is not whether the desktop can render the current contract, but whether requirement-region semantics should stay on an explicit local overlay surface or move into SQLite with approval.
-- User-facing acceptance for the later seam: from the same existing desktop screen, the operator can run the local analysis through `load_source_authority` and still see supported `Backend Systems` plus explicit unsupported `Mentoring`, while the live desktop probe also proves that requirement-region semantics came from exactly the chosen authority source and not from mixed or fallback authority.
-- Truth rule: preserving visible output alone is insufficient for this seam. The later implementation is only complete when the desktop probe proves both the current visible contract and the chosen requirement-region authority source.
+- State of this bundle: planning-only and blocked on explicit implementation approval.
+- Dominant fact: the decision authority is now settled; the remaining gate is whether to authorize implementation of the SQLite-backed taxonomy move for requirement-region semantics.
+- User-facing acceptance for the later seam: from the same existing desktop screen, the operator can run the local analysis through `load_source_authority` and still see supported `Backend Systems` plus explicit unsupported `Mentoring`, while the successor desktop probe also proves that requirement-region authority came from SQLite only and not from overlay or fallback behavior.
+- Truth rule: preserving visible output alone is insufficient. The later implementation is only complete when the probe proves both the current visible desktop contract and SQLite-only requirement-region authority.
 
 ## Current Repo Runtime State
 
-- The current bridge already uses the generic `load_source_authority` command and composes one source object from two authority surfaces: SQLite for source facts and `src-tauri/fixtures/source-authority-semantic-overlay.json` for requirement-region semantics.
-- The desktop caller already targets the generic source-authority path.
+- The current bridge already uses the generic `load_source_authority` command.
+- The current runtime still composes one source object from two authority surfaces: SQLite for core source facts and `src-tauri/fixtures/source-authority-semantic-overlay.json` for requirement-region semantics plus the fixed sample `jobPostingInput`.
 - The current I06 live probe already validates the visible result contract end to end.
-- The current ps01 adapter still marks `profiles` and `settings` as unused, which keeps those surfaces outside the next seam unless separately reprioritized.
+- The current ps01 adapter still marks `profiles` and `settings` as unused.
 
 ## Assumptions And Unknowns
 
-- The requirement-region authority question is the narrowest real post-I06 follow-up seam.
-- Option A is admissible without a storage/schema approval gate if the project explicitly accepts the local overlay as the authority surface for requirement-region semantics.
-- Option B is not automatically admissible just because other source facts already come from SQLite; it needs explicit approval and may also need schema/storage clarification depending on the current SQLite basis.
-- It is not yet proven that the current SQLite basis can represent `tag_requirement_links`, `requirements`, `target_regions`, and fixed job-posting input without additional storage work.
-- Profiles/settings widening remains intentionally deferred unless the user separately reprioritizes it after the authority question is resolved.
+- The requirement-region authority move is the narrowest real post-I06 successor seam.
+- The current visible desktop contract can be preserved while moving `tag_requirement_links`, `requirements`, and `target_regions` into SQLite-backed authority.
+- The approved decision to move requirement-region authority into SQLite does not by itself authorize storage/schema implementation work.
+- This bundle assumes `tag_requirement_links`, `requirements`, and `target_regions` can be represented truthfully inside the approved taxonomy source category; if that assumption fails, a separate governance amendment is required before implementation.
+- The fixed sample `jobPostingInput` should remain seam-local runtime input unless a later explicit decision approves persistence.
+- Profiles/settings widening remains intentionally deferred unless separately reprioritized.
 
 ## Affected and Non-Affected Surfaces
 
 - Affected now: `harness/implementation-projects/active/implementation-07-plan.md`, `harness/implementation-projects/active/implementation-07-tracker.md`, and `harness/open-decisions.md`.
-- Affected when later implementation is authorized: `harness/open-decisions.md`, `src-tauri/src/main.rs`, the live desktop probe surface, and exactly one chosen requirement-region authority surface.
-- Read-only dependency surfaces: the governing project-spec docs, `harness/open-decisions.md`, `harness/implementation-projects/archive/implementation-06-summary.md`, `desktop/main.js`, `desktop/probes/i06-desktop-probe.mjs`, and `proof-slices/ps01/source-authority-adapter.mjs`.
-- Non-affected: `proof-slices/ps01/runtime-core.mjs`, profiles/settings inputs and tests, broader UI layout, write paths, migrations, auth, deployment, cloud, telemetry, AI, embeddings, and any broader semantic traversal redesign.
+- Downstream surfaces when later implementation is approved: `harness/open-decisions.md`, `src-tauri/src/main.rs`, the successor desktop probe surface, and the SQLite-backed taxonomy authority path for requirement-region semantics.
+- Read-only dependency surfaces for this bundle: the governing project-spec docs, `harness/open-decisions.md`, `harness/implementation-projects/archive/implementation-06-summary.md`, `desktop/main.js`, `desktop/probes/i06-desktop-probe.mjs`, and `proof-slices/ps01/source-authority-adapter.mjs`.
+- Non-affected: `proof-slices/ps01/runtime-core.mjs`, `src-tauri/fixtures/source-authority-semantic-overlay.json` in this task, profiles/settings inputs and tests, broader UI layout, write paths, migrations, auth, deployment, cloud, telemetry, AI, embeddings, and any broader semantic traversal redesign.
 
 ## Verification Contract Summary
 
-- Named later acceptance probe: `I07 Desktop Probe: Requirement-Region Authority Source Matches Decision`.
-- Probe shape: run the same single-screen desktop flow through `load_source_authority`, preserve the I06-visible result contract (`runtimeError: null`, rendered ids `req-backend-systems` and `req-mentoring`, supported `Backend Systems`, unsupported `Mentoring`, non-empty supporting ids, stable semantic-position shape, stable ordered path shape, visible unsupported note), and also assert one explicit requirement-region authority marker that equals the recorded decision outcome: `local-overlay` for option A or `sqlite` for option B.
-- Required precondition: pending decision `PD-03` is recorded, the user selects one option, and any SQLite move receives explicit approval before implementation.
-- Failure rule: the later seam fails if requirement-region authority remains implicit, if mixed or fallback authority is used, if the visible desktop contract regresses, if `proof-slices/ps01/runtime-core.mjs` or `proof-slices/ps01/source-authority-adapter.mjs` must change, or if profiles/settings widening is folded into the seam.
+- Named successor acceptance probe: `I07 Desktop Probe: Requirement-Region Authority Is SQLite-Only`.
+- Probe shape: run the same single-screen desktop flow through `load_source_authority`, preserve the I06 visible result contract (`runtimeError: null`, rendered ids `req-backend-systems` and `req-mentoring`, supported `Backend Systems`, unsupported `Mentoring`, non-empty supporting ids, stable semantic-position shape, stable ordered path shape, visible unsupported note), and also prove that `tag_requirement_links`, `requirements`, and `target_regions` are sourced from SQLite only with no overlay fallback.
+- Required precondition: explicit implementation approval is granted for the SQLite authority move.
+- Failure rule: the later seam fails if overlay fallback remains, if the visible desktop contract regresses, if `proof-slices/ps01/runtime-core.mjs` or `proof-slices/ps01/source-authority-adapter.mjs` must change, if profiles/settings widening is folded into the seam, or if the fixed sample `jobPostingInput` is silently persisted.
 
 ## Completion Rule
 
 - Do not implement from this bundle alone.
-- Do not treat the existing overlay as silently settled long-term authority without recording the pending decision and a chosen outcome.
-- Do not treat a future SQLite move as already authorized merely because the current bridge already reads other source facts from SQLite.
-- Do not widen into profiles/settings before the requirement-region authority question is resolved or separately reprioritized.
+- Do not treat the SQLite move as implementation-approved merely because PD-03 is resolved.
+- Do not allow mixed overlay-plus-SQLite requirement-region authority to remain acceptable after this seam.
+- Do not widen into profiles/settings.
+- Do not silently persist the fixed sample `jobPostingInput`.
 - Do not mark behavior complete on fixture, mock, dry-run, serialization, type, field, file, path, route, crate, config, or nominal-caller evidence alone.
 
-## Approval Gates
+## Approval Gate
 
-- No approval gate is crossed by creating this planning bundle.
-- Future implementation must stop for explicit approval if option B is chosen because moving requirement-region authority into SQLite changes project-intent authority and may also cross schema/storage review boundaries.
-- If option A is chosen, no schema/storage approval gate is implied, but the decision still must be captured explicitly so the repo can speak truthfully about the local overlay as an authority surface.
+- Explicit implementation approval is required before any storage/schema work for `I07-S1` starts.
+- If later implementation cannot ground the move inside the approved taxonomy source category, stop and open a separate governance amendment before code.
+- If the later implementation proposal needs to persist the fixed sample `jobPostingInput`, open a separate explicit decision instead of folding that persistence into this seam.
 
 ## Handoff Packet For The Next Agent
 
-- Goal: implement only `I07-S1` after the requirement-region authority question is recorded in `harness/open-decisions.md` and the user chooses option A or option B.
+- Goal: implement only `I07-S1` after explicit implementation approval is granted for the SQLite-backed taxonomy authority move for requirement-region semantics.
 - Preserve unchanged: `proof-slices/ps01/runtime-core.mjs`, `proof-slices/ps01/source-authority-adapter.mjs`, the current visible desktop result contract, and the current deferral of profiles/settings.
-- Decision package to carry forward: option A keeps `src-tauri/fixtures/source-authority-semantic-overlay.json` as explicit local authority; option B seeks approval to move requirement-region authority into SQLite; do not mix them.
-- Touch budget when later authorized: `harness/open-decisions.md`, the narrowest bridge-and-probe surfaces needed to expose the chosen authority source, and exactly one chosen requirement-region authority surface.
-- Required proof before closeout: the named probe `I07 Desktop Probe: Requirement-Region Authority Source Matches Decision` passes end to end.
-- Explicit stop rule: if the chosen direction would require schema/storage invention beyond approved authority, mixed overlay-plus-SQLite requirement-region fallback, `proof-slices/ps01` changes, or bundled profiles/settings widening, stop and open a fresh admissibility pass before implementation.
+- Carry forward as fixed scope: move `tag_requirement_links`, `requirements`, and `target_regions` into SQLite-backed taxonomy authority only; keep the fixed sample `jobPostingInput` seam-local unless separately approved for persistence; do not allow overlay fallback.
+- Touch budget when later authorized: `harness/open-decisions.md`, the narrowest bridge-and-probe surfaces needed to expose SQLite-only requirement-region authority, and the SQLite-backed taxonomy authority path for requirement-region semantics.
+- Required proof before closeout: the named probe `I07 Desktop Probe: Requirement-Region Authority Is SQLite-Only` passes end to end.
+- Explicit stop rule: if implementation would require unapproved storage/schema invention, mixed overlay-plus-SQLite fallback, ps01 changes, bundled profiles/settings widening, or silent persistence of the fixed sample `jobPostingInput`, stop and open a fresh admissibility pass before implementation.
 
 ## Closeout Note
 
-- This active bundle is admissible only as planning until the requirement-region authority decision is made explicit.
-- When the authority question is resolved and the one planned seam later completes or is intentionally retired, move the bundle from `active/` to `archive/`.
+- This active bundle is admissible only as planning until explicit implementation approval is granted.
+- When `I07-S1` later completes or is intentionally retired, move the bundle from `active/` to `archive/`.

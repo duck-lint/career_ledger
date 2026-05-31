@@ -3,29 +3,29 @@
 ## Status
 
 - State: blocked
-- Current seam: `I07-S1` is defined but not yet admissible for implementation until the user chooses option A or option B for pending decision `PD-03`
-- Next action: obtain user direction on keeping the explicit local overlay or seeking approval to move authority into SQLite under pending decision `PD-03`
+- Current seam: `I07-S1` is the only planned seam and is blocked pending explicit implementation approval for the SQLite-backed taxonomy authority move for requirement-region semantics.
+- Next action: obtain explicit approval to start `I07-S1`, then implement the SQLite taxonomy-authority move without changing ps01, without widening profiles/settings, and without persisting the fixed sample `jobPostingInput`.
 
 ## Work Log
 
 | Date | Agent Role | Change | Evidence | Next |
 | --- | --- | --- | --- | --- |
-| 2026-05-31 | Planner | Opened implementation-07 as one planning-only bundle for the post-I06 requirement-region authority question, compared the two near-term authority options without implementing either one, preserved the unchanged ps01 boundary, deferred profiles/settings widening, named the later desktop acceptance probe, and identified the need for a pending decision row in `harness/open-decisions.md`. | Evidence came from the governing project-spec docs, `harness/open-decisions.md`, `harness/implementation-projects/archive/implementation-06-summary.md`, `src-tauri/src/main.rs`, `desktop/main.js`, `desktop/probes/i06-desktop-probe.mjs`, `proof-slices/ps01/source-authority-adapter.mjs`, and the active-folder check showing only `.gitkeep` before this bundle. | Record the pending decision row, get the user's authority choice, and stop for approval before any SQLite authority move. |
-| 2026-05-31 | Harnessed Agent | Recorded pending decision `PD-03` in `harness/open-decisions.md` so the live requirement-region authority split is now represented in the canonical decision surface. | `PD-03` now asks whether requirement-region authority stays in the explicit local overlay or moves into SQLite-backed authority, with project-intent and storage/schema boundaries named up front. | Wait for the user to choose option A or option B. |
+| 2026-05-31 | Planner | Opened implementation-07 to isolate the post-I06 requirement-region authority follow-up as one planning bundle and to preserve the unchanged ps01 boundary plus the current visible desktop contract. | Evidence came from the governing project-spec docs, `harness/open-decisions.md`, `harness/implementation-projects/archive/implementation-06-summary.md`, `src-tauri/src/main.rs`, `desktop/main.js`, `desktop/probes/i06-desktop-probe.mjs`, and `proof-slices/ps01/source-authority-adapter.mjs`. | Resolve decision authority, then tighten the bundle to one executable seam. |
+| 2026-05-31 | Coding Harness Implementer | Resolved PD-03 at decision-authority level in favor of SQLite-backed taxonomy authority for requirement-region semantics, rewrote the live bundle to one approval-gated seam `I07-S1`, kept `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` explicitly unchanged, kept profiles/settings deferred, kept the fixed sample `jobPostingInput` seam-local runtime input, and replaced the old generic future probe with a SQLite-only successor desktop probe. | The live decision surface now makes PD-03 current, the plan no longer compares two options, the move is stated as staying inside the approved taxonomy source category, and the tracker no longer treats unresolved decision authority as the blocker. | Wait for explicit implementation approval before any storage/schema work starts. |
 
 ## Seam Status
 
 | Seam | Owner Agent | Status | Verification | Notes |
 | --- | --- | --- | --- | --- |
-| `I07-S1: Make the requirement-region authority source explicit and probeable without widening the ps01 contract` | Implementer | proposed | Later acceptance probe: `I07 Desktop Probe: Requirement-Region Authority Source Matches Decision`. | Option A keeps `src-tauri/fixtures/source-authority-semantic-overlay.json` as explicit local authority. Option B seeks explicit approval to move requirement-region authority into SQLite. `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` stay unchanged in either case, and profiles/settings remain deferred. |
+| `I07-S1: Move requirement-region authority into SQLite-backed taxonomy authority while preserving the current desktop contract` | Implementer | approval-gated | Successor desktop probe: `I07 Desktop Probe: Requirement-Region Authority Is SQLite-Only`. | `tag_requirement_links`, `requirements`, and `target_regions` move to SQLite-backed taxonomy authority only. Overlay fallback is not acceptable after implementation. `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` stay unchanged, profiles/settings remain deferred, and the fixed sample `jobPostingInput` remains seam-local runtime input rather than canonical persisted authority. |
 
 ## Blockers
 
 | Blocker | Boundary | Owner Agent | Resolution |
 | --- | --- | --- | --- |
-| Pending decision `PD-03` is now recorded, but no option has been chosen yet for where requirement-region authority should live. | Project-intent authority now; storage/schema approval too if SQLite is chosen. | User | Choose option A or option B explicitly, and obtain approval before implementation if the choice is SQLite authority. |
+| Explicit implementation approval for the SQLite-backed taxonomy authority move for requirement-region semantics has not been granted yet. | Storage/schema approval boundary for taxonomy-backed requirement-region persistence. | User | Approve implementation of `I07-S1` as a taxonomy-authority move. If later implementation cannot keep these requirement-region semantics inside the approved taxonomy source category, open a separate governance amendment before code. If a later proposal also wants to persist the fixed sample `jobPostingInput`, open a separate explicit decision instead of folding that persistence into this seam. |
 
 ## Closeout Note
 
-- This tracker is intentionally blocked pending the authority decision.
+- This tracker is intentionally blocked on explicit implementation approval, not on unresolved decision authority.
 - When `I07-S1` is later implemented or intentionally retired, move this bundle from `active/` to `archive/`.
