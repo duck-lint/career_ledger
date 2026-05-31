@@ -1,319 +1,252 @@
 # Career Ledger Governance Primitives
 
-This document defines project-local authority semantics, approval boundaries, invariants, admissible transformations, review checkpoints, and acceptance probes for the Career Ledger architecture described in the companion project spec.
+This file defines authority order, baseline-authorized decisions, approval boundaries, invariants, admissible transformations, review checkpoints, and admissibility inputs for the current Tauri application.
 
-It is self-contained governance for a local-first Rust/Tauri product whose resume construction model is a governed semantic state-transition process. It does not rely on prior Python files, historical repository paths, or prototype implementation details.
+It is intentionally aligned to the shipped desktop runtime. It is not a license to revive retired prototype concepts unless the project explicitly approves them.
 
-## Authority Semantics
+## Authority Order
 
-Use this authority order when deciding what the product is allowed to become:
+Use this order when deciding what the repo is allowed to claim or change.
 
-1. Explicit user-approved amendments to the project spec or this governance file.
-2. The current project spec and this governance file.
-3. Open decisions that interpret unsettled provider, algorithm, storage, privacy, or workflow choices without overriding the spec.
-4. Active implementation plans and trackers that execute an already-authorized objective.
-5. Current task instructions that select, sequence, or pause work inside the authorized objective.
-6. Archived implementation history, prototype code, and prior chat context.
+1. Explicit user-approved amendments and the current admissibility report for the active seam.
+2. This governance file and the companion project spec for baseline intent, constraints, and approval boundaries.
+3. Direct runtime truth for factual questions about the current app: the live SQLite schema and the Rust and TypeScript command or contract surfaces.
+4. The repository README when it is consistent with those runtime surfaces.
+5. Open decisions and active implementation bundles that stay inside already-authorized boundaries.
+6. Archived plans, historical notes, and prototype or prior-repo context.
 
-The project spec and governance file define invariants. Open decisions are the place for unsettled beyond-baseline algorithm and provider choices. Prototype code can provide examples, but it cannot silently become authority.
+Important tie-breaker: if stale prose conflicts with current runtime truth, the prose is wrong. Update the docs; do not fabricate missing behavior to satisfy outdated text.
 
 ## Baseline-Authorized Decisions
 
-The companion project spec authorizes a first buildable baseline. Implementation work that stays inside these decisions does not need a new open decision; deviations, replacements, or expansions do.
+The following decisions are already authorized because they describe the app that currently exists.
 
-- Primary runtime is a Rust/Tauri desktop application.
-- Persistence is local SQLite with migrations managed by Rust.
-- Provider mode is local-only by default: no network calls, no external model dependency, no hidden provider fallback, and no telemetry.
-- Semantic indexing starts as a SQLite-backed semantic graph using normalized terms, canonical tags, target spans, evidence links, simple lexical similarity, co-occurrence, recency/context metadata, scores, and explanations.
-- Transition persistence is an append-only transition ledger plus materialized snapshots for current target runs, semantic projections, traversal workspaces, drafts, artifacts, and manifests.
-- Review gates are candidate alignment approval, claim option approval, gap review where gaps affect draft readiness, and whole-draft approval before artifact emission. Candidate alignments, claim options, gap items, and review queue items are first-class persisted review subjects, not incidental JSON blobs.
-- Baseline artifacts are structured JSON, Markdown export, and provenance manifest.
-- Baseline wording options come from stored evidence text, stored signal claims, claim ceilings, and user-approved revisions. Every option must retain evidence references and claim-ceiling notes.
+- Rust plus Tauri is the target stack.
+- The desktop runtime is the product; browser mode is only a harness.
+- SQLite is canonical local storage and foreign keys must remain enabled.
+- The durable library model is experience records plus evidence items, not generated resume artifacts.
+- The taxonomy is user-controlled and includes canonical tags, delivery toolkit grouping, and inference markers.
+- Evidence save is inference-aware and may require explicit confirmation before mutation.
+- Requirement analysis is local and structured, with clusters, atoms, keyword bank, notable unmatched terms, matched tags, and negation-aware normalized terms.
+- Reusable requirement-review persistence is limited to normalized noise terms in the current baseline.
+- Bundle preparation is tag-first; posting-matched tags are a strict subset of toolkit tags; delivery toolkit is a grouped projection from taxonomy metadata only.
+- Resume assembly is deterministic and normalization-bounded and emits a structured artifact with `resume`, `gap_report`, and `provenance`.
+- The pipeline may optionally write assembled JSON, bundle JSON, and DOCX and may optionally persist a generation manifest.
+- Raw intake import is a bounded preview plus import workflow with explicit run and item ledgers.
+- The app assumes no network calls, no telemetry, no cloud dependency, and no hidden provider path.
 
-Open decisions apply beyond this baseline. A harness implementing the baseline should proceed under these authorized choices instead of stopping on provider, semantic-index, transition-persistence, review-granularity, or baseline artifact-format questions.
+## Retired Prototype Concepts Are Not Baseline-Authorized
+
+Do not treat the following as current contract surfaces unless a future decision explicitly adds them back:
+
+- claim-ceiling persistence as a required schema surface
+- claim-ceiling or claim-option concepts as required baseline contract fields
+- semantic transition ledgers, transition-status workflows, or state-machine workflow governance
+- `candidate_alignments`, `claim_options`, `gap_items`, or `review_queue_items` as tables or required baseline runtime contract fields
+- provider adapters or model-backed analysis as the default architecture
+- Markdown as a required output artifact
 
 ## Approval Boundaries
 
-Require explicit approval before crossing any of these boundaries:
+Require explicit approval before crossing any of these boundaries.
 
-- Project-spec or governance amendment.
-  Any change that redefines product thesis, source-of-truth rules, stack authority, semantic-state semantics, evidence obligations, or generated-artifact policy.
+- Storage and schema changes.
+  Any change to canonical tables, singleton settings rows, foreign-key behavior, or the persisted truth model.
 
-- Schema and storage.
-  Any change that departs from, redefines, or expands beyond the minimum baseline SQLite contract; any change to table meaning, migration policy, foreign-key expectations, canonical source boundaries, cache persistence, or conflict strategy beyond the baseline.
+- New persistent posting workspace state.
+  Any move to persist requirement analyses, reviewed analyses, draft workspaces, candidate-review queues, or resume assembly state as first-class durable rows.
 
-- Provider, external-call, and privacy behavior.
-  Any embedding, language-model, extraction, reranking, generation, telemetry, network, or cloud behavior beyond the local-only baseline; any change to what data may leave the device; any change to provider-input retention.
+- Network, provider, telemetry, or cloud behavior.
+  Any external call path, provider adapter, hosted dependency, analytics, or hidden fallback.
 
-- State-transition semantics.
-  Any new transition family, state family, transition precondition, review gate, replay guarantee, discard behavior, or mutation rule that departs from the baseline transition graph or changes how resume construction proceeds.
+- Browser-harness equivalence changes.
+  Any attempt to make browser mode claim desktop-only capabilities or to treat frontend localStorage convenience caches as canonical state.
 
-- Generated-text policy.
-  Any change beyond baseline evidence-derived claim options and user-approved revisions; any change to how claims are bounded, how evidence references are required, or how gaps are represented.
+- Candidate identity model changes.
+  Any move away from the current single active candidate profile toward multiple profiles, personas, accounts, or shared identity.
 
-- Prompt, scoring, and model policy.
-  Any prompt template, model-dependent behavior, confidence category, or semantic scoring/ranking policy that materially changes candidate proposal, claim generation, or artifact construction beyond the baseline lexical, tag, co-occurrence, recency, and context scoring.
+- Generated-text policy changes.
+  Any move from current deterministic, normalization-bounded assembly toward freeform paraphrase or unsupported claim generation.
 
-- API and command boundaries.
-  Any Tauri command contract, Rust core API, import/export format, artifact schema, provider adapter interface, or manifest shape that departs from or extends beyond the baseline profile, changes authority boundaries, or exposes data outside local desktop behavior.
+- Artifact contract changes.
+  Any new required artifact format, any change to the top-level assembled artifact shape, or any change to manifest persistence semantics.
 
-- Deployment and packaging.
-  Any packaging, update, distribution, hosted component, sync service, or release-channel commitment beyond the local-first desktop product.
+- Raw intake semantics.
+  Any change to preview-versus-import behavior, dedupe and skip behavior, or how audit rows are recorded.
 
-- Auth and identity.
-  Any introduction of accounts, identity, authorization, shared workspaces, collaboration, or multi-user semantics.
+- Compatibility promises.
+  Any commitment to support prototype-era schema shapes, retired document models, or hidden migration behavior not already present in the current app.
 
-- Compatibility and migration promises.
-  Any commitment to support legacy Python-era data, old schema shapes, old artifact contracts, browser-local fallback stores, or undocumented prototype behavior.
-
-- Destructive operations.
-  Any operation that deletes canonical data, resets storage, rewrites evidence, bulk-imports over existing state, or broadens cleanup behavior.
-
-Implementing the baseline profile and minimum contracts named in the project spec is already authorized. If a task crosses one of these boundaries outside that baseline and does not include explicit approval, stop and return an escalation note rather than implementing around the gap.
+- Deployment and distribution assumptions.
+  Any change that introduces hosted services, sync, accounts, or a non-desktop product target.
 
 ## Core Invariants
 
-These truths must remain stable unless the project spec and governance file are explicitly amended:
+These statements are stable unless the project explicitly amends the spec and governance.
 
-- Rust/Tauri is the primary implementation stack.
-- Python is prototype or reference history only.
-- The product is local-first and user-owned.
-- SQLite is the canonical persisted source for the factual career library and governed operational ledgers.
-- Generated exports, drafts, resumes, manifests, and rendered documents are derived outputs.
-- Generated artifacts do not become canonical source.
-- Semantic spaces are derived from observable source data: library records, evidence, tags, claim ceilings, target seeds, transition events, provider outputs, and user decisions.
-- Semantic projections may be cached, but caches do not outrank the library, target seed, provider records, or transition ledger that produced them.
-- State transitions must be inspectable, reviewable, and discardable or reversible before artifact approval.
-- Candidate alignments, claim options, gap items, and review queue items are core derived review subjects with stable IDs.
-- Replay does not require bit-for-bit identical model behavior, but it does require enough recorded input, configuration, provider, prompt, output, score, explanation, hash, and timestamp data to audit how a result was produced.
-- Claims in draft or artifact state require evidence references.
-- Claim ceilings bound safe wording and implication.
-- Gaps remain visible when evidence is weak, absent, stale, or ambiguous.
-- User approval gates are required before proposed candidates become draft resume state and before drafts become emitted artifacts.
-- No hidden model calls, hidden SaaS dependencies, hidden telemetry, or silent provider fallback are allowed.
-- External providers, if used, must be explicit adapters with visible privacy, configuration, network, logging, and failure behavior.
-- Local-only mode must be real, not a label over hidden external calls.
-- Validation and policy enforcement belong in the Rust core, not only in the Tauri UI.
+- The Tauri desktop runtime is the product runtime.
+- Browser mode is a harness and must stay visibly weaker than desktop mode.
+- SQLite is the canonical local store.
+- `experience_records` and `evidence_items` are source facts; generated resumes are not.
+- `record_type` stays constrained to `employment` and `project` unless explicitly widened.
+- Every evidence item belongs to exactly one experience record.
+- The taxonomy is canonical for tag names, inference markers, delivery toolkit categories, and display metadata.
+- Posting analysis can filter or prioritize supported evidence and tags; it cannot invent support that the library and static profile sources do not provide.
+- `posting_matched_tags` are a subset of `toolkit_tags`.
+- The delivery toolkit is a grouped human-facing projection from taxonomy metadata, not an independent claim source.
+- The active candidate profile, build policy settings, and requirement-review noise settings are singleton rows in the current baseline.
+- Reviewed requirement analysis is non-authoritative request state; reusable persistence is limited to noise terms unless explicitly extended.
+- In the live runtime, the backend only enforces co-presence and matching posting hash before using the supplied reviewed-analysis payload; the default frontend derives that payload from base analysis plus the review draft.
+- The assembled artifact always centers on `resume`, `gap_report`, and `provenance`.
+- Provenance must include the selected record and evidence surface behind the generated artifact.
+- Highlights and profile text stay normalization-bounded rather than becoming an unrestricted writing surface.
+- Generated files and manifests are derived outputs and audit surfaces, not the canonical library.
+- Manifest snapshots and frontend localStorage convenience caches, including saved posting text, must not silently widen into saved posting workspaces, review queues, or transition logs.
+- No hidden network calls, telemetry, or provider behavior are allowed.
+- No legacy or prototype compatibility assumption should be inferred unless it is written down explicitly.
 
 ## Source, Derived, And Presentation Authority
 
-Use these categories when reviewing changes:
+### Source authority
 
-- Authoritative source state.
-  SQLite library records, evidence items, claim ceilings, taxonomy data, target seeds, user approvals, provider configuration, and transition ledger records.
+The following persisted surfaces are authoritative:
 
-- Derived inspectable state.
-  Semantic projections, semantic indexes, candidate alignments, claim options, gap items, review queue items, scores, clusters, draft resume state, structured artifacts, and manifests.
+- `experience_records`
+- `evidence_items`
+- taxonomy tables
+- `candidate_profiles` and child tables
+- `resume_build_policy_settings`
+- `resume_requirement_review_settings`
 
-- Presentation state.
-  UI layout, previews, rendered documents, transient filters, and visual affordances.
+### Governed operational authority
 
-- Planning state.
-  Product notes, open decisions, implementation plans, trackers, and prototype references.
+The following persisted surfaces are authoritative for audit and operations but do not redefine the career library:
 
-Do not promote derived, presentation, planning, or prototype state into canonical source unless a specific approved design says so.
+- `raw_intake_import_runs`
+- `raw_intake_import_items`
+- `anomalies`
+- `generation_manifests`
 
-## Minimum Transition Event Shape And Lifecycle Constraints
+### Derived authority
 
-Every state-machine transition must append or preserve an auditable transition event. The baseline event shape is normative even when an implementation also keeps materialized snapshots for current UI state.
+The following are derived from source state plus request inputs and may be recomputed:
 
-Minimum transition event fields:
+- requirement analysis
+- reviewed requirement analysis
+- preflight results
+- bundle semantics and bundle input
+- assembled resume artifact
+- generated files written to disk
 
-- `id`: stable transition event identifier.
-- `target_run_id`: target run affected by the transition, when applicable.
-- `transition_type`: one of the approved baseline transition families or an explicitly approved extension.
-- `transition_status`: `succeeded`, `failed`, or `discarded`.
-- `actor`: `system`, `user`, or an explicitly approved provider/adapter actor.
-- `occurred_at`: timestamp for the recorded event.
-- `input_refs_json`: source records, evidence, target seeds, semantic nodes, snapshots, provider outputs, or decisions read by the transition.
-- `output_refs_json`: stable references to records, semantic nodes, `candidate_alignments`, `claim_options`, `gap_items`, `review_queue_items`, draft snapshots, artifacts, or manifests produced by the transition.
-- `preconditions_json` and `postconditions_json`: state facts checked before and after the transition.
-- `method_json`: local rule, lexical scoring, traversal policy, adapter version, or renderer policy used.
-- `provider_config_json` and `provider_output_refs_json`: empty or explicitly local for the baseline; required when an approved provider adapter is used.
-- `prompt_or_policy_refs_json`: extraction, wording, traversal, or render policy references; prompt references are required for approved model-backed behavior.
-- `hashes_json`: hashes for source text, snapshots, artifacts, provider inputs/outputs when retained, or rendered files where applicable.
-- `explanation`: human-inspectable rationale for what changed and why.
-- `error_json`: structured failure detail when `transition_status` is `failed`.
-- `payload_json`: flexible extension data that cannot replace the required fields above.
+Derived payloads may be cached, echoed back from the frontend, or embedded in a manifest snapshot for audit. That does not make them independent authority surfaces.
 
-Minimum lifecycle statuses:
+### Presentation authority
 
-- Target run: `seed_created`, `semantics_ready`, `traversal_ready`, `review_pending`, `draft_ready`, `artifact_approved`, `artifact_rendered`, `blocked`, `archived`.
-- Semantic projection node or edge: `current`, `stale`, `discarded`, `failed`.
-- Candidate alignment, claim-option, or gap-item review subject: `proposed`, `review_pending`, `accepted`, `rejected`, `revised`, `superseded`.
-- Review queue item: `review_pending`, `resolved`, `superseded`, `discarded`. `resolved` requires a recorded review decision or transition event that closes the queue item.
-- Draft snapshot: `assembling`, `review_pending`, `approved`, `discarded`, `superseded`.
-- Artifact manifest: `planned`, `rendered`, `failed`, `superseded`.
-- Transition event: `succeeded`, `failed`, `discarded`.
+The following surfaces are presentation-only and cannot become the truth model by drift:
 
-Any new lifecycle status, enum category, confidence class, or transition subject must map to observable source data, a recorded transition, a user decision, or an explicitly recorded provider output. Otherwise implementation must stop and define the semantics first.
+- React component state
+- frontend filters and local view state
+- frontend localStorage convenience caches, including browser-harness data and saved posting text
+- rendered DOCX output
 
 ## Admissible Transformations
 
-The following changes are admissible inside an already-approved seam:
+The following changes are admissible inside an approved seam without a new product decision.
 
-- Implement the baseline Rust/Tauri, Rust-managed SQLite, local-only provider mode, SQLite semantic graph, transition ledger, materialized snapshots, review gates, JSON/Markdown artifacts, and manifest described in the project spec.
-- Add or refine library CRUD behavior when writes remain validated, local, and SQLite-backed.
-- Add semantic projection behavior when every derived node or category maps back to concrete stored observables or recorded provider outputs.
-- Add a transition type when its inputs, outputs, preconditions, user-review behavior, and audit metadata are explicit.
-- Add scoring, ranking, clustering, or matching behavior when the method is declared and the result remains explainable enough for user review.
-- Add provider adapters only when the provider decision is already authorized and privacy behavior, network behavior, configuration, failure modes, and persisted metadata are explicit.
-- Add artifact formats when they consume approved draft state and preserve provenance rather than reinterpreting claims.
-- Add tests or probes that make source, derived, provider, transition, review, or artifact behavior more falsifiable.
+- Clarify or tighten documentation so it matches current runtime truth.
+- Refine library CRUD or validation while preserving the current truth model.
+- Refine taxonomy and inference behavior while preserving current table meanings and capability boundaries.
+- Refine requirement-analysis heuristics while keeping the current structured output contract.
+- Refine requirement-review filtering while keeping reusable persistence limited to the current noise-term settings row.
+- Refine tag-first bundle preparation while preserving the subset and projection rules for posting-matched tags and delivery toolkit output.
+- Refine deterministic assembly, gap reporting, manifest persistence, or DOCX rendering while preserving evidence-bounded output and top-level artifact shape.
+- Add tests, probes, or validation that make the current contracts easier to falsify.
 
-The following beyond-baseline changes require an open decision before implementation:
+The following changes are not admissible without approval.
 
-- Choosing any external embedding, extraction, reranking, or generation provider beyond the local-only baseline.
-- Replacing or extending the SQLite-backed semantic graph with SQLite extensions, an embedded vector store, a hybrid index, or provider-backed retrieval.
-- Changing transition persistence away from the baseline append-only ledger plus materialized snapshots, or adding replay/compaction semantics that alter audit guarantees.
-- Choosing provider-input retention policy for audit versus privacy when an external provider is introduced.
-- Changing default setup behavior away from local-only.
-- Expanding or replacing baseline review gates for candidate alignments, claim options, and whole-draft approval.
-- Expanding user-edited resume wording beyond evidence-linked claim option revision.
-- Promoting PDF, DOCX, or another renderer to first-class artifact status beyond the baseline structured JSON, Markdown, and manifest.
+- Adding new canonical persistence for posting workspaces, review queues, or draft state.
+- Widening manifest JSON or frontend localStorage convenience caches into de facto posting-workspace, queue, or transition-state persistence.
+- Adding any network, provider, telemetry, or cloud path.
+- Treating browser harness behavior as canonical desktop behavior.
+- Widening candidate identity beyond the active singleton profile model.
+- Changing the assembled artifact shape or making a new artifact format mandatory.
+- Turning assembly into freeform paraphrase or unsupported claim generation.
+- Changing raw intake audit semantics.
+- Introducing compatibility layers for retired models or legacy schemas.
 
-The following changes require explicit project-spec or governance amendment:
-
-- Moving away from Rust/Tauri as the target stack.
-- Moving away from SQLite as canonical local storage.
-- Allowing generated artifacts to become source of truth.
-- Allowing unbounded AI-authored claims without evidence references.
-- Creating hidden cloud, SaaS, sync, telemetry, or account assumptions.
-- Adding legacy compatibility promises for prototype-era data or behavior.
-- Removing user review gates from semantic traversal, draft construction, or artifact approval.
-
-Any new enum, semantic category, confidence class, status, or artifact field in a contract must map to a deterministic function over current observables or to a recorded provider output with explicit provenance. If neither mapping exists, stop and define the semantics before implementing.
+Any new enum, status, category, or contract field must map to a deterministic function over current observables, explicit user input, or explicitly persisted audit data. If that mapping is not clear, stop and define it before implementation.
 
 ## Review Checkpoints
 
-Use these checkpoints before closing future implementation work.
+Use these checkpoints before closing behavior-facing work.
 
-### Storage Checkpoint
+### Runtime split checkpoint
+
+- Does desktop mode still own the product-only capabilities?
+- Does browser mode remain visibly non-canonical?
+
+### Storage checkpoint
 
 - Is SQLite still canonical?
-- Are foreign keys, transactions, migrations, and conflict policies explicit?
-- Are generated artifacts prevented from becoming source by accident?
-- Are destructive operations opt-in and visible?
+- Are foreign keys still required and active?
+- Did the change avoid turning generated artifacts into source data?
 
-### Semantic Checkpoint
+### Taxonomy and inference checkpoint
 
-- Does every semantic node, edge, score, or category link back to source observables or recorded provider outputs?
-- Are stale projections invalidated or marked stale when source state changes?
-- Are gaps and low-confidence results visible?
-- Are deterministic and provider-dependent parts clearly distinguished?
+- Are canonical tags, inference markers, and delivery toolkit metadata still the controlling tag surfaces?
+- Do evidence save and tag refresh flows remain inference-aware and explicit?
 
-### Transition Checkpoint
+### Requirement analysis and review checkpoint
 
-- Does the transition name its input state, output state, preconditions, and review gate?
-- Does the transition ledger record enough metadata for audit and comparison?
-- Do transition outputs name stable first-class rows for candidate alignments, claim options, gap items, and review queue items rather than hiding them in payload JSON?
-- Can proposed changes be discarded before approval?
-- Are user decisions recorded without rewriting factual evidence, and do review decisions reference first-class review subjects by stable IDs?
+- Does analysis still emit the current structured contract?
+- Is reusable persistence still limited to the noise-term settings row unless a wider change was approved?
+- Are request-scoped reviewed analyses still treated as derived state?
 
-### Provider Checkpoint
+### Assembly and artifact checkpoint
 
-- Is the provider adapter explicit?
-- Does the operator know whether data leaves the device?
-- Are model identifiers, adapter versions, prompts or policies, parameters, and output metadata recorded according to the privacy policy?
-- Is fallback behavior explicit rather than silent?
+- Does the assembled artifact still expose `resume`, `gap_report`, and `provenance`?
+- Do selected record and evidence surfaces remain inspectable?
+- Are unsupported requirements still visible instead of being buried?
 
-### Generated-Text Checkpoint
+### Import and operations checkpoint
 
-- Does every claim reference evidence?
-- Does wording respect claim ceilings?
-- Are unsupported requirements represented as gaps or review prompts?
-- Are user edits preserved with evidence linkage and approval metadata?
+- Does preview remain non-mutating?
+- Do import ledgers, anomaly records, and manifests stay auditable?
+- Are delete or cleanup actions explicit rather than silent side effects?
 
-### Artifact Checkpoint
+### Documentation checkpoint
 
-- Does the artifact come from approved draft state?
-- Does the manifest include selected evidence, target seed, transition lineage, hashes, provider configuration where relevant, and render metadata?
-- Can a reviewer distinguish structured artifact state from presentation-only output?
-
-### UI Checkpoint
-
-- Does the Tauri UI call the Rust core rather than duplicating hidden policy?
-- Are provider, privacy, dry-run/apply, and review states visible to the operator?
-- Does the UI avoid implying certainty when semantic or provider confidence is weak?
-
-## Acceptance Probes For Harness Work
-
-Future harness work should define executable or inspectable proof for the relevant probe. A screenshot, mock, fixture-only artifact, or prose explanation is not enough for behavior-facing claims.
-
-### Canonical Library Probe
-
-Question: Does user-edited library data persist to SQLite through validated Rust core behavior and read back without treating artifacts as source?
-
-Required evidence: Real command or UI path, SQLite rows, validation behavior, and read-back through the core.
-
-### Target Seed Probe
-
-Question: Does a supplied JD become a target seed and target semantic space without mutating the career library?
-
-Required evidence: Stored seed, derived semantic nodes and edges, extraction metadata, ambiguity markers, and unchanged library state.
-
-### Semantic Traversal Probe
-
-Question: Does the system traverse target and library semantic spaces to produce candidate evidence with explanations?
-
-Required evidence: Target nodes, library nodes, persisted `candidate_alignments`, evidence references, scores or ranking rationale, provider or rule metadata, rejected or weak candidates where available, persisted `gap_items`, and review queue entries when operator judgment is required.
-
-Negative control: The fixture must include at least one accepted candidate whose target node and library node do not share direct normalized-term overlap. That candidate must be explainable through canonical tags, context metadata, evidence links, and scoring rationale. The same fixture must include at least one unsupported requirement that remains a gap item. A keyword-only match set, or a traversal with no accepted non-direct candidate, fails this probe.
-
-### Evidence-Bounded Draft Probe
-
-Question: Do approved candidates become draft resume sections while preserving evidence references, claim ceilings, and gaps?
-
-Required evidence: Draft state with claim-to-evidence links, approval status, wording constraints, and unresolved gaps.
-
-### Transition Audit Probe
-
-Question: Can a reviewer inspect how a candidate, draft, or artifact was produced?
-
-Required evidence: Transition ledger records with inputs, outputs, hashes, provider configuration, prompts or policies, model identifiers where relevant, explanations, timestamps, and user decisions.
-
-### Artifact Provenance Probe
-
-Question: Can every emitted artifact be traced to approved draft state, selected evidence, target seed, and transition lineage?
-
-Required evidence: Structured artifact, manifest, selected evidence IDs, target seed references, transition references, hashes, gap report, approval state, and render metadata.
-
-### Provider Privacy Probe
-
-Question: Is provider behavior explicit and bounded by user-visible privacy settings?
-
-Required evidence: Active provider adapter, network behavior, data classes sent, retention policy, persisted metadata, local-only mode behavior, and explicit fallback or failure handling.
+- Do the docs describe the current app rather than a retired prototype model?
+- Did the change avoid asserting nonexistent tables, ledgers, or workflows?
 
 ## Harness Admissibility Inputs
 
-When producing an admissibility report for future work, name these items explicitly:
+Every admissibility report for this repo should name these inputs explicitly.
 
 - Invariant constraints.
-  Rust/Tauri target stack; Python prototype/reference only; SQLite canonical source; generated artifacts derived; semantic spaces derived; transitions inspectable; evidence references required; user approval gates required; no hidden providers.
+  Desktop runtime is the product; browser mode is only a harness; SQLite is canonical; resumes are derived outputs; no hidden network, telemetry, or cloud assumptions; no legacy compatibility assumptions unless explicitly authorized.
 
 - Task constraints.
-  Exact seam, editable files, forbidden surfaces, acceptance criteria, provider/privacy impact, state-transition impact, and expected observable consequence.
+  Exact seam, editable files, forbidden surfaces, expected observable consequence, and acceptance criteria.
 
 - Source evidence.
-  Which project spec, governance rule, open decision, fixture, test, runtime behavior, or user instruction authorizes the work.
-
-- Assumptions.
-  Any unresolved provider, index, review, artifact, storage, or privacy choice that the task relies on.
+  Which README lines, schema definitions, Rust command surfaces, TypeScript runtime contracts, or user instructions ground the requested change.
 
 - Affected downstream surfaces.
-  Storage, schema, UI, provider adapters, transition ledger, semantic index, artifact formats, tests, fixtures, docs, and operator workflows touched by the seam.
+  Schema, frontend capability boundaries, taxonomy contracts, profile settings, pipeline behavior, manifests, intake ledgers, docs, and tests touched by the seam.
 
 - Non-affected surfaces.
-  Surfaces outside the approved seam, especially schema, storage, provider behavior, deployment, compatibility, and generated-text policy when they were not explicitly authorized.
+  Anything outside the approved seam, especially runtime code, storage, network behavior, deployment assumptions, and archive history.
 
-- Admissibility checks.
-  No hidden source-of-truth changes, no hidden cloud calls, no unsupported compatibility, no unbounded generation, no stale dependent surface, no semantic category without provenance, and no artifact claim without evidence.
+- Assumptions.
+  Any unresolved handoff question the seam depends on. If the assumption would widen storage, runtime boundaries, or product behavior, stop and escalate instead of guessing.
+
+- Validation plan.
+  The narrowest falsifiable check for the touched surface.
 
 - Stop conditions.
-  Missing acceptance criteria; unresolved schema, storage, provider, privacy, deployment, compatibility, generated-text, or transition-policy decision beyond the authorized baseline; insufficient source evidence; or a seam that cannot deliver the intended behavior without crossing approval boundaries.
+  Missing source evidence, contradictory authority, missing acceptance criteria, or any need to cross schema, runtime-boundary, provider, compatibility, or artifact-contract approval lines.
 
-## Open Decisions Discipline
+## Open-Question Discipline
 
-Open decisions should be used for unsettled choices beyond the baseline, such as external providers, advanced indexes, transition replay or compaction strategy, expanded review granularity, richer editing policy, external-provider privacy defaults, sample corpora, scoring calibration, and post-MVP artifact formats.
-
-Do not resolve beyond-baseline choices accidentally through implementation. If a seam stays inside the authorized baseline, proceed under the project spec and this governance file. If a seam requires a beyond-baseline choice, stop, state the decision needed, list the practical options, and request project authority.
+When future work hits a real unresolved question, record it as an explicit open decision or in the project-spec handoff matrix. Do not quietly resolve it by writing speculative canonical prose or by sneaking the answer into implementation.

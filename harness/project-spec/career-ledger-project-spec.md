@@ -1,415 +1,369 @@
 # Career Ledger Project Spec
 
-This document is the portable product and architecture specification for Career Ledger. A fresh harness in a new repository should be able to read this file and the companion governance primitives file and understand what to build without relying on any prior Python implementation, historical repo paths, or prototype code.
+This file describes the current canonical product shape for the Tauri application in this repository. It is not a future-state wishlist. If a statement here cannot be grounded in the live SQLite schema or Rust and TypeScript runtime contracts, it does not belong here. README prose may corroborate those surfaces, but it does not outrank them.
 
-The companion governance file defines authority, approval boundaries, admissible transformations, and review checkpoints. This file defines the product thesis, target workflow, target architecture, state model, quality bar, acceptance probes, and open questions.
+The companion governance file defines authority order, approval boundaries, invariants, and admissibility rules. This file defines the product thesis, runtime split, truth model, SQLite baseline, extracted portable contracts, operator workflow, acceptance probes, and a short handoff decision matrix for genuinely unresolved follow-on questions.
 
 ## Product Thesis
 
-Career Ledger is a local-first Rust/Tauri desktop application for maintaining a user-owned factual career library and constructing evidence-backed resume artifacts through a governed semantic state-transition process.
+Career Ledger is a local-first desktop application for keeping a user-owned career evidence library and producing targeted resume artifacts without pretending the generated artifact is the source of truth.
 
-The product exists because career evidence should be canonical, inspectable, reusable, and resistant to unsupported claim drift. The user maintains a durable library of experience records, evidence, tags, claims, constraints, and career context. A supplied job description becomes a target seed that creates a target semantic space. The user's library creates a library semantic space. The system traverses and cross-references those spaces to propose candidate evidence, claims, sections, gaps, and revisions. The user reviews and approves those transition results before any generated artifact is treated as an output.
+The durable model is simple:
 
-Generated resumes, exports, manifests, rendered documents, and analysis reports are derived outputs. They never become the canonical source of truth. The canonical persisted source is the local SQLite career library and its explicitly governed operational ledgers.
+- experience records hold employment and project entries
+- evidence items hold concrete claims and attached tags
+- taxonomy tables define the canonical tag vocabulary, delivery toolkit grouping, and inference markers
+- a candidate profile and build-policy settings shape resume output
+- a job posting is analyzed at runtime to filter and prioritize existing evidence
 
-## Primary Stack
+The app is deliberately evidence-bounded. Unsupported requirements stay visible in the gap report instead of being turned into fluent fiction. The product is desktop-first, local-only, and explicit about what is persisted versus what is derived on demand.
 
-The primary target stack is Rust plus Tauri.
+## Runtime Split
 
-- Tauri is the desktop shell and primary operator surface.
-- Rust owns the core application logic, storage access, semantic state machine, provider adapters, artifact generation, and privacy boundaries.
-- SQLite is the canonical local persistence layer.
-- The local filesystem is used for user-selected imports, exports, and rendered artifacts.
-- Python may be mentioned only as prototype or reference history. Python is not the target architecture, not the source of contract truth, and not a required runtime for the product described here.
+Career Ledger has two runtime modes, and they are not equivalent.
 
-## Baseline Build Profile
+| Surface | Status | Purpose |
+| --- | --- | --- |
+| Tauri desktop runtime | Product runtime | Full SQLite persistence, file access, taxonomy import/export, raw intake import, library tag refresh, resume pipeline commands, and DOCX rendering |
+| Browser harness | Development harness only | Frontend-only localStorage sandbox with desktop-only capabilities intentionally disabled |
 
-The first buildable product profile is authorized and does not require any external provider, model, cloud service, or unresolved index decision.
+The browser harness exists to exercise frontend flows. It is not the normative product contract. Runtime truth lives in the desktop stack.
 
-- Primary runtime: a Rust/Tauri desktop application. Tauri owns the desktop shell; Rust owns domain logic, migrations, persistence, transitions, semantic traversal, artifact construction, and policy enforcement.
-- Persistence: local SQLite with migrations managed by Rust. SQLite is the canonical source for library state, target seeds, transition ledgers, snapshots, review decisions, artifacts, and manifests.
-- Provider mode: local-only baseline. The MVP makes no network calls and requires no external model. Future embedding, extraction, reranking, or generation providers are optional adapters and require explicit provider/privacy decisions before use.
-- Semantic index baseline: a SQLite-backed semantic graph built from normalized terms, canonical tags, target spans, evidence links, simple lexical similarity, co-occurrence signals, recency/context metadata, scores, and explanation fields. Optional embeddings or provider-backed indexes can be added later as adapters without replacing the baseline contract.
-- Transition persistence: an append-only transition ledger plus materialized snapshots for current target runs, semantic projections, traversal workspaces, drafts, and artifacts.
-- Review granularity: candidate alignment and claim option approval first, then whole-draft approval before artifact emission. Finer bullet or section approval can be added later, but the baseline cannot skip these gates.
-- Artifact baseline: structured JSON artifact, Markdown export, and provenance manifest first. PDF and DOCX are later renderer decisions.
-- Generated wording policy: the baseline proposes claim options from stored evidence text, stored signal claims, claim ceilings, and user-approved revisions. Every wording option must retain evidence references and claim-ceiling notes. Unsupported target requirements become visible gaps rather than invented claims.
+## Current Build Profile
 
-This profile is the default implementation target. Open questions apply to extensions beyond this baseline, not to whether the baseline may be built.
+The current baseline product is the following concrete stack and capability set:
 
-## Desired User Workflow
+- Desktop shell: Tauri v2.
+- Frontend: React and TypeScript.
+- Backend: Rust command surface under `src-tauri/src`.
+- Persistence: local SQLite with `PRAGMA foreign_keys = ON` in the shipped schema.
+- File-backed operations: taxonomy import/export, raw intake import, optional artifact writing, and DOCX rendering.
+- Privacy model: no network calls, no telemetry, no cloud service, and no hidden provider path.
+- Resume workflow: requirement analysis, optional requirement review filtering, preflight selection, tag-first bundle preparation, deterministic assembly, optional artifact emission, and optional manifest persistence.
 
-The primary workflow is:
+The app does not currently persist a saved per-posting workspace model in SQLite. Requirement analysis, reviewed analysis, bundle preparation, and assembly run on demand from source data and request payloads. The frontend may cache non-authoritative convenience values in localStorage, including the last job posting text, the selected database-path hint, and the artifact output directory.
 
-1. Maintain the career library.
-   The user adds and revises experience records, evidence items, signal claims, tags, claim ceilings, and contextual notes. The application validates writes before they enter SQLite.
+## Operator Workflow
 
-2. Ingest a job description as a target seed.
-   The user supplies a JD or related posting material. The system stores the source text, user-provided context, and parsing metadata as a target seed. The seed does not mutate the career library.
+The live app supports the following end-to-end flow.
 
-3. Build semantic spaces.
-   The target seed is projected into a target semantic space containing requirements, responsibilities, domains, constraints, seniority signals, tools, outcomes, keywords, ambiguities, and missing-context markers. The career library is projected into a library semantic space containing evidence-grounded capabilities, domains, accomplishments, tools, outcomes, roles, chronology, and claim ceilings.
+1. Choose or initialize the active desktop database.
+   The desktop runtime can create and select a SQLite database path. Browser harness mode cannot.
 
-4. Traverse and cross-reference semantic spaces.
-   The state machine proposes candidate alignments between target semantic nodes and library semantic nodes. It can rank, cluster, explain, or flag candidates using deterministic rules, embeddings, model calls, or hybrid methods, but every transition must remain inspectable and evidence-bounded.
+2. Maintain the career library.
+   Operators create and edit `experience_records` and `evidence_items`. Evidence saves are inference-aware: the app compares explicit values and inferred tags, and create or update can return `confirmation_required` before writing if an explicit decision is needed.
 
-5. Review candidate evidence, claims, sections, and gaps.
-   The user sees why evidence was proposed, what claim it can safely support, what wording ceilings constrain it, which target requirements remain uncovered, and which candidates were rejected or deferred. User approval is required before candidates become draft resume state.
+3. Maintain the taxonomy.
+   Operators manage canonical tags, delivery toolkit categories, delivery toolkit metadata, and inference markers. The taxonomy is fully user-controlled and can be imported, exported, cleared, and re-applied to the library through tag refresh or re-inference commands.
 
-6. Emit artifacts with provenance.
-   Approved draft state can produce structured resume artifacts, gap reports, provenance manifests, and rendered documents. Artifacts record their source target seed, selected evidence, transition lineage, provider configuration where relevant, and user approval state.
+4. Maintain profile and generation settings.
+   The current app uses one active candidate profile with ordered education, certifications, and summary lines. Build policy is stored as a JSON blob in a single active settings row. Reusable requirement-review settings persist only noise terms.
 
-## Non-Goals
+5. Analyze a job posting.
+   Requirement analysis derives a structured `RequirementAnalysis` from posting text: clusters, atoms, matched tags, posting keyword bank, unrecognized notable terms, experience-years hints, and negation-aware normalized terms.
 
-Career Ledger is not:
+6. Optionally review requirement analysis.
+   The frontend can exclude clusters and mark terms as useful or noise. The reviewed analysis stays request-scoped. The only reusable persisted review setting in the current baseline is the normalized noise-term list.
 
-- A SaaS resume writer.
-- A hidden cloud service.
-- A Python-first product.
-- A deterministic-only resume compiler that hard-codes one brittle ranking path.
-- An unbounded AI writing surface that invents claims beyond evidence.
-- A system where generated artifacts become editable source of truth.
-- A compatibility program for legacy databases, legacy payloads, or prototype record shapes.
-- A UI-first mock that can bypass SQLite, provenance, transition auditing, or review gates.
+7. Prepare bundle semantics.
+   Bundle preparation combines the library export, candidate profile, build policy, requirement analysis, and preflight report. Bundle semantics are tag-first. `posting_matched_tags` are a strict subset of `toolkit_tags`, and delivery toolkit output is a grouped human-facing projection from explicit taxonomy metadata only.
 
-## Data And Truth Model
+8. Assemble the resume artifact.
+   The assembler deterministically emits a structured artifact with `resume`, `gap_report`, and `provenance`. Highlights and profile text stay normalization-bounded and do not paraphrase beyond supported projection.
 
-SQLite is canonical for persisted user-owned state and explicitly governed operational state. A target implementation should define migrations and storage modules for at least these conceptual entities:
+9. Optionally write files and persist a manifest.
+   The pipeline can write assembled JSON, optional bundle JSON, and optional DOCX. It can also persist a generation manifest containing hashes, selected record and evidence IDs, gap report, optional requirement review snapshot, and freeform notes.
 
-- Library records: factual employment, project, education, credential, or other approved experience entities.
-- Evidence items: source-backed support for claims, including descriptions, dates, artifacts, metrics, links, notes, and provenance metadata.
-- Signal claims: concise claims that evidence can support.
-- Claim ceilings: anti-drift constraints that bound safe verbs, qualifiers, and implications.
-- Taxonomy and tags: normalized labels for capabilities, domains, tools, contexts, seniority, outcomes, and other retrieval dimensions.
-- Application contexts: user intent for a target resume run, such as role family, location, constraints, emphasis, and risk tolerance.
-- Target seeds: job descriptions or related target materials supplied by the user.
-- Semantic projections: derived target and library semantic nodes, edges, embeddings, annotations, scores, and extraction metadata.
-- Candidate alignments: first-class derived records that connect target semantic nodes to library semantic nodes, evidence, signal claims, scoring rationale, and traversal method metadata.
-- Claim options: first-class derived wording choices produced from candidate alignments, evidence references, signal claims, claim ceilings, and wording policy.
-- Gap items: first-class derived records for unsupported, weak, ambiguous, stale, or missing target requirements.
-- Review queue items: first-class derived records that expose candidate alignments, claim options, gaps, drafts, or artifacts as stable subjects for user review.
-- Transition ledger: inspectable state-machine events, inputs, outputs, user actions, provider configuration, hashes, timestamps, and explanations.
-- Draft resume state: approved or pending sections, claims, ordering, gaps, alternatives, and unresolved review items.
-- Artifact manifests: emitted artifact identifiers, hashes, source state references, selected evidence references, provider configuration, and render metadata.
+10. Use operations surfaces.
+    The app supports anomaly management, generation-manifest inspection and deletion, and raw intake preview plus import with explicit run and item ledgers.
 
-The library remains target-neutral. Semantic projections are derived from the library, target seed, provider outputs, and deterministic transformations. They may be cached in SQLite for auditability and performance, but cache persistence does not make them more authoritative than the underlying library and target seed.
+## Not Part Of The Current Baseline
 
-Every generated claim that appears in a draft or artifact must reference supporting evidence. If a claim cannot be tied to evidence, it must be presented as a gap, prompt for user input, or excluded.
+The following concepts are not part of the shipped Tauri baseline and should not be smuggled back into canonical docs as if they already exist:
+
+- claim ceilings as a persisted or derived baseline contract concept
+- semantic transition ledgers, transition-status workflows, or state-machine baseline governance
+- `candidate_alignments`, `claim_options`, `gap_items`, or `review_queue_items` as tables or as required baseline runtime contract fields
+- provider adapters or model-backed analysis as the normative baseline
+- Markdown as a required artifact format
+- hidden browser parity with desktop-only capabilities
+
+If future work introduces any of those, it needs an explicit decision and should start from current runtime truth rather than from retired prototype language.
+
+## Truth Model
+
+Career Ledger has three important truth categories.
+
+### Canonical persisted source state
+
+This is the state the product actually owns and mutates in SQLite:
+
+- experience records
+- evidence items
+- taxonomy tables
+- active candidate profile and its child rows
+- active build policy settings
+- active reusable requirement-review noise settings
+
+### Governed operational state
+
+This is persisted and authoritative for audit or operations, but it is not the career library itself:
+
+- raw intake import runs and row outcomes
+- anomaly records
+- generation manifests
+
+### Derived runtime state
+
+This is built from source state plus request inputs and can be recomputed:
+
+- requirement analysis
+- reviewed requirement analysis
+- preflight filter results
+- bundle semantics and bundle input
+- assembled resume artifact
+- generated files on disk
+
+The current app does not persist first-class posting workspaces, candidate-review queues, draft snapshots, or transition histories. Job posting text is supplied per request even though the frontend may cache the latest text locally for convenience and taxonomy diagnostics. The manifest stores a hash of the posting and selected outputs, not a full saved workspace model.
+`requirement_review_json` inside a manifest is an audit snapshot of one generation run. It must not be treated as a saved review workspace, queue, or transition log by drift.
 
 ## Minimum SQLite Contract
 
-The MVP schema may use JSON payload columns for flexible semantic metadata, but the following entities and fields are normative enough for a fresh implementation to build against. All tables must have stable IDs, created timestamps, updated timestamps where records are mutable, and foreign keys where references are local.
+The current schema defines the minimum persisted contract the desktop app actually relies on.
 
-- `library_records`: `id`, `record_type`, `title`, `organization_or_context`, `date_start`, `date_end`, `status`, `summary`, `source_refs_json`, `metadata_json`, `created_at`, `updated_at`. These records hold user-owned career facts and do not belong to a target run.
-- `evidence_items`: `id`, `library_record_id`, `evidence_type`, `evidence_text`, `source_label`, `source_uri`, `source_hash`, `date_observed`, `metrics_json`, `provenance_json`, `status`, `created_at`, `updated_at`. Evidence items are the support surface for claims.
-- `signal_claims`: `id`, `library_record_id`, `claim_text`, `evidence_refs_json`, `tags_json`, `claim_ceiling_id`, `status`, `created_at`, `updated_at`. Claims are reusable library signals, not generated resume bullets.
-- `claim_ceilings`: `id`, `subject_ref_kind`, `subject_ref_id`, `safe_verbs_json`, `qualifiers_json`, `do_not_imply_json`, `notes`, `created_at`, `updated_at`. Ceilings bound safe wording for evidence, claims, candidates, and draft text.
-- `canonical_tags`: `id`, `normalized_name`, `category`, `description`, `status`, `created_at`, `updated_at`; and `tag_assignments`: `id`, `tag_id`, `subject_ref_kind`, `subject_ref_id`, `created_at`. Tags provide normalized retrieval and semantic grouping.
-- `target_runs`: `id`, `status`, `provider_mode`, `active_seed_id`, `active_draft_snapshot_id`, `active_artifact_id`, `context_json`, `created_at`, `updated_at`. A target run owns derived work for one JD or target intent.
-- `target_seeds`: `id`, `target_run_id`, `source_text`, `source_label`, `source_uri`, `source_hash`, `user_context_json`, `parse_status`, `created_at`, `updated_at`. Seeds store the supplied JD or related target material without mutating the library.
-- `semantic_nodes`: `id`, `target_run_id`, `space_kind`, `node_kind`, `normalized_term`, `display_text`, `source_ref_kind`, `source_ref_id`, `target_span_json`, `evidence_refs_json`, `tags_json`, `score_json`, `explanation`, `metadata_json`, `status`, `created_at`, `updated_at`. `space_kind` is `target` or `library` in the baseline.
-- `semantic_edges`: `id`, `target_run_id`, `source_node_id`, `target_node_id`, `edge_kind`, `weight`, `method`, `evidence_refs_json`, `explanation`, `metadata_json`, `status`, `created_at`, `updated_at`. Edges record lexical similarity, co-occurrence, tag overlap, chronology, context, or explicit user/provider provenance.
-- `candidate_alignments`: stable `id`, `target_run_id`, `target_node_refs_json`, `library_node_refs_json`, `evidence_refs_json`, `signal_claim_refs_json`, `score_json`, `method_json`, `explanation`, `status`, `transition_event_id`, `created_at`, `updated_at`. Candidate alignments are first-class traversal outputs, not unnamed objects inside a transition payload or draft snapshot.
-- `claim_options`: stable `id`, `target_run_id`, `candidate_alignment_id`, `option_text`, `evidence_refs_json`, `signal_claim_refs_json`, `claim_ceiling_refs_json`, `wording_policy_json`, `status`, `transition_event_id`, `created_at`, `updated_at`. Claim options are first-class wording subjects and must retain evidence and ceiling references.
-- `gap_items`: stable `id`, `target_run_id`, `target_node_refs_json`, `gap_kind`, `reason`, `weak_candidate_refs_json`, `status`, `transition_event_id`, `created_at`, `updated_at`. Gap items are first-class review subjects for unsupported, weak, ambiguous, stale, or missing target requirements.
-- `review_queue_items`: stable `id`, `target_run_id`, `subject_ref_kind`, `subject_ref_id`, `review_kind`, `status`, `rationale`, `created_at`, `updated_at`. Review queue items expose stable subjects for user review and must point to first-class rows rather than JSON payload members.
-- `transition_events`: `id`, `target_run_id`, `transition_type`, `transition_status`, `actor`, `occurred_at`, `input_refs_json`, `output_refs_json`, `preconditions_json`, `postconditions_json`, `method_json`, `provider_config_json`, `provider_output_refs_json`, `prompt_or_policy_refs_json`, `hashes_json`, `explanation`, `error_json`, `payload_json`. This is the append-only event surface for state-machine audit.
-- `review_decisions`: `id`, `target_run_id`, `transition_event_id`, `subject_ref_kind`, `subject_ref_id`, `decision_type`, `decision_status`, `user_text`, `evidence_refs_json`, `claim_ceiling_refs_json`, `created_at`. Decisions record acceptance, rejection, revision, and whole-draft approval without rewriting factual evidence. For candidate, claim, gap, or queue review, `subject_ref_kind` must reference a stable first-class subject such as `candidate_alignment`, `claim_option`, `gap_item`, or `review_queue_item`; whole-draft or artifact decisions may reference `draft_snapshot` or `artifact_manifest`. It must not reference opaque JSON payload members.
-- `draft_snapshots`: `id`, `target_run_id`, `status`, `sections_json`, `approved_candidate_refs_json`, `claim_option_refs_json`, `gap_refs_json`, `transition_event_id`, `content_hash`, `created_at`. Draft snapshots are derived and discardable.
-- `artifact_manifests`: `id`, `target_run_id`, `draft_snapshot_id`, `artifact_kind`, `status`, `file_path`, `content_hash`, `manifest_json`, `transition_event_id`, `rendered_at`, `created_at`. Baseline artifact kinds are `structured_json`, `markdown`, and `manifest`.
+### Library tables
 
-Baseline transition events must be sufficient to reconstruct why a state changed even when snapshots provide the current working view. `transition_events.output_refs_json` must include stable references to any `candidate_alignments`, `claim_options`, `gap_items`, `review_queue_items`, snapshots, artifacts, or manifests produced by the transition. Flexible JSON fields are allowed for semantic metadata, but they cannot hide required IDs, statuses, source references, evidence references, target spans, hashes, explanations, approval state, or first-class review subjects.
+- `experience_records`: `id`, unique `slug`, `record_type` constrained to `employment` or `project`, organization, title, optional dates, optional location, optional employment type, `context_tags_json`, reserved `canonical_scope_summary`, reserved `common_context_json`, timestamps.
+- `evidence_items`: `id`, `experience_record_id`, `claim`, optional `date_range`, required `tags_json`, reserved `scope_context_json`, optional `evidence_note`, timestamps. Each evidence row belongs to exactly one experience record and cascades on record delete.
 
-## Extracted Portable Schema Contracts
+### Raw intake ledgers
 
-These contracts are extractable from the current repository and are worth carrying into a fresh Rust/Tauri implementation because they reinforce source-of-truth discipline, evidence bounds, and auditability without tying the new repo to Python-era structure.
+- `raw_intake_import_runs`: `id`, `source_path`, item counts, skipped count, timestamp.
+- `raw_intake_import_items`: primary-key `intake_id`, `run_id`, optional source area, `outcome` constrained to `imported` or `skipped`, optional `skip_reason`, optional linked record ID, created evidence IDs as JSON, timestamp.
 
-- Identifier contract.
-  Persisted entities use opaque stable text IDs rather than user-facing strings as primary keys. Human-facing slugs, labels, or display names may exist, but they are separate from canonical IDs.
+### Generation and operations tables
 
-- Timestamp contract.
-  All persisted entities require `created_at`. Mutable entities require `updated_at`. Append-only ledgers and immutable event rows use immutable occurrence timestamps rather than mutable update timestamps.
+- `generation_manifests`: `id`, timestamp, `artifact_kind`, target role family, source input paths and SHA-256 hashes, selected record and evidence IDs as JSON, `gap_report_json`, artifact path and hash maps as JSON, optional `requirement_review_json`, notes.
+- `anomalies`: `id`, entity type and ID, anomaly code, severity, message, detected time, optional resolved time.
 
-- Foreign-key contract.
-  SQLite foreign keys must be enabled on every connection. Parent-child relations must be explicit in schema and enforced in storage code rather than treated as application-only discipline.
+### Candidate profile tables
 
-- Canonical-child contract.
-  `evidence_items` must reference exactly one parent `library_record`. `signal_claims` must reference the library record or evidence they summarize. Review subjects, drafts, manifests, semantic projections, and transition rows must reference their owning `target_run`.
+- `candidate_profiles`: singleton row enforced by `id = 'active'`, plus display name, location, optional contact fields, version, config type, timestamps.
+- `candidate_profile_education`: ordered child rows with institution, credential, `signal_tags_json`, optional major and minor, timestamps.
+- `candidate_profile_certifications`: ordered child rows with name, issuer, credential detail, `signal_tags_json`, timestamps.
+- `candidate_profile_summary_lines`: ordered child rows with text and timestamps.
 
-- Cascade-or-fail contract.
-  Canonical child rows must either cascade with their parent or block deletion with an explicit conflict policy. The baseline recommendation is cascade for owned children such as evidence under library records and derived target-run state under target runs, with destructive actions surfaced clearly in the UI.
+### Settings tables
 
-- Tag normalization contract.
-  Canonical tag names are normalized lowercase snake case and must be unique. Tag assignments must be unique per `(subject_ref_kind, subject_ref_id, tag_id)` pair so the same tag is not silently duplicated on one subject.
+- `resume_build_policy_settings`: singleton active row containing `policy_json` plus timestamps.
+- `resume_requirement_review_settings`: singleton active row containing normalized `noise_terms_json` plus timestamps.
 
-- Claim-ceiling shape contract.
-  Claim ceilings remain bounded to three logical fields only: `safe_verbs`, `qualifiers`, and `do_not_imply`. Each field is an ordered list of strings or null. Extra keys do not belong in the baseline contract.
+### Taxonomy tables
 
-- Target-seed source contract.
-  A target seed must preserve either source text or a source-file reference plus a source hash, source label, and run context. Derived target semantic nodes are invalid unless they can point back to target spans, recorded extraction metadata, or explicit user-authored transitions.
+- `canonical_tags`: opaque ID, unique canonical `tag`, optional description, timestamp.
+- `taxonomy_metadata`: key-value metadata store for taxonomy-level state.
+- `delivery_toolkit_categories`: category name and unique sort order.
+- `delivery_toolkit_metadata`: one row per canonical tag mapping the tag to a category and human-facing display label.
+- `tag_inference_markers`: opaque ID, canonical tag, `marker_kind` constrained to `literal` or `compound`, optional literal value, timestamp.
+- `tag_inference_marker_terms`: opaque ID, marker ID, `term_group` constrained to `all_of` or `any_of`, term value, sort order, uniqueness constraints.
 
-- Semantic-provenance contract.
-  Semantic nodes, edges, candidate alignments, claim options, and gaps must link back to stored observables, recorded transition events, or explicitly recorded provider outputs. A semantic row with no source refs, evidence refs, target refs, or transition lineage is out of contract.
+## Extracted Portable Contracts
 
-- Review-subject identity contract.
-  Candidate alignments, claim options, gap items, and review queue items are first-class persisted review subjects with stable IDs. Review decisions must target those IDs directly, not anonymous JSON payload members.
+The following contracts are explicit in current code and worth preserving if the app is moved or reimplemented.
 
-- Artifact-shape contract.
-  The baseline structured artifact should preserve the separation already proven useful in the current repo: top-level `resume`, `gap_report`, and `provenance` surfaces remain distinct. Rendered artifacts consume that structured artifact plus its manifest; they do not become the source for reconstructing provenance.
+### Runtime capability contract
 
-- Provenance-minimum contract.
-  `provenance` must include selected library record IDs, selected evidence IDs, claim-to-evidence mappings, transition references, hashes, and human-inspectable notes. If a rendered artifact cannot be traced back to those fields, it does not satisfy the baseline.
+Runtime detection is explicit. Desktop mode enables database-path selection, taxonomy file import and export, taxonomy clearing, library tag refresh, resume pipeline commands, and raw intake import. Browser harness mode disables all of those and uses localStorage-backed services instead.
 
-- Requirement-semantics source contract.
-  The target semantic space must preserve enough source detail to recover a normalized keyword bank, extraction method, target role family, and stable node references for requirements or equivalent target concepts. If richer cluster or atom views are materialized later, they must use stable IDs within a target run.
+### Evidence save contract
 
-- Import-ledger contract for future migration work.
-  If raw intake or migration import is implemented, it should use explicit run and item ledgers with counts, outcomes, and skip reasons, rather than silently mutating the library with no replayable record.
+Evidence create and update are not blind writes. The backend computes an inference comparison and can return `confirmation_required` with no write performed. Only an explicit follow-up save decision completes the mutation when inferred and explicit values need operator confirmation.
 
-## Lifecycle Status Vocabularies
+### Requirement analysis contract
 
-The baseline must use explicit lifecycle states rather than ad hoc booleans.
+`RequirementAnalysis` has a stable high-level shape:
 
-- `target_run.status`: `seed_created`, `semantics_ready`, `traversal_ready`, `review_pending`, `draft_ready`, `artifact_approved`, `artifact_rendered`, `blocked`, `archived`.
-- `semantic_nodes.status` and `semantic_edges.status`: `current`, `stale`, `discarded`, `failed`.
-- `candidate_alignments.status`, `claim_options.status`, and `gap_items.status`: `proposed`, `review_pending`, `accepted`, `rejected`, `revised`, `superseded`.
-- `review_queue_items.status`: `review_pending`, `resolved`, `superseded`, `discarded`. `resolved` requires a recorded review decision or transition event that closes the queue item.
-- `draft_snapshots.status`: `assembling`, `review_pending`, `approved`, `discarded`, `superseded`.
-- `artifact_manifests.status`: `planned`, `rendered`, `failed`, `superseded`.
-- `transition_events.transition_status`: `succeeded`, `failed`, `discarded`.
+- `analysis_version`
+- `source` with posting SHA-256, posting length, derived target role family, posting keyword bank, unrecognized notable terms, and extraction method
+- `clusters` with IDs, labels, kinds, priority order, atom IDs, and matched tags
+- `atoms` with IDs, cluster linkage, source order, text, kind, priority, negation-aware normalized terms, matched tags, optional experience-years hints, quantifier flag, and optional merge metadata
 
-Additional statuses require governance review because each status must map to observable data, a recorded transition, or a user decision.
+Requirement extraction is local and negation-aware. The contract is about structured reviewable output, not about a hidden model call.
 
-## Architecture
+### Requirement review contract
 
-The target architecture has these layers:
+Requirement review has two layers:
 
-- Tauri desktop UI.
-  Provides library CRUD, target seed ingestion, review queues, transition inspection, provider configuration, artifact preview, export controls, and user approval gates. It must not contain canonical validation rules that are unavailable to the Rust core.
+- reusable persisted settings: normalized noise terms only
+- request-scoped override: reviewed cluster IDs, excluded cluster IDs, excluded atom IDs, useful terms, and noise terms tied to a specific posting hash
 
-- Rust application core.
-  Owns domain validation, workflow orchestration, state-machine transitions, semantic projection, candidate proposal, artifact construction, and policy enforcement.
+Generation only accepts reviewed analysis when both `reviewed_requirement_analysis` and `requirement_review` are supplied together, and both must match the current posting hash. The current app does not persist a standing review queue or a saved per-posting review workspace.
+In the live runtime, the backend does not recompute the reviewed analysis; it trusts the paired caller-supplied payload after those co-presence and hash checks. The default frontend derives that payload from the base requirement analysis plus the review draft. Reviewed analysis remains request-scoped and non-authoritative and must not silently grow into a saved posting workspace or queue.
 
-- SQLite storage layer.
-  Owns migrations, typed query APIs, transactions, foreign-key enforcement, local path metadata, and persisted ledgers. All writes to canonical library state pass through explicit validation and conflict policy.
+### Bundle semantics contract
 
-- Semantic index layer.
-  Owns derived semantic nodes, edges, lexical indexes, similarity search, explanation metadata, and cache invalidation. The baseline implementation is the SQLite-backed semantic graph described above. Embeddings, vector indexes, and provider-backed retrieval are beyond-baseline extensions that must be explicit about provider boundaries.
+Bundle preparation is tag-first by design. The code-level notes are explicit:
 
-- Provider adapter layer.
-  Owns embedding, extraction, reranking, generation, or model-backed analysis adapters. Each adapter must declare privacy behavior, network behavior, persisted configuration, input/output logging policy, deterministic controls when available, failure modes, and fallback behavior.
+- active bundle semantics revolve around tags
+- tags come from record-level context tags plus direct evidence and static-source education and certification tags
+- `toolkit_tags` come from record-level context tags, direct evidence, and certifications; education tags remain in bundle semantics but do not feed the rendered delivery toolkit
+- posting-matched tags are a strict subset of toolkit tags
+- posting-derived keywords may filter or prioritize supported tags, not invent new ones
+- delivery toolkit is a grouped projection from taxonomy metadata only
 
-- State-machine layer.
-  Owns allowed states, transition types, transition preconditions, transition outputs, review gates, replay and audit metadata, and rules for discarding or reversing proposed changes.
+### Assembly artifact contract
 
-- Artifact layer.
-  Owns structured resume artifacts, provenance manifests, gap reports, and renderers such as PDF, DOCX, Markdown, or JSON. Rendering must not reinterpret selection or invent claims.
+The assembled artifact is shaped as:
 
-The product should be organized around target concepts, not prototype files. Useful module names might include `storage`, `library`, `target_seed`, `semantic_space`, `providers`, `transitions`, `review`, `artifact`, `rendering`, and `privacy`, but those names are illustrative rather than contractual.
+- `resume`
+- `gap_report`
+- `provenance`
 
-## Semantic State Model
+The resume itself includes header, target role family, highlights, optional profile, professional experience, projects, education, certifications, and optional toolkit section.
 
-Resume construction is governed as a semantic state-transition process. It is not a fixed compiler whose only job is to deterministically transform one bundle into one resume.
+The gap report separates supported, partially supported, and unsupported requirements and carries compensation strategy and risk flags.
 
-The state model should include these state families:
+Provenance includes target role family, selected record IDs, selected evidence IDs, claim-to-evidence mappings, constraint flags, and notes.
 
-- Persisted library state.
-  User-owned career facts, evidence, tags, claim ceilings, and context stored in SQLite.
+Two behavioral constraints are explicit in the assembler:
 
-- Target seed state.
-  The supplied JD or target material, source metadata, user constraints, parse status, and target-run configuration.
+- highlights and profile do not paraphrase beyond normalization-only projection
+- delivery toolkit is the only rendered tag surface; `posting_matched_tags` remain bundle-internal
 
-- Target semantic space.
-  Derived semantic representation of the target seed: requirements, themes, responsibilities, outcomes, constraints, priority signals, ambiguities, and unknowns.
+### Artifact writing contract
 
-- Library semantic space.
-  Derived semantic representation of the user's career library: capabilities, evidence-backed claims, outcomes, domains, tools, chronology, constraints, and claim ceilings.
+When artifact writing is enabled, the pipeline writes assembled JSON. It may also write bundle JSON and DOCX. The current baseline does not require Markdown, HTML, or PDF output.
 
-- Traversal workspace.
-  `candidate_alignments`, search paths, scores, explanations, rejected paths, clusters, conflicts, and `gap_items` produced while traversing the target and library spaces.
+### Manifest contract
 
-- Draft resume state.
-  User-reviewed candidate sections, claims, bullets, ordering, alternatives, and gap annotations. Draft state is derived and can be discarded without corrupting the library.
+Manifest persistence is optional. When enabled, the manifest stores:
 
-- Review and approval state.
-  `review_queue_items` plus user decisions about candidate evidence, claim wording, section inclusion, gaps, and artifact readiness.
+- artifact kind
+- target role family
+- job-posting SHA-256
+- build-policy and candidate-profile hashes
+- library export hash
+- selected record and evidence IDs
+- gap report snapshot
+- artifact path map and artifact hash map
+- optional requirement-review snapshot
+- optional operator notes
 
-- Artifact and manifest state.
-  Generated structured resumes, render outputs, hashes, selected evidence references, transition lineage, and provider configuration used for the run.
+### Raw intake contract
 
-The baseline transition graph must include these transition families and pre/postconditions:
+Raw intake is a bounded import path with preview and import phases. The persisted audit surface is explicit run and item ledgers with outcomes and skip reasons. It is not a silent bulk loader.
 
-- `ingest_target_seed`: requires source text or a source file reference plus target-run context. Produces a target seed, source hash, `seed_created` target-run status, and a transition event without changing library records.
-- `extract_target_semantics`: requires a stored target seed. Produces target semantic nodes and edges with source spans, normalized terms, extraction method metadata, ambiguity markers, and `semantics_ready` status. In the baseline this is local lexical/tag extraction only.
-- `project_library_semantics`: requires current library records, evidence, tags, and claim ceilings. Produces library semantic nodes and edges linked to records, evidence, tags, chronology, and ceilings. Empty libraries produce an inspectable empty projection, not invented evidence.
-- `traverse_alignment_candidates`: requires current target and library semantic spaces. Produces `candidate_alignments` rows, rejected or weak paths where available, scores, explanation fields, evidence refs, target node refs, and `traversal_ready` or `review_pending` status. Baseline scoring uses lexical similarity, tag overlap, co-occurrence, recency, and context metadata.
-- `propose_claim_options`: requires `candidate_alignments` with evidence references and any applicable claim ceilings. Produces `claim_options` rows that quote, compress, or recombine evidence-bounded language without exceeding ceiling notes.
-- `identify_gaps`: requires target semantic nodes and the current candidate set. Produces `gap_items` rows for unsupported, weak, ambiguous, stale, or missing target requirements.
-- `request_user_review`: requires `candidate_alignments`, `claim_options`, `gap_items`, drafts, or artifacts that need operator judgment. Produces `review_queue_items` rows with `review_pending` status and inspectable rationale.
-- `accept_candidate`, `reject_candidate`, and `revise_candidate`: require a pending first-class review subject and an explicit user decision. Produce `review_decisions` records and updated derived state for the referenced `candidate_alignment`, `claim_option`, `gap_item`, or `review_queue_item`. They must not rewrite factual evidence, target seed text, or library records.
-- `assemble_draft`: requires accepted candidates and accepted or revised claim options; unresolved gaps must remain visible. Produces a draft snapshot with sections, selected evidence refs, claim option refs, gap refs, ordering rationale, and `draft_ready` or `review_pending` status.
-- `approve_artifact`: requires whole-draft user approval. Produces an approval decision, artifact-ready draft state, and `artifact_approved` target-run status.
-- `render_artifact`: requires an approved draft snapshot. Produces a structured JSON artifact, Markdown export, manifest, hashes, render metadata, and `artifact_rendered` status.
+## Runtime And Service Architecture
 
-Optional transitions such as clustering, reranking, provider extraction, provider generation, PDF rendering, or DOCX rendering can be added later only when their inputs, outputs, review behavior, and provenance rules are explicit.
+The current app is organized around a thin frontend/runtime split and a Rust command core.
 
-Every transition must record enough metadata to answer these questions:
+### Frontend runtime layer
 
-- What state did it read?
-- What state did it produce?
-- Which evidence, target spans, semantic nodes, provider outputs, prompts, models, rules, and user decisions influenced it?
-- Which parts are deterministic, which are provider-dependent, and which require user judgment?
-- How can the user inspect, discard, repeat, or compare the transition result?
+`src/lib/runtime.ts` selects either desktop services or local browser-harness services. The capability map is part of the contract, not a cosmetic label.
 
-Model-dependent scoring may be non-deterministic. That is acceptable only when the run is inspectable and replayable enough for audit: inputs or input hashes, provider name, model identifier, adapter version, prompt or extraction policy, parameters, output summaries, scores, explanations, and timestamps must be recorded according to the privacy policy chosen for that provider.
+### Browser harness services
 
-## Invariants
+`src/lib/local-service.ts` provides a localStorage-backed approximation for frontend development. It can mimic local CRUD flows, but it is not allowed to claim desktop-only capabilities.
 
-- The user controls the canonical career library.
-- SQLite is the canonical persisted source for library state and governed operational ledgers.
-- Generated artifacts are outputs, not source.
-- Semantic spaces are derived from observable library, target, provider, and transition data.
-- State transitions are inspectable, reviewable, and discardable before artifact approval.
-- Claims require evidence references.
-- Claim ceilings bound language and implication.
-- Gaps are first-class outputs, not failures to be hidden by fluent prose.
-- External provider calls are never hidden. They require explicit adapters, configuration, and privacy boundaries.
-- A local-only mode must not silently degrade into unsupported cloud behavior.
+### Tauri command surface
 
-## Quality Bar
+The Rust backend exposes commands for:
 
-The product should feel useful because the user can see and control how a resume emerges from their evidence.
+- database initialization and active-path management
+- library CRUD and delete previews
+- evidence inference preview plus save confirmation flow
+- candidate profile CRUD
+- build policy and requirement-review noise-term settings
+- taxonomy CRUD, import, export, and library tag refresh
+- requirement analysis
+- bundle-semantics build, bundle preparation, resume assembly, and full pipeline execution
+- raw intake preview and import
+- anomaly and generation-manifest operations
 
-- Library operations are boring, reliable, and explicit about persistence.
-- Target seed ingestion shows what was supplied and what was derived.
-- Semantic traversal explains candidate alignments rather than presenting them as magic.
-- Draft resume claims remain bounded by evidence and claim ceilings.
-- Review queues make acceptance, rejection, revision, and gaps visible.
-- Artifacts are reproducible enough for audit even when semantic ranking uses model-dependent components.
-- Provider behavior is visible enough that privacy-sensitive users can choose local-only or explicit external adapters.
-- Failures are actionable: missing evidence, weak matches, provider unavailability, schema conflicts, and render errors are surfaced without pretending the resume is complete.
+### Rust domain modules
 
-## First Honest Vertical Slice
+The main implementation roles are currently split across modules such as:
 
-The first buildable vertical slice is intentionally local, inspectable, and narrow:
+- taxonomy and inference
+- requirement analysis
+- bundle preparation
+- resume assembly
+- resume pipeline orchestration
+- intake import
+- operations and manifest handling
 
-1. Create library data through the Tauri UI or a real Tauri command backed by Rust validation and SQLite writes: at least one library record, one evidence item, one canonical tag, one signal claim, and one claim ceiling.
-2. Ingest a job description as a target seed with source text, source hash, and run context.
-3. Derive local target and library semantic spaces into SQLite using normalized terms, tags, target spans, evidence links, lexical similarity, co-occurrence, recency/context metadata, scores, and explanations.
-4. Traverse the spaces to persist `candidate_alignments` and `gap_items` with stable IDs, evidence refs, scoring rationale, method metadata, and explanations.
-5. Persist `claim_options` from candidate alignments, then let the user accept, reject, or revise candidate alignments, claim options, and gaps through first-class review subjects while preserving evidence refs and claim-ceiling notes.
-6. Assemble a draft from approved candidate state and visible gaps, then require whole-draft approval.
-7. Emit structured JSON, Markdown, and a manifest that include hashes, selected evidence IDs, target seed refs, transition refs, gap report, render metadata, and approval state.
+### Storage and file boundaries
 
-This slice does not require external providers, embeddings, PDF, DOCX, sync, accounts, telemetry, or compatibility with prototype-era data.
+SQLite is the only canonical local store. Filesystem writes are explicit output operations for taxonomy export and generated resume artifacts. Raw-intake files are read-only input selected from disk; preview does not write import ledgers, and import writes SQLite run and item ledgers rather than a copied intake file.
 
 ## Acceptance Probes
 
-Future implementation work should define executable checks around these probes.
+These probes describe the current product bar. Future implementation work should use them when claiming the app still matches the current spec.
 
-### Baseline Executable Semantic Probe
+### Desktop runtime probe
 
-Question: Can the baseline semantic traversal produce stable, reviewable subjects while proving that semantic traversal is more than keyword overlap?
+Question: does desktop mode expose the full product while browser mode stays a harness?
 
-Minimum fixture: one target run contains three target requirements: one requirement with a direct supported library match, one requirement whose accepted candidate has no direct normalized-term overlap with its library node but is supported by canonical tags, context metadata, evidence links, and scoring rationale, and one unsupported requirement that must become a gap. The library side must include evidence items, signal claims, claim ceilings, tags, and context sufficient to explain both supported candidates without inventing evidence.
+Required proof: desktop runtime reports resume pipeline, raw intake import, taxonomy file import and export, database path selection, taxonomy clear, and library tag refresh as available; browser harness reports them as unavailable.
 
-Minimum proof: The run persists `candidate_alignments`, `claim_options`, `gap_items`, and `review_queue_items` with stable IDs; transition events reference those rows in `output_refs_json`; review decisions target stable first-class subjects; the non-direct accepted candidate explains its relationship through tags, context, evidence links, and method metadata rather than shared keywords alone; and the unsupported requirement remains visible as a `gap_item`.
+### Canonical storage probe
 
-Does not count: A keyword-only filter renamed as semantic traversal, a match that cannot name target nodes and library nodes, review decisions against anonymous JSON payload objects, or a fixture with no accepted non-direct candidate.
+Question: do records and evidence persist to SQLite as the canonical source?
 
-### Library CRUD And Persistence
+Required proof: create a record and evidence item through the desktop runtime, restart or reconnect, and read them back from SQLite-backed commands. Generated artifacts must not be used as source.
 
-Question: Can the user create, edit, delete, and inspect career library records and evidence through the Tauri UI while SQLite remains the canonical source?
+### Evidence confirmation probe
 
-Minimum proof: A real Tauri command or UI-driven path writes validated data to SQLite, reads it back through the Rust core, and shows that generated outputs were not used as source.
+Question: can evidence save require explicit confirmation before mutation?
 
-Does not count: A mock browser store, a fixture-only JSON edit, or a UI screen that never reaches SQLite.
+Required proof: submit evidence whose inferred tags require operator confirmation and observe `confirmation_required`; provide an explicit save decision and observe the row persist.
 
-### Target Seed Semantic Space
+### Requirement analysis probe
 
-Question: Can a supplied job description create a target seed and an inspectable target semantic space without mutating the career library?
+Question: does posting analysis produce the current structured contract?
 
-Minimum proof: The target seed is persisted, semantic nodes and edges are derived, ambiguous or low-confidence extractions are visible, and the library state is unchanged.
+Required proof: analysis returns a posting SHA-256, target role family, posting keyword bank, unrecognized notable terms, clusters, atoms, matched tags, and negation-aware normalized terms.
 
-Does not count: A hand-authored target summary with no source text, no extraction metadata, or no audit trail.
+### Requirement review boundary probe
 
-### Library Semantic Projection
+Question: is reusable review persistence limited to noise terms?
 
-Question: Can the system derive a library semantic space from stored records and evidence while preserving evidence boundaries?
+Required proof: save reusable noise terms and reload them from `resume_requirement_review_settings`; verify reviewed analysis and full review override remain request-scoped except when copied into a manifest snapshot.
 
-Minimum proof: Derived semantic nodes link back to concrete records, evidence items, tags, dates, and claim ceilings; stale projections can be refreshed when source records change.
+### Bundle semantics probe
 
-Does not count: Embeddings or labels that cannot be traced back to stored observables.
+Question: does tag-first bundle preparation preserve the current subset and projection rules?
 
-### Semantic Traversal And Candidate Proposal
+Required proof: `toolkit_tags` come from record-level context tags, direct evidence, and certifications, not education rows; `posting_matched_tags` are a strict subset of `toolkit_tags`; and delivery toolkit groups come only from taxonomy metadata attached to those posting-matched tags.
 
-Question: Can the state machine cross-reference target and library semantic spaces to propose relevant evidence candidates with explanations?
+### Assembly artifact probe
 
-Minimum proof: Candidate alignments identify target nodes, library nodes, supporting evidence, scores or ranking rationale, rejected paths where available, and gap candidates.
+Question: does resume assembly remain evidence-bounded and normalization-bounded?
 
-Does not count: A single opaque match score, a polished bullet list with no evidence lineage, or a deterministic-only keyword filter presented as semantic reasoning.
+Required proof: the assembled artifact has `resume`, `gap_report`, and `provenance`; provenance includes selected record and evidence IDs plus claim-to-evidence mappings; unsupported requirements remain visible in the gap report.
 
-### Evidence-Bounded Draft Construction
+### Pipeline and manifest probe
 
-Question: Can approved candidates become draft resume sections without unsupported claim inflation?
+Question: can the pipeline optionally write artifacts and persist an auditable manifest?
 
-Minimum proof: Each draft claim references evidence, respects claim ceilings, records user approval status, and preserves visible gaps where evidence is weak or absent.
+Required proof: with artifact output enabled, the pipeline writes assembled JSON and optionally bundle JSON and DOCX; with manifest persistence enabled, a manifest row is stored with hashes, selected IDs, optional requirement review, and notes.
 
-Does not count: Model-generated prose that cannot identify its evidence, or wording that turns weak evidence into stronger claims.
+### Raw intake probe
 
-### Transition Auditability
+Question: does intake stay previewable and auditable?
 
-Question: Can a user or reviewer inspect how a draft or artifact was produced?
-
-Minimum proof: The transition ledger records state inputs, outputs, provider configuration, prompts or policies, model identifiers where relevant, user decisions, hashes, timestamps, and explanations sufficient to compare two runs.
-
-Does not count: Logs that say a step ran without preserving what it read, produced, or depended on.
-
-### Artifact Manifest And Provenance
-
-Question: Can every emitted artifact be traced back to its approved draft state, target seed, selected evidence, and transition lineage?
-
-Minimum proof: Structured artifact and manifest include hashes, selected evidence IDs, target seed references, transition references, gap report, render metadata, and approval state.
-
-Does not count: A DOCX, PDF, or Markdown file with no structured artifact or manifest.
-
-### Provider Privacy And Fallback Behavior
-
-Question: Does provider use stay explicit, configurable, and bounded by privacy expectations?
-
-Minimum proof: The operator can see which provider adapter is active, what data class it may receive, whether it makes network calls, what gets persisted, and what fallback behavior applies if the provider is unavailable.
-
-Does not count: Any hidden SaaS call, silent model fallback, or telemetry-like behavior without explicit configuration.
+Required proof: preview does not write import-run rows; import writes run and item ledgers with imported or skipped outcomes and preserves skip reasons.
 
 ## Handoff Decision Matrix
 
-This matrix captures the main design questions surfaced during the spec rewrite. It is meant to make handoff into a fresh repo easier by showing which choices are already settled for the baseline, which remain open, and what the practical options are.
+Only unresolved questions that are genuinely surfaced by the current app belong here.
 
-| Decision | Options | Starting point for a fresh repo | Status | Revisit trigger |
-| --- | --- | --- | --- | --- |
-| Candidate identity and header data | Singleton operator profile / multiple reusable profiles / per-target-only profile overlays | Start with a singleton local operator profile plus per-target overrides in `target_runs.context_json` | Recommended baseline extension choice | Revisit if one user needs multiple personas or profile sets |
-| Enum strategy for core kinds and statuses | SQL `CHECK` enums / lookup tables / free text plus app validation | Use SQL `CHECK` constraints for stable baseline statuses and kinds; reserve lookup tables for extensible taxonomies only | Recommended baseline choice | Revisit if plugin-like extensibility or user-defined workflow states become necessary |
-| Target semantic representation | Node-edge graph only / graph plus materialized cluster-atom views / first-class atom-cluster tables | Start with the node-edge graph baseline and add materialized cluster or atom views only when reviewers need them | Decision likely needed in first schema seam | Revisit if review UX requires stable requirement groups beyond node-edge traversal |
-| Transition persistence model | Snapshots only / append-only events plus snapshots / full event sourcing | Keep the current baseline: append-only transition ledger plus materialized snapshots | Baseline-authorized | Revisit if replay, branching, or compaction become primary operator needs |
-| Review granularity | Whole draft only / candidate plus claim plus draft / bullet and section level configurable review | Keep the current baseline: candidate alignment, claim option, gap review where relevant, then whole-draft approval | Baseline-authorized | Revisit if users need finer section or bullet governance |
-| User edit policy for generated text | No edits / evidence-linked revisions only / freeform editing with warnings | Start with evidence-linked revisions only | Recommended baseline extension choice | Revisit if users demand freeform authoring beyond evidence-backed revisions |
-| Provider strategy after MVP | Local-only forever / opt-in external adapters / external-provider default | Keep local-only baseline, then add opt-in adapters later if quality demands it | Baseline-authorized for MVP; open beyond baseline | Revisit if local lexical-plus-tag traversal misses too many valid candidates |
-| Semantic index evolution | SQLite lexical graph / embedded vector store / hybrid graph plus vector / provider-backed retrieval | Start with the SQLite lexical-plus-tag graph | Baseline-authorized | Revisit if retrieval quality or scale fails the semantic probe |
-| Artifact surface at launch | Structured JSON plus Markdown / add DOCX next / add PDF and HTML / all at once | Keep structured JSON, Markdown, and manifest at MVP | Baseline-authorized | Revisit if export/share needs outrun core traversal and review work |
-| Raw import and migration path | No raw import / guided import with run-item ledgers / direct bulk import into library | Defer unless migration is immediately needed; if added, use explicit import ledgers | Open decision beyond baseline | Revisit if the new repo must absorb current data on day one |
-| Provider-input retention | No retained provider payloads / hashes plus summaries / full payload retention | If providers are added later, start with hashes plus summaries unless stricter audit is required | Open decision beyond baseline | Revisit if privacy requirements or audit requirements change |
-| Semantic negative-control test design | Direct-match-only tests / lexical plus tag-context negative control / embedding-required evaluation | Keep the current negative-control baseline: one accepted non-direct match plus one visible unsupported gap | Baseline-authorized | Revisit if embeddings or provider-backed semantics become baseline behavior |
+| Question | Current truth | If revisited |
+| --- | --- | --- |
+| Saved per-posting workspaces | The app computes requirement analysis, reviewed analysis, bundle input, and assembly on demand. It does not persist first-class posting workspaces or draft state in SQLite, but the frontend does cache the latest posting text in localStorage for convenience and diagnostics. Generation manifests remain audit snapshots only, not workspace state. | Decide whether future work should stay transient or introduce explicit saved workspace tables with new approval. |
+| Reviewed-analysis hardening | The default frontend derives reviewed analysis from base analysis plus review draft, but the backend currently only enforces co-presence and matching posting hash before using the supplied reviewed payload. | Decide whether future work should re-derive reviewed analysis in the backend, validate exact derivation, or keep the current trust boundary explicit. |
+| Candidate profile multiplicity | The schema hard-codes one active profile with ordered child tables. | Decide whether multiple profiles or personas are a real product need before widening schema or UI. |
+| Artifact retention policy | The app can write files and persist manifests, but retention and cleanup policy is operationally thin beyond explicit user actions. | Decide file ownership, cleanup behavior, and whether manifest deletion should ever coordinate with file deletion. |
+| Browser harness scope | The harness is intentionally a localStorage-backed UI sandbox with desktop-only capabilities disabled. | Decide whether future development needs a richer test shim or whether the harness should remain strictly non-product. |
 
-## Open Questions Beyond Baseline
-
-The baseline build profile above is settled for MVP implementation. These questions apply to extensions beyond that profile and should be resolved through explicit decisions rather than implicit implementation drift.
-
-- Which external embedding, extraction, reranking, and generation providers should be supported after the local-only baseline?
-- Should the baseline SQLite semantic graph later gain SQLite extensions, an embedded vector store, a hybrid index, or provider-backed retrieval?
-- What snapshot compaction, replay tooling, or event-sourcing refinements should be added beyond the baseline append-only ledger plus materialized snapshots?
-- Should review granularity expand beyond candidate alignment, claim option approval, and whole-draft approval to bullets, sections, or configurable levels?
-- What richer user-editing model should exist beyond evidence-linked claim option revision?
-- What provider-input retention policy best balances replayability with privacy when external providers are introduced?
-- What sample corpus should be used for early acceptance probes without leaking sensitive career data?
-- How should scoring calibration be evaluated when model-dependent semantics are allowed?
-- Which artifact formats beyond structured JSON, Markdown, and manifest should be first-class after the MVP?
+Anything outside those questions should be omitted from canonical spec text until the repo exposes real evidence for it.
