@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Career Ledger",
+  "version": "0.1.0",
+  "identifier": "local.careerledger.desktop",
+  "build": {
+    "frontendDist": "../desktop/dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

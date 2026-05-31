@@ -1,0 +1,16 @@
+{
+  "name": "career-ledger-i04-desktop-seam",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "vite build",
+    "desktop:run": "npm run build:web && cargo run --manifest-path src-tauri/Cargo.toml",
+    "probe:i04": "node ./desktop/probes/i04-desktop-probe.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}

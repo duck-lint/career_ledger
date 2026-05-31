@@ -1,0 +1,158 @@
+{
+  "experience_records": [
+    {
+      "id": "exp-payments",
+      "label": "Payments Platform Rewrite",
+      "tag_links": [
+        {
+          "tag_id": "tag-backend",
+          "weight": 2
+        }
+      ]
+    },
+    {
+      "id": "exp-ops",
+      "label": "Ops Collaboration",
+      "tag_links": [
+        {
+          "tag_id": "tag-mentoring",
+          "weight": 1
+        }
+      ]
+    }
+  ],
+  "evidence_items": [
+    {
+      "id": "evidence-adr",
+      "label": "Architecture decision record",
+      "experience_record_id": "exp-payments",
+      "experience_link": {
+        "weight": 4
+      },
+      "tag_links": [
+        {
+          "tag_id": "tag-backend",
+          "weight": 5
+        }
+      ]
+    },
+    {
+      "id": "evidence-runbook",
+      "label": "Runbook excerpt",
+      "experience_record_id": "exp-payments",
+      "experience_link": {
+        "weight": 3
+      },
+      "tag_links": [
+        {
+          "tag_id": "tag-backend",
+          "weight": 4
+        }
+      ]
+    },
+    {
+      "id": "evidence-oncall",
+      "label": "On-call notes",
+      "experience_record_id": "exp-ops",
+      "experience_link": {
+        "weight": 2
+      },
+      "tag_links": [
+        {
+          "tag_id": "tag-operations",
+          "weight": 1
+        }
+      ]
+    }
+  ],
+  "taxonomy": {
+    "tags": [
+      {
+        "id": "tag-backend",
+        "label": "Backend Systems"
+      },
+      {
+        "id": "tag-operations",
+        "label": "Operations"
+      },
+      {
+        "id": "tag-mentoring",
+        "label": "Mentoring"
+      }
+    ],
+    "tag_requirement_links": [
+      {
+        "tag_id": "tag-backend",
+        "requirement_id": "req-backend-systems",
+        "weight": 6
+      },
+      {
+        "tag_id": "tag-operations",
+        "requirement_id": "req-incident-response",
+        "weight": 6
+      },
+      {
+        "tag_id": "tag-mentoring",
+        "requirement_id": "req-mentoring",
+        "weight": 5
+      }
+    ],
+    "requirements": [
+      {
+        "id": "req-backend-systems",
+        "label": "Backend Systems",
+        "default_weight": 10,
+        "cue_terms": [
+          "backend systems",
+          "api design",
+          "distributed systems"
+        ]
+      },
+      {
+        "id": "req-incident-response",
+        "label": "Incident Response",
+        "default_weight": 7,
+        "cue_terms": [
+          "incident response",
+          "on-call"
+        ]
+      },
+      {
+        "id": "req-mentoring",
+        "label": "Mentoring",
+        "default_weight": 4,
+        "cue_terms": [
+          "mentoring",
+          "mentor"
+        ]
+      }
+    ],
+    "target_regions": [
+      {
+        "id": "region-operations",
+        "label": "Operations Engineering",
+        "requirement_ids": [
+          "req-incident-response"
+        ]
+      },
+      {
+        "id": "region-platform",
+        "label": "Platform Engineering",
+        "requirement_ids": [
+          "req-backend-systems",
+          "req-mentoring"
+        ]
+      }
+    ]
+  },
+  "profiles": {
+    "certifications": []
+  },
+  "settings": {
+    "locale": "en-US"
+  },
+  "jobPostingInput": {
+    "title": "Staff Platform Engineer",
+    "text": "This role emphasizes backend systems ownership, API design, and distributed systems scaling."
+  }
+}
