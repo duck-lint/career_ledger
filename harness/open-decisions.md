@@ -13,7 +13,9 @@ Do not use this file as a roadmap. Record only decisions already made, decisions
 
 ## Pending Decisions
 
-No pending decisions recorded.
+| ID | Question | Boundary | Needed For | Owner | Status |
+| --- | --- | --- | --- | --- | --- |
+| PD-03 | Should requirement-region authority stay in `src-tauri/fixtures/source-authority-semantic-overlay.json` as an explicit local authority surface, or move into SQLite-backed authority? | Project-intent authority now; storage/schema approval too if SQLite is chosen | `I07-S1` / implementation-07 | User | pending |
 
 When a pending decision exists, use:
 
