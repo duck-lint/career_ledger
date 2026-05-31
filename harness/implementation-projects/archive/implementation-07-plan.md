@@ -1,5 +1,7 @@
 # Implementation 07 Plan
 
+Historical planning artifact: the approval gate described below was resolved later the same day, `I07-S1` was implemented within the approved seam, and the bundle was archived. See `harness/implementation-projects/archive/implementation-07-summary.md` for final status and verification evidence. The planning-only and approval-gated language below is retained as historical context.
+
 ## Intent
 
 Implementation-07 now defines exactly one approval-gated executable seam: move requirement-region authority into SQLite-backed taxonomy authority while preserving the current visible desktop contract. The move applies only to `tag_requirement_links`, `requirements`, and `target_regions`, treated as taxonomy relationships and requirement-region definitions inside the existing approved taxonomy source category. `proof-slices/ps01/runtime-core.mjs` and `proof-slices/ps01/source-authority-adapter.mjs` stay unchanged, profiles/settings widening stays deferred, and the fixed sample `jobPostingInput` remains seam-local runtime input rather than canonical persisted authority.
@@ -129,5 +131,5 @@ Downstream consequence:
 
 ## Closeout Note
 
-- This active bundle is admissible only as planning until explicit implementation approval is granted.
-- When `I07-S1` later completes or is intentionally retired, move the bundle from `active/` to `archive/`.
+- This archived plan is retained as the historical planning artifact for implementation-07.
+- `I07-S1` was later implemented, validated, and moved to `archive/` the same day.

@@ -40,16 +40,17 @@ async function runAnalysis({ shouldReportProbe }) {
     renderSuccessState(result);
 
     if (shouldReportProbe) {
-      await reportProbeSummary(result);
+      await reportProbeSummary(result, sourceAuthority);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     renderErrorState(message);
 
     if (shouldReportProbe) {
-      await invoke('report_i06_probe', {
+      await invoke('report_i07_probe', {
         summary: {
           runtimeError: message,
+          requirementRegionAuthority: 'error',
           renderedResultIds: [],
           supportedRequirementLabel: 'Backend Systems',
           supportedStatus: 'error',
@@ -250,7 +251,7 @@ function formatSequenceEntry(entry) {
   return `${entry.edgeKind}: ${entry.weight}`;
 }
 
-async function reportProbeSummary(result) {
+async function reportProbeSummary(result, sourceAuthority) {
   await nextFrame();
 
   const supportedResult = result.proof.results.find(
@@ -264,6 +265,7 @@ async function reportProbeSummary(result) {
 
   const summary = {
     runtimeError: null,
+    requirementRegionAuthority: sourceAuthority?.authorityMarkers?.requirementRegionAuthority ?? 'missing',
     renderedResultIds: Array.from(elements.resultsRoot.querySelectorAll('[data-result-id]')).map(
       (entry) => entry.getAttribute('data-result-id') ?? '',
     ),
@@ -286,7 +288,7 @@ async function reportProbeSummary(result) {
     ),
   };
 
-  await invoke('report_i06_probe', { summary });
+  await invoke('report_i07_probe', { summary });
 }
 
 function nextFrame() {

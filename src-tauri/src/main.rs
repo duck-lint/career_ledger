@@ -15,11 +15,13 @@ const CAREER_DB_FILE_NAME: &str = "career.db";
 const RECORD_TAG_WEIGHT: u32 = 1;
 const EVIDENCE_TAG_WEIGHT: u32 = 2;
 const EVIDENCE_EXPERIENCE_WEIGHT: u32 = 1;
+const REQUIREMENT_REGION_AUTHORITY_SQLITE: &str = "sqlite";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProbeSummary {
     runtime_error: Option<String>,
+    requirement_region_authority: String,
     rendered_result_ids: Vec<String>,
     supported_requirement_label: String,
     supported_status: String,
@@ -109,20 +111,20 @@ struct SourceAuthority {
     taxonomy: Taxonomy,
     #[serde(rename = "jobPostingInput")]
     job_posting_input: JobPostingInput,
+    #[serde(rename = "authorityMarkers")]
+    authority_markers: AuthorityMarkers,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SemanticOverlayTaxonomy {
-    tag_requirement_links: Vec<TagRequirementLink>,
-    requirements: Vec<Requirement>,
-    target_regions: Vec<TargetRegion>,
+struct SemanticOverlay {
+    #[serde(rename = "jobPostingInput")]
+    job_posting_input: JobPostingInput,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SemanticOverlay {
-    taxonomy: SemanticOverlayTaxonomy,
-    job_posting_input: JobPostingInput,
+struct AuthorityMarkers {
+    requirement_region_authority: String,
 }
 
 fn source_authority_db_path() -> PathBuf {
@@ -180,6 +182,29 @@ fn parse_tag_links(
         .into_iter()
         .map(|tag_id| TagLink { tag_id, weight })
         .collect())
+}
+
+fn parse_string_array(raw_json: &str, field_label: &str) -> Result<Vec<String>, String> {
+    let values = serde_json::from_str::<Vec<String>>(raw_json)
+        .map_err(|error| format!("Failed to parse {field_label} as a JSON string array: {error}"))?;
+
+    values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let trimmed = value.trim().to_owned();
+            if trimmed.is_empty() {
+                return Err(format!("{field_label}[{index}] must be a non-empty string."));
+            }
+
+            Ok(trimmed)
+        })
+        .collect()
+}
+
+fn parse_non_negative_u32(value: i64, field_label: &str) -> Result<u32, String> {
+    u32::try_from(value)
+        .map_err(|_| format!("{field_label} must be a non-negative 32-bit integer."))
 }
 
 fn load_taxonomy_tags(connection: &Connection) -> Result<(Vec<TaxonomyTag>, HashSet<String>), String> {
@@ -338,38 +363,177 @@ fn load_evidence_items(
     Ok(items)
 }
 
-fn validate_overlay(
-    overlay: &SemanticOverlay,
+fn load_tag_requirement_links(connection: &Connection) -> Result<Vec<TagRequirementLink>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT tag_id, requirement_id, weight \
+             FROM tag_requirement_links \
+             ORDER BY tag_id, requirement_id",
+        )
+        .map_err(|error| format!("Failed to prepare tag_requirement_links query: {error}"))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| format!("Failed to query tag_requirement_links: {error}"))?;
+    let mut links = Vec::new();
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| format!("Failed to read tag_requirement_links row: {error}"))?
+    {
+        let tag_id = row
+            .get::<_, String>(0)
+            .map_err(|error| format!("Failed to read tag_requirement_links.tag_id: {error}"))?;
+        let requirement_id = row
+            .get::<_, String>(1)
+            .map_err(|error| {
+                format!(
+                    "Failed to read tag_requirement_links.requirement_id for {tag_id}: {error}"
+                )
+            })?;
+        let raw_weight = row
+            .get::<_, i64>(2)
+            .map_err(|error| {
+                format!("Failed to read tag_requirement_links.weight for {tag_id}: {error}")
+            })?;
+
+        links.push(TagRequirementLink {
+            tag_id: tag_id.clone(),
+            requirement_id,
+            weight: parse_non_negative_u32(
+                raw_weight,
+                &format!("tag_requirement_links[{tag_id}].weight"),
+            )?,
+        });
+    }
+
+    Ok(links)
+}
+
+fn load_requirements(connection: &Connection) -> Result<Vec<Requirement>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT id, label, default_weight, cue_terms_json \
+             FROM requirements \
+             ORDER BY id",
+        )
+        .map_err(|error| format!("Failed to prepare requirements query: {error}"))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| format!("Failed to query requirements: {error}"))?;
+    let mut requirements = Vec::new();
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| format!("Failed to read requirements row: {error}"))?
+    {
+        let id = row
+            .get::<_, String>(0)
+            .map_err(|error| format!("Failed to read requirements.id: {error}"))?;
+        let label = row
+            .get::<_, String>(1)
+            .map_err(|error| format!("Failed to read requirements.label for {id}: {error}"))?;
+        let raw_default_weight = row
+            .get::<_, i64>(2)
+            .map_err(|error| {
+                format!("Failed to read requirements.default_weight for {id}: {error}")
+            })?;
+        let cue_terms_json = row
+            .get::<_, String>(3)
+            .map_err(|error| {
+                format!("Failed to read requirements.cue_terms_json for {id}: {error}")
+            })?;
+
+        requirements.push(Requirement {
+            id: id.clone(),
+            label,
+            default_weight: parse_non_negative_u32(
+                raw_default_weight,
+                &format!("requirements[{id}].default_weight"),
+            )?,
+            cue_terms: parse_string_array(
+                &cue_terms_json,
+                &format!("requirements[{id}].cue_terms_json"),
+            )?,
+        });
+    }
+
+    Ok(requirements)
+}
+
+fn load_target_regions(connection: &Connection) -> Result<Vec<TargetRegion>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT id, label, requirement_ids_json \
+             FROM target_regions \
+             ORDER BY id",
+        )
+        .map_err(|error| format!("Failed to prepare target_regions query: {error}"))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| format!("Failed to query target_regions: {error}"))?;
+    let mut target_regions = Vec::new();
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| format!("Failed to read target_regions row: {error}"))?
+    {
+        let id = row
+            .get::<_, String>(0)
+            .map_err(|error| format!("Failed to read target_regions.id: {error}"))?;
+        let label = row
+            .get::<_, String>(1)
+            .map_err(|error| format!("Failed to read target_regions.label for {id}: {error}"))?;
+        let requirement_ids_json = row
+            .get::<_, String>(2)
+            .map_err(|error| {
+                format!("Failed to read target_regions.requirement_ids_json for {id}: {error}")
+            })?;
+
+        target_regions.push(TargetRegion {
+            id: id.clone(),
+            label,
+            requirement_ids: parse_string_array(
+                &requirement_ids_json,
+                &format!("target_regions[{id}].requirement_ids_json"),
+            )?,
+        });
+    }
+
+    Ok(target_regions)
+}
+
+fn validate_requirement_region_taxonomy(
     canonical_tag_ids: &HashSet<String>,
+    tag_requirement_links: &[TagRequirementLink],
+    requirements: &[Requirement],
+    target_regions: &[TargetRegion],
 ) -> Result<(), String> {
-    let requirement_ids = overlay
-        .taxonomy
-        .requirements
+    let requirement_ids = requirements
         .iter()
         .map(|requirement| requirement.id.as_str())
         .collect::<HashSet<_>>();
 
-    for link in &overlay.taxonomy.tag_requirement_links {
+    for link in tag_requirement_links {
         if !canonical_tag_ids.contains(&link.tag_id) {
             return Err(format!(
-                "The semantic overlay references an unknown canonical tag: {}.",
+                "The taxonomy authority references an unknown canonical tag: {}.",
                 link.tag_id
             ));
         }
 
         if !requirement_ids.contains(link.requirement_id.as_str()) {
             return Err(format!(
-                "The semantic overlay references an unknown requirement id: {}.",
+                "The taxonomy authority references an unknown requirement id: {}.",
                 link.requirement_id
             ));
         }
     }
 
-    for region in &overlay.taxonomy.target_regions {
+    for region in target_regions {
         for requirement_id in &region.requirement_ids {
             if !requirement_ids.contains(requirement_id.as_str()) {
                 return Err(format!(
-                    "The semantic overlay target region {} references an unknown requirement id: {}.",
+                    "The taxonomy authority target region {} references an unknown requirement id: {}.",
                     region.id, requirement_id
                 ));
             }
@@ -379,24 +543,45 @@ fn validate_overlay(
     Ok(())
 }
 
+fn load_requirement_region_taxonomy(
+    connection: &Connection,
+    canonical_tag_ids: &HashSet<String>,
+) -> Result<(Vec<TagRequirementLink>, Vec<Requirement>, Vec<TargetRegion>), String> {
+    let tag_requirement_links = load_tag_requirement_links(connection)?;
+    let requirements = load_requirements(connection)?;
+    let target_regions = load_target_regions(connection)?;
+
+    validate_requirement_region_taxonomy(
+        canonical_tag_ids,
+        &tag_requirement_links,
+        &requirements,
+        &target_regions,
+    )?;
+
+    Ok((tag_requirement_links, requirements, target_regions))
+}
+
 #[tauri::command]
 fn load_source_authority() -> Result<Value, String> {
     let overlay = load_semantic_overlay()?;
     let connection = open_source_authority_db()?;
     let (tags, canonical_tag_ids) = load_taxonomy_tags(&connection)?;
-
-    validate_overlay(&overlay, &canonical_tag_ids)?;
+    let (tag_requirement_links, requirements, target_regions) =
+        load_requirement_region_taxonomy(&connection, &canonical_tag_ids)?;
 
     let source_authority = SourceAuthority {
         experience_records: load_experience_records(&connection, &canonical_tag_ids)?,
         evidence_items: load_evidence_items(&connection, &canonical_tag_ids)?,
         taxonomy: Taxonomy {
             tags,
-            tag_requirement_links: overlay.taxonomy.tag_requirement_links,
-            requirements: overlay.taxonomy.requirements,
-            target_regions: overlay.taxonomy.target_regions,
+            tag_requirement_links,
+            requirements,
+            target_regions,
         },
         job_posting_input: overlay.job_posting_input,
+        authority_markers: AuthorityMarkers {
+            requirement_region_authority: REQUIREMENT_REGION_AUTHORITY_SQLITE.to_owned(),
+        },
     };
 
     serde_json::to_value(source_authority)
@@ -404,17 +589,17 @@ fn load_source_authority() -> Result<Value, String> {
 }
 
 #[tauri::command]
-fn report_i06_probe(summary: ProbeSummary, app: AppHandle) -> Result<(), String> {
+fn report_i07_probe(summary: ProbeSummary, app: AppHandle) -> Result<(), String> {
     let encoded = serde_json::to_string(&summary)
         .map_err(|error| format!("Failed to serialize probe summary: {error}"))?;
 
-    println!("I06_PROBE:{encoded}");
+    println!("I07_PROBE:{encoded}");
     app.exit(0);
     Ok(())
 }
 
 fn main() {
-    let probe_mode = std::env::args().any(|arg| arg == "--i06-probe");
+    let probe_mode = std::env::args().any(|arg| arg == "--i07-probe");
     let window_url = if probe_mode {
         WebviewUrl::App("index.html?probe=1".into())
     } else {
@@ -422,7 +607,7 @@ fn main() {
     };
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_source_authority, report_i06_probe])
+        .invoke_handler(tauri::generate_handler![load_source_authority, report_i07_probe])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", window_url.clone())
                 .title("Career Ledger")

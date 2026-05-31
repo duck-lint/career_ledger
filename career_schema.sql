@@ -236,3 +236,30 @@ CREATE TABLE IF NOT EXISTS tag_inference_marker_terms (
 
 CREATE INDEX IF NOT EXISTS idx_tag_inference_marker_terms_marker_id
   ON tag_inference_marker_terms(marker_id);
+
+CREATE TABLE IF NOT EXISTS requirements (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  default_weight INTEGER NOT NULL CHECK (default_weight >= 0),
+  cue_terms_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS target_regions (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  requirement_ids_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tag_requirement_links (
+  tag_id TEXT NOT NULL,
+  requirement_id TEXT NOT NULL,
+  weight INTEGER NOT NULL CHECK (weight >= 0),
+  PRIMARY KEY (tag_id, requirement_id),
+  FOREIGN KEY (tag_id) REFERENCES canonical_tags(tag)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (requirement_id) REFERENCES requirements(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tag_requirement_links_requirement_id
+  ON tag_requirement_links(requirement_id);
