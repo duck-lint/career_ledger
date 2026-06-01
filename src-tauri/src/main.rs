@@ -636,16 +636,34 @@ fn report_i08_probe(summary: I08ProbeSummary, app: AppHandle) -> Result<(), Stri
     Ok(())
 }
 
+#[tauri::command]
+fn report_i09_probe(summary: Value, app: AppHandle) -> Result<(), String> {
+    let encoded = serde_json::to_string(&summary)
+        .map_err(|error| format!("Failed to serialize probe summary: {error}"))?;
+
+    println!("I09_PROBE:{encoded}");
+    app.exit(0);
+    Ok(())
+}
+
 fn main() {
-    let probe_mode = std::env::args().any(|arg| arg == "--i08-probe");
-    let window_url = if probe_mode {
-        WebviewUrl::App("index.html?probe=i08".into())
-    } else {
-        WebviewUrl::App("index.html".into())
+    let probe_mode = std::env::args().find_map(|arg| match arg.as_str() {
+        "--i08-probe" => Some("i08"),
+        "--i09-probe" => Some("i09"),
+        _ => None,
+    });
+    let window_url = match probe_mode {
+        Some("i08") => WebviewUrl::App("index.html?probe=i08".into()),
+        Some("i09") => WebviewUrl::App("index.html?probe=i09".into()),
+        _ => WebviewUrl::App("index.html".into()),
     };
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_source_authority, report_i08_probe])
+        .invoke_handler(tauri::generate_handler![
+            load_source_authority,
+            report_i08_probe,
+            report_i09_probe
+        ])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", window_url.clone())
                 .title("Career Ledger")

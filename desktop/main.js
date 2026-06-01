@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 
 import { assembleApprovedSourceFactsProof } from '@ps01/source-authority-adapter.mjs';
 
@@ -15,6 +15,15 @@ const I08_PROBE_RUNS = [
   },
 ];
 
+const I09_PROBE_RUN = {
+  title: 'Principal Platform Engineer',
+  text: 'This role emphasizes backend systems ownership, API design, distributed systems scaling, mentoring, and mentor programs for senior engineers.',
+};
+
+const commandMetrics = {
+  loadSourceAuthorityCalls: 0,
+};
+
 const elements = {
   runtimeInputForm: document.querySelector('#runtime-input-form'),
   titleInput: document.querySelector('#job-posting-title-input'),
@@ -23,6 +32,7 @@ const elements = {
   statusMessage: document.querySelector('#status-message'),
   metadata: document.querySelector('#analysis-metadata'),
   resultsRoot: document.querySelector('#results-root'),
+  explorerRoot: document.querySelector('#source-authority-explorer-root'),
 };
 
 let analysisRunning = false;
@@ -40,6 +50,20 @@ if (probeMode === 'i08') {
   });
 }
 
+if (probeMode === 'i09') {
+  queueMicrotask(() => {
+    void runI09ProbeSession();
+  });
+}
+
+async function invokeDesktopCommand(command, payload) {
+  if (command === 'load_source_authority') {
+    commandMetrics.loadSourceAuthorityCalls += 1;
+  }
+
+  return tauriInvoke(command, payload);
+}
+
 async function runAnalysisForCurrentInput() {
   await runAnalysis(collectRuntimeInput());
 }
@@ -54,10 +78,10 @@ async function runAnalysis(runtimeInput) {
   elements.statusMessage.textContent = 'Running the local SQLite source authority through assembleApprovedSourceFactsProof for this runtime input…';
 
   try {
-    const sourceAuthority = await invoke('load_source_authority', { jobPostingInput: runtimeInput });
+    const sourceAuthority = await invokeDesktopCommand('load_source_authority', { jobPostingInput: runtimeInput });
     const result = assembleApprovedSourceFactsProof(sourceAuthority);
 
-    renderSuccessState(result);
+    renderSuccessState(result, sourceAuthority);
     return {
       runtimeError: null,
       result,
@@ -81,13 +105,21 @@ async function runI08ProbeSession() {
   const firstRun = await runProbePass(I08_PROBE_RUNS[0]);
   const secondRun = await runProbePass(I08_PROBE_RUNS[1]);
 
-  await invoke('report_i08_probe', {
+  await invokeDesktopCommand('report_i08_probe', {
     summary: {
       firstRun,
       secondRun,
       differingVisibleAnalysisFields: collectDifferingVisibleAnalysis(firstRun, secondRun),
     },
   });
+}
+
+async function runI09ProbeSession() {
+  applyRuntimeInput(I09_PROBE_RUN);
+  const outcome = await runAnalysis(collectRuntimeInput());
+  const summary = await captureProbeRunSummary(outcome);
+
+  await invokeDesktopCommand('report_i09_probe', { summary });
 }
 
 async function runProbePass(runtimeInput) {
@@ -110,9 +142,13 @@ function renderIdleState() {
     'No analysis yet',
     'Enter runtime job-posting input above to run the local desktop caller against the SQLite source authority.',
   ));
+  renderExplorerEmptyState(
+    'No source-authority payload yet',
+    'Run an analysis to inspect the live source-authority slices that fed that result.',
+  );
 }
 
-function renderSuccessState(result) {
+function renderSuccessState(result, sourceAuthority) {
   const supportedResult = result.proof.results.find(
     (entry) => entry.requirementId === 'req-backend-systems',
   );
@@ -154,11 +190,12 @@ function renderSuccessState(result) {
     },
   ]);
 
-  elements.statusMessage.textContent = 'Rendered one supported and one unsupported requirement from the local SQLite source authority for this runtime input.';
+  elements.statusMessage.textContent = 'Rendered one supported and one unsupported requirement plus a read-only explorer for the current SQLite-backed source authority.';
   elements.resultsRoot.replaceChildren(
     createResultCard(supportedResult),
     createResultCard(unsupportedResult),
   );
+  renderExplorerState(sourceAuthority);
 }
 
 function renderErrorState(message) {
@@ -173,6 +210,10 @@ function renderErrorState(message) {
 
   elements.statusMessage.textContent = 'The local analysis failed.';
   elements.resultsRoot.replaceChildren(createEmptyState('Analysis failed', message));
+  renderExplorerEmptyState(
+    'Source-authority explorer unavailable',
+    'The explorer only renders after a successful analysis run.',
+  );
 }
 
 function updateMetadata(entries) {
@@ -266,6 +307,124 @@ function createResultCard(result) {
   return card;
 }
 
+function renderExplorerState(sourceAuthority) {
+  const experienceRecords = sourceAuthority?.experience_records ?? sourceAuthority?.experienceRecords ?? [];
+  const evidenceItems = sourceAuthority?.evidence_items ?? sourceAuthority?.evidenceItems ?? [];
+  const taxonomy = sourceAuthority?.taxonomy ?? {};
+  const jobPostingInput = sourceAuthority?.jobPostingInput ?? {};
+  const authorityMarkers = sourceAuthority?.authorityMarkers ?? {};
+
+  elements.explorerRoot.replaceChildren(
+    createExplorerListCard(
+      'experience-records',
+      'Experience records',
+      `${experienceRecords.length} record${pluralize(experienceRecords.length)} from SQLite source authority`,
+      buildExplorerPreview(
+        experienceRecords.map(formatExperienceRecordItem),
+        6,
+        'experience records',
+      ),
+    ),
+    createExplorerListCard(
+      'evidence-items',
+      'Evidence items',
+      `${evidenceItems.length} item${pluralize(evidenceItems.length)} linked to experience records`,
+      buildExplorerPreview(
+        evidenceItems.map(formatEvidenceItem),
+        8,
+        'evidence items',
+      ),
+    ),
+    createExplorerListCard(
+      'taxonomy',
+      'Taxonomy',
+      formatTaxonomySummary(taxonomy),
+      buildTaxonomyItems(taxonomy),
+    ),
+    createExplorerKeyValueCard(
+      'job-posting-input',
+      'Runtime job-posting input',
+      formatJobPostingInputSummary(jobPostingInput),
+      buildJobPostingInputEntries(jobPostingInput),
+    ),
+    createExplorerKeyValueCard(
+      'authority-markers',
+      'Authority markers',
+      formatAuthorityMarkersSummary(authorityMarkers),
+      buildAuthorityMarkerEntries(authorityMarkers),
+    ),
+  );
+}
+
+function renderExplorerEmptyState(title, description) {
+  elements.explorerRoot.replaceChildren(createEmptyState(title, description));
+}
+
+function createExplorerListCard(key, title, summary, items) {
+  const card = createExplorerCard(key, title, summary);
+  const list = document.createElement('ul');
+
+  list.className = 'explorer-list';
+
+  for (const item of items) {
+    const listItem = document.createElement('li');
+    listItem.textContent = item;
+    listItem.setAttribute('data-explorer-item', 'visible');
+    list.append(listItem);
+  }
+
+  card.append(list);
+  return card;
+}
+
+function createExplorerKeyValueCard(key, title, summary, entries) {
+  const card = createExplorerCard(key, title, summary);
+  const list = document.createElement('dl');
+
+  list.className = 'explorer-definition-list';
+
+  for (const entry of entries) {
+    const row = document.createElement('div');
+    const term = document.createElement('dt');
+    const detail = document.createElement('dd');
+
+    term.textContent = entry.label;
+    detail.textContent = entry.value;
+    detail.setAttribute('data-explorer-item', 'visible');
+
+    if (entry.dataAttributeName && entry.dataAttributeValue) {
+      detail.setAttribute(entry.dataAttributeName, entry.dataAttributeValue);
+    }
+
+    row.append(term, detail);
+    list.append(row);
+  }
+
+  card.append(list);
+  return card;
+}
+
+function createExplorerCard(key, title, summary) {
+  const card = document.createElement('article');
+  const header = document.createElement('div');
+  const heading = document.createElement('h3');
+  const summaryText = document.createElement('p');
+
+  card.className = 'explorer-card';
+  card.setAttribute('data-explorer-section', key);
+
+  header.className = 'explorer-card__header';
+  heading.textContent = title;
+  summaryText.className = 'explorer-card__summary';
+  summaryText.setAttribute('data-explorer-summary', key);
+  summaryText.textContent = summary;
+
+  header.append(heading, summaryText);
+  card.append(header);
+
+  return card;
+}
+
 function createListSection(title, items, emptyLabel, dataAttribute) {
   const section = document.createElement('section');
   const heading = document.createElement('h4');
@@ -303,6 +462,152 @@ function createUnsupportedSection() {
 
   section.append(heading, note);
   return section;
+}
+
+function formatExperienceRecordItem(record) {
+  return `${record.id} · ${record.label} · tags ${formatTagLinks(record.tag_links ?? record.tagLinks ?? [])}`;
+}
+
+function formatEvidenceItem(item) {
+  const experienceLink = item.experience_link ?? item.experienceLink ?? {};
+
+  return `${item.id} · ${item.label} · experience ${item.experience_record_id ?? item.experienceRecordId} x${experienceLink.weight ?? 'missing'} · tags ${formatTagLinks(item.tag_links ?? item.tagLinks ?? [])}`;
+}
+
+function formatTagLinks(tagLinks) {
+  return tagLinks.map((entry) => `${entry.tag_id ?? entry.tagId} x${entry.weight}`).join(', ');
+}
+
+function formatTaxonomySummary(taxonomy) {
+  const tags = taxonomy.tags ?? [];
+  const requirements = taxonomy.requirements ?? [];
+  const targetRegions = taxonomy.target_regions ?? taxonomy.targetRegions ?? [];
+  const tagRequirementLinks = taxonomy.tag_requirement_links ?? taxonomy.tagRequirementLinks ?? [];
+
+  return `${tags.length} tag${pluralize(tags.length)} · ${requirements.length} requirement${pluralize(requirements.length)} · ${targetRegions.length} target region${pluralize(targetRegions.length)} · ${tagRequirementLinks.length} tag link${pluralize(tagRequirementLinks.length)}`;
+}
+
+function buildTaxonomyItems(taxonomy) {
+  const tags = taxonomy.tags ?? [];
+  const requirements = taxonomy.requirements ?? [];
+  const targetRegions = taxonomy.target_regions ?? taxonomy.targetRegions ?? [];
+  const tagRequirementLinks = taxonomy.tag_requirement_links ?? taxonomy.tagRequirementLinks ?? [];
+  const items = [];
+
+  if (tags.length > 0) {
+    items.push(`Tags: ${formatPreviewValues(tags.map((entry) => entry.label), 10)}`);
+  }
+
+  if (requirements.length > 0) {
+    items.push(`Requirements: ${requirements.map(formatRequirementItem).join(' | ')}`);
+  }
+
+  if (targetRegions.length > 0) {
+    items.push(`Target regions: ${targetRegions.map(formatTargetRegionItem).join(' | ')}`);
+  }
+
+  if (tagRequirementLinks.length > 0) {
+    items.push(`Tag links: ${tagRequirementLinks.map(formatTagRequirementLink).join(' | ')}`);
+  }
+
+  return items;
+}
+
+function buildExplorerPreview(items, maxVisible, label) {
+  if (items.length <= maxVisible) {
+    return items;
+  }
+
+  return [
+    ...items.slice(0, maxVisible),
+    `${items.length - maxVisible} more ${label} remain in the current read-only payload preview.`,
+  ];
+}
+
+function formatRequirementItem(requirement) {
+  const cueTerms = requirement.cue_terms ?? requirement.cueTerms ?? [];
+  const defaultWeight = requirement.default_weight ?? requirement.defaultWeight;
+
+  return `${requirement.label} (${requirement.id}) default ${defaultWeight} cues ${cueTerms.join(', ')}`;
+}
+
+function formatTargetRegionItem(targetRegion) {
+  const requirementIds = targetRegion.requirement_ids ?? targetRegion.requirementIds ?? [];
+
+  return `${targetRegion.label} (${targetRegion.id}) -> ${requirementIds.join(', ')}`;
+}
+
+function formatTagRequirementLink(link) {
+  return `${link.tag_id ?? link.tagId} -> ${link.requirement_id ?? link.requirementId} x${link.weight}`;
+}
+
+function formatJobPostingInputSummary(jobPostingInput) {
+  const populatedFieldCount = countPopulatedJobPostingFields(jobPostingInput);
+
+  return `${populatedFieldCount} populated field${pluralize(populatedFieldCount)} in the runtime payload`;
+}
+
+function buildJobPostingInputEntries(jobPostingInput) {
+  return [
+    {
+      label: 'Title',
+      value: formatOptionalText(jobPostingInput.title),
+      dataAttributeName: 'data-explorer-runtime-field',
+      dataAttributeValue: 'title',
+    },
+    {
+      label: 'Text',
+      value: formatOptionalText(jobPostingInput.text),
+      dataAttributeName: 'data-explorer-runtime-field',
+      dataAttributeValue: 'text',
+    },
+    {
+      label: 'Summary',
+      value: formatOptionalText(jobPostingInput.summary),
+      dataAttributeName: 'data-explorer-runtime-field',
+      dataAttributeValue: 'summary',
+    },
+    {
+      label: 'Description',
+      value: formatOptionalText(jobPostingInput.description),
+      dataAttributeName: 'data-explorer-runtime-field',
+      dataAttributeValue: 'description',
+    },
+  ];
+}
+
+function countPopulatedJobPostingFields(jobPostingInput) {
+  return ['title', 'text', 'summary', 'description']
+    .map((field) => jobPostingInput[field])
+    .filter((value) => typeof value === 'string' && value.trim() !== '')
+    .length;
+}
+
+function formatAuthorityMarkersSummary(authorityMarkers) {
+  const markerCount = Object.values(authorityMarkers).filter((value) => String(value ?? '').trim() !== '').length;
+
+  return `${markerCount} authority marker${pluralize(markerCount)} from the current run payload`;
+}
+
+function buildAuthorityMarkerEntries(authorityMarkers) {
+  return [
+    {
+      label: 'Requirement region authority',
+      value: formatOptionalText(authorityMarkers.requirementRegionAuthority),
+      dataAttributeName: 'data-explorer-marker',
+      dataAttributeValue: 'requirement-region-authority',
+    },
+  ];
+}
+
+function formatOptionalText(value) {
+  return typeof value === 'string' && value.trim() !== ''
+    ? value
+    : 'Not provided';
+}
+
+function pluralize(count) {
+  return count === 1 ? '' : 's';
 }
 
 function formatSequenceEntry(entry) {
@@ -355,9 +660,15 @@ async function captureProbeRunSummary(outcome) {
   const supportedCard = elements.resultsRoot.querySelector('[data-result-id="req-backend-systems"]');
   const unsupportedCard = elements.resultsRoot.querySelector('[data-result-id="req-mentoring"]');
   const runtimeError = outcome ? outcome.runtimeError : 'missing';
+  const experienceSection = readExplorerSection('experience-records');
+  const evidenceSection = readExplorerSection('evidence-items');
+  const taxonomySection = readExplorerSection('taxonomy');
+  const jobPostingSection = readExplorerSection('job-posting-input');
+  const authoritySection = readExplorerSection('authority-markers');
 
   return {
     runtimeError,
+    loadSourceAuthorityCallCount: commandMetrics.loadSourceAuthorityCalls,
     requirementRegionAuthority: outcome?.sourceAuthority?.authorityMarkers?.requirementRegionAuthority ?? 'missing',
     renderedResultIds: Array.from(elements.resultsRoot.querySelectorAll('[data-result-id]')).map(
       (entry) => entry.getAttribute('data-result-id') ?? '',
@@ -383,6 +694,20 @@ async function captureProbeRunSummary(outcome) {
     selectedRegionScore: readMetadataValue('selected-region-score'),
     requirementWeights: readMetadataValue('requirement-weights'),
     matchedCueTerms: readMetadataValue('matched-cue-terms'),
+    experienceRecordsSummary: experienceSection.summary,
+    experienceRecordItems: experienceSection.items,
+    evidenceItemsSummary: evidenceSection.summary,
+    evidenceItemItems: evidenceSection.items,
+    taxonomySummary: taxonomySection.summary,
+    taxonomyItems: taxonomySection.items,
+    jobPostingInputSummary: jobPostingSection.summary,
+    jobPostingInputItems: jobPostingSection.items,
+    displayedJobPostingTitle: readExplorerField('[data-explorer-runtime-field="title"]'),
+    displayedJobPostingText: readExplorerField('[data-explorer-runtime-field="text"]'),
+    authorityMarkersSummary: authoritySection.summary,
+    authorityMarkerItems: authoritySection.items,
+    displayedRequirementRegionAuthority: readExplorerField('[data-explorer-marker="requirement-region-authority"]'),
+    hasWritableExplorerControls: Boolean(elements.explorerRoot.querySelector('input, textarea, select, button, [contenteditable="true"]')),
   };
 }
 
@@ -410,8 +735,31 @@ function readMetadataValue(key) {
   return elements.metadata.querySelector(`[data-metadata-value="${key}"]`)?.textContent ?? 'missing';
 }
 
+function readExplorerSection(key) {
+  const section = elements.explorerRoot.querySelector(`[data-explorer-section="${key}"]`);
+
+  return {
+    summary: section?.querySelector(`[data-explorer-summary="${key}"]`)?.textContent ?? 'missing',
+    items: Array.from(section?.querySelectorAll('[data-explorer-item]') ?? []).map(
+      (entry) => entry.textContent ?? '',
+    ),
+  };
+}
+
+function readExplorerField(selector) {
+  return elements.explorerRoot.querySelector(selector)?.textContent ?? 'missing';
+}
+
 function nextFrame() {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
+}
+
+function formatPreviewValues(values, maxVisible) {
+  if (values.length <= maxVisible) {
+    return values.join(', ');
+  }
+
+  return `${values.slice(0, maxVisible).join(', ')} + ${values.length - maxVisible} more`;
 }
