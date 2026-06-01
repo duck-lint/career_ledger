@@ -50,6 +50,7 @@ body::before {
   border: 1px solid var(--panel-border);
   border-radius: 24px;
   box-shadow: var(--panel-shadow);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
@@ -93,6 +94,54 @@ body::before {
   align-items: center;
   gap: 1rem;
   margin-top: 1.5rem;
+}
+
+.runtime-input-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field--wide {
+  grid-column: 1 / -1;
+}
+
+.field span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid rgba(82, 62, 36, 0.18);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 253, 248, 0.94);
+  color: var(--ink-strong);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.field textarea {
+  min-height: 9rem;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: 2px solid rgba(13, 90, 76, 0.2);
+  outline-offset: 2px;
+  border-color: rgba(13, 90, 76, 0.42);
 }
 
 .primary-action {
@@ -284,5 +333,9 @@ body::before {
   .panel-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .controls {
+    align-items: stretch;
   }
 }

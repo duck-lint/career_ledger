@@ -1,11 +1,11 @@
 {
-  "name": "career-ledger-i07-desktop-seam",
+  "name": "career-ledger-i08-runtime-input-seam",
   "private": true,
   "type": "module",
   "scripts": {
     "build:web": "vite build",
     "desktop:run": "npm run build:web && cargo run --manifest-path src-tauri/Cargo.toml",
-    "probe:i07": "node ./desktop/probes/i07-desktop-probe.mjs"
+    "probe:i08": "node ./desktop/probes/i08-desktop-probe.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"

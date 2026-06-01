@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 
-const SEMANTIC_OVERLAY_JSON: &str = include_str!("../fixtures/source-authority-semantic-overlay.json");
 const CAREER_DB_FILE_NAME: &str = "career.db";
 const RECORD_TAG_WEIGHT: u32 = 1;
 const EVIDENCE_TAG_WEIGHT: u32 = 2;
@@ -19,7 +18,7 @@ const REQUIREMENT_REGION_AUTHORITY_SQLITE: &str = "sqlite";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ProbeSummary {
+struct ProbeRunSummary {
     runtime_error: Option<String>,
     requirement_region_authority: String,
     rendered_result_ids: Vec<String>,
@@ -32,6 +31,26 @@ struct ProbeSummary {
     supporting_evidence_item_ids: Vec<String>,
     semantic_positions: Vec<String>,
     ordered_sequence: Vec<String>,
+    target_region_label: String,
+    selected_region_score: String,
+    requirement_weights: String,
+    matched_cue_terms: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProbeFieldDifference {
+    field: String,
+    first_value: String,
+    second_value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct I08ProbeSummary {
+    first_run: ProbeRunSummary,
+    second_run: ProbeRunSummary,
+    differing_visible_analysis_fields: Vec<ProbeFieldDifference>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,11 +116,23 @@ struct Taxonomy {
     target_regions: Vec<TargetRegion>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct JobPostingInput {
+    #[serde(default)]
     title: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
     text: String,
+    #[serde(default)]
+    description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthorityMarkers {
+    requirement_region_authority: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,16 +146,29 @@ struct SourceAuthority {
     authority_markers: AuthorityMarkers,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SemanticOverlay {
-    #[serde(rename = "jobPostingInput")]
-    job_posting_input: JobPostingInput,
-}
+impl JobPostingInput {
+    fn normalized(self) -> Result<Self, String> {
+        let normalized = Self {
+            title: self.title.trim().to_owned(),
+            summary: self.summary.trim().to_owned(),
+            text: self.text.trim().to_owned(),
+            description: self.description.trim().to_owned(),
+        };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AuthorityMarkers {
-    requirement_region_authority: String,
+        if [
+            normalized.title.as_str(),
+            normalized.summary.as_str(),
+            normalized.text.as_str(),
+            normalized.description.as_str(),
+        ]
+        .iter()
+        .all(|value| value.is_empty())
+        {
+            return Err("jobPostingInput must include at least one non-empty text field.".to_owned());
+        }
+
+        Ok(normalized)
+    }
 }
 
 fn source_authority_db_path() -> PathBuf {
@@ -149,11 +193,6 @@ fn open_source_authority_db() -> Result<Connection, String> {
             path.display()
         )
     })
-}
-
-fn load_semantic_overlay() -> Result<SemanticOverlay, String> {
-    serde_json::from_str(SEMANTIC_OVERLAY_JSON)
-        .map_err(|error| format!("Failed to parse the source-authority semantic overlay: {error}"))
 }
 
 fn normalize_optional_string(value: Option<String>) -> Option<String> {
@@ -562,8 +601,7 @@ fn load_requirement_region_taxonomy(
 }
 
 #[tauri::command]
-fn load_source_authority() -> Result<Value, String> {
-    let overlay = load_semantic_overlay()?;
+fn load_source_authority(job_posting_input: JobPostingInput) -> Result<Value, String> {
     let connection = open_source_authority_db()?;
     let (tags, canonical_tag_ids) = load_taxonomy_tags(&connection)?;
     let (tag_requirement_links, requirements, target_regions) =
@@ -578,7 +616,7 @@ fn load_source_authority() -> Result<Value, String> {
             requirements,
             target_regions,
         },
-        job_posting_input: overlay.job_posting_input,
+        job_posting_input: job_posting_input.normalized()?,
         authority_markers: AuthorityMarkers {
             requirement_region_authority: REQUIREMENT_REGION_AUTHORITY_SQLITE.to_owned(),
         },
@@ -589,25 +627,25 @@ fn load_source_authority() -> Result<Value, String> {
 }
 
 #[tauri::command]
-fn report_i07_probe(summary: ProbeSummary, app: AppHandle) -> Result<(), String> {
+fn report_i08_probe(summary: I08ProbeSummary, app: AppHandle) -> Result<(), String> {
     let encoded = serde_json::to_string(&summary)
         .map_err(|error| format!("Failed to serialize probe summary: {error}"))?;
 
-    println!("I07_PROBE:{encoded}");
+    println!("I08_PROBE:{encoded}");
     app.exit(0);
     Ok(())
 }
 
 fn main() {
-    let probe_mode = std::env::args().any(|arg| arg == "--i07-probe");
+    let probe_mode = std::env::args().any(|arg| arg == "--i08-probe");
     let window_url = if probe_mode {
-        WebviewUrl::App("index.html?probe=1".into())
+        WebviewUrl::App("index.html?probe=i08".into())
     } else {
         WebviewUrl::App("index.html".into())
     };
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_source_authority, report_i07_probe])
+        .invoke_handler(tauri::generate_handler![load_source_authority, report_i08_probe])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", window_url.clone())
                 .title("Career Ledger")

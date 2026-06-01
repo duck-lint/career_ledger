@@ -9,22 +9,46 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <p class="eyebrow">Implementation-07 · I07-S1</p>
-        <h1>Local desktop caller for the proven requirement proof</h1>
+        <p class="eyebrow">Implementation-08 · I08-S1</p>
+        <h1>Operator runtime input drives the local requirement proof</h1>
         <p class="lede">
-          One SQLite-backed analysis action, routed through the unchanged ps01 adapter and runtime core,
-          rendered as a read-only result view.
+          Enter runtime job-posting input for this run, route it through the unchanged ps01 adapter and
+          runtime core, and keep SQLite as the backing authority for source facts and requirement-region
+          taxonomy.
         </p>
-        <div class="controls">
-          <button id="analyze-button" class="primary-action" type="button">Run local analysis</button>
-          <p id="status-message" class="status-message">Ready to analyze the local SQLite source authority.</p>
-        </div>
+        <form id="runtime-input-form" class="runtime-input-form">
+          <label class="field">
+            <span>Posting title</span>
+            <input
+              id="job-posting-title-input"
+              name="job-posting-title"
+              type="text"
+              autocomplete="off"
+              placeholder="Staff Platform Engineer"
+            />
+          </label>
+          <label class="field field--wide">
+            <span>Posting text</span>
+            <textarea
+              id="job-posting-text-input"
+              name="job-posting-text"
+              rows="6"
+              placeholder="Paste the runtime-only role summary or description for this run."
+            ></textarea>
+          </label>
+          <div class="controls">
+            <button id="analyze-button" class="primary-action" type="submit">Run local analysis</button>
+            <p id="status-message" class="status-message">
+              Enter runtime-only job-posting input and analyze it against the local SQLite source authority.
+            </p>
+          </div>
+        </form>
       </section>
 
       <section class="panel panel--metadata" aria-labelledby="metadata-heading">
         <div class="panel-heading">
-          <h2 id="metadata-heading">Adapter route</h2>
-          <span class="panel-kicker">Read-only</span>
+          <h2 id="metadata-heading">Analysis metadata</h2>
+          <span class="panel-kicker">Runtime-only</span>
         </div>
         <dl id="analysis-metadata" class="metadata-list">
           <div>
@@ -33,6 +57,18 @@
           </div>
           <div>
             <dt>Target region</dt>
+            <dd>Waiting for analysis</dd>
+          </div>
+          <div>
+            <dt>Selected region score</dt>
+            <dd>Waiting for analysis</dd>
+          </div>
+          <div>
+            <dt>Requirement weights</dt>
+            <dd>Waiting for analysis</dd>
+          </div>
+          <div>
+            <dt>Matched cue terms</dt>
             <dd>Waiting for analysis</dd>
           </div>
           <div>
@@ -50,7 +86,7 @@
         <div id="results-root" class="results-grid">
           <article class="empty-state">
             <h3>No analysis yet</h3>
-            <p>Use the single action above to run the local desktop caller against the SQLite source authority.</p>
+            <p>Enter runtime job-posting input above to run the local desktop caller against the SQLite source authority.</p>
           </article>
         </div>
       </section>
