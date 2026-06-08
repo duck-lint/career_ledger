@@ -1,1 +1,1 @@
-refactor in progress, download latest release for active application
+refactor in progress, download demo tag release for active application
