@@ -46,3 +46,41 @@ $$
 $$
 
 Interpret the problem, evaluate the available options, and propose a selection. Everything downstream is deterministic under this initial design.
+
+## Data flow (conceptual)
+
+### 1. Populate the library
+
+```mermaid
+flowchart LR
+    U["User-authored career content"] --> V["Validate input"]
+    V --> D[("SQLite career library")]
+```
+
+### 2. Build a resume
+
+```mermaid
+flowchart TD
+    J["Job description (J)"] --> Ip["Evaluate posting (I_p)"]
+    Ip --> P["Problem space (P)"]
+    D[("Career library")] --> M["Snapshot (M)"]
+    M --> O["Expose options (O)"]
+    P --> Is["Propose selection (I_s)"]
+    O --> Is
+    Is --> T["Selected source IDs (T)"]
+    T --> C{"Structural conformance (C)"}
+    M --> C
+    C -->|invalid| X["Return violations"]
+    C -->|valid| E["Retrieve selected records (E)"]
+    M --> E
+    E --> R["Authoritative records (R)"]
+    R --> F["Assemble resume (F)"]
+    L["Layout (ℓ)"] --> F
+    F --> A["Resume artifact (A)"]
+```
+
+## Still to define
+
+- **Database schema:** Persisted career content, stable IDs, and record relationships.
+- **Inference interfaces:** Posting/options inputs and problem-space/selection outputs; call boundaries undecided.
+- **Assembly contract:** Retrieved-content and layout inputs, resume sections, and output format.
