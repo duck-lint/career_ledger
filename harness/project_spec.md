@@ -1,86 +1,70 @@
-$$
-\boxed{\text{Evaluate} \rightarrow \text{Propose} \rightarrow \text{Validate} \rightarrow \text{Execute}}
-$$
+# Career Ledger — Project Kernel
 
-1. **Problem-space evaluation:** Interpret the job posting—its requirements, priorities, constraints, and relationships. Determine what kind of experience would be relevant.
-2. **Proposition from supplied options:** Evaluate the actual career database against that problem space. Propose a selection of existing evidence, rather than inventing new options.
-3. **Structural conformance:** Ensure the proposed selections reference valid, authorized database objects.
-4. **Deterministic execution:** Retrieve the selected content and assemble it according to the application's output contract.
+**Goal:** Relate a user-supplied job posting to user-authored career evidence, propose relevant source IDs, and assemble a source-grounded resume.
 
-$$
-\begin{aligned}
-P &= I_p(J)\\
-O &= \operatorname{Options}(M)\\
-T &= I_s(P,O)\\
-C(T,M) &\in \{\text{valid},\text{invalid}\}\\
-R &= E(T,M) \quad \text{if valid}\\
-A &= F(R,\ell)
-\end{aligned}
-$$
+## Roles and authority
 
-| Symbol | Meaning |
-| --- | --- |
-| $(J)$ | User-supplied job description |
-| $(M)$	| Frozen snapshot of the authorized career database |
-| $(I_p)$	| LLM inference function that evaluates the job description |
-| $(P)$	| **Inferred problem space:** requirements, priorities, and relationships |
-| $(\operatorname{Options})$	| Deterministic function exposing selectable database content |
-| $(O)$	| Available career evidence and other authorized content |
-| $(I_s)$	| LLM inference function proposing relevant options |
-| $(T)$	| Proposed selection of source identifiers, optionally with relevance rationales |
-| $(C)$	| Deterministic structural conformance validator |
-| $(E)$	| Deterministic execution function retrieving selected records |
-| $(R)$	| Retrieved authoritative content |
-| $(\ell)$ | Resume layout or template configuration |
-| $(F)$	| Deterministic resume assembly and formatting function |
-| $(A)$ |	Assembled resume artifact |
+- **User:** Authoritative for the job posting and stored career content.
+- **Model:** Evaluates meaningful contextual/operational relationships and proposes existing evidence IDs with stated relationships.
+- **Validator:** Checks JSON shape, offered/existing IDs, and source associations—not semantic relevance.
+- **Executor/assembler:** Retrieves authoritative text and places it in resume sections; no model-authored career claims in v1.
+- The prompt constrains the **task**, not a closed vocabulary of permitted relationships. Internal reasoning remains unobservable; only submitted inputs and output are inspectable.
 
-**Two important distinctions**
-**First:** $(I_p)$ and $(I_s)$ are conceptually distinct inference operations. **Separate LLM calls required for each remains undetermined.**
+## Kernel
 
-**Second:** $(C)$ checks structural validity, not semantic relevance. A valid selection means the referenced source content exists and satisfies the application's selection rules. It doesn't mean the model made a good relevance judgment.
+```text
+O = Options(D)
+P = I_p(J, O)
+T = I_s(P, O)
+C(T, D, O) -> valid | invalid
+R = E(T, D)           [only if valid]
+A = F(R, Approved(D), ℓ)
+```
 
-**The core proposition is now represented explicitly:**
-$$
-\boxed{T=I_s(I_p(J),\operatorname{Options}(M))}
-$$
+- **J:** posting; **D:** live SQLite career library; **O:** offered evidence with role/project context.
+- **P:** relational interpretation of J and O; conceptual, not necessarily a serialized model output.
+- **I_p / I_s:** interpret the problem / propose strongest relevant matches. Distinct functions conceptually; separate model calls are **not required**.
+- **T:** proposed requirement-to-evidence matches and stated relationships; **C:** structural conformance.
+- **R:** database-retrieved records; **Approved(D):** preapproved non-evidence content; **ℓ:** layout; **A:** resume artifact.
+- No separately managed database snapshot is required by this contract.
 
-Interpret the problem, evaluate the available options, and propose a selection. Everything downstream is deterministic under this initial design.
+## Data flow
 
-## Data flow (conceptual)
-
-### 1. Populate the library
+### Populate career library
 
 ```mermaid
 flowchart LR
-    U["User-authored career content"] --> V["Validate input"]
-    V --> D[("SQLite career library")]
+    U["User-authored content"] --> V["Validate fields"]
+    V --> D[("SQLite library (D)")]
 ```
 
-### 2. Build a resume
+### Build resume
 
 ```mermaid
 flowchart TD
-    J["Job description (J)"] --> Ip["Evaluate posting (I_p)"]
-    Ip --> P["Problem space (P)"]
-    D[("Career library")] --> M["Snapshot (M)"]
-    M --> O["Expose options (O)"]
-    P --> Is["Propose selection (I_s)"]
-    O --> Is
-    Is --> T["Selected source IDs (T)"]
-    T --> C{"Structural conformance (C)"}
-    M --> C
+    J["Job posting (J)"] --> P["Interpret relational problem space (P)"]
+    D[("Career library (D)")] --> O["Expose options (O)"]
+    O --> P
+    P --> T["Propose evidence matches (T)"]
+    O --> T
+    T --> C{"Validate schema and source IDs (C)"}
+    D --> C
     C -->|invalid| X["Return violations"]
-    C -->|valid| E["Retrieve selected records (E)"]
-    M --> E
-    E --> R["Authoritative records (R)"]
-    R --> F["Assemble resume (F)"]
+    C -->|valid| E["Retrieve selected records (R)"]
+    D --> E
+    E --> F["Assemble resume (F)"]
+    D --> K["Retrieve approved content"]
+    K --> F
     L["Layout (ℓ)"] --> F
     F --> A["Resume artifact (A)"]
 ```
 
-## Still to define
+## Contracts — initial cut
 
-- **Database schema:** Persisted career content, stable IDs, and record relationships.
-- **Inference interfaces:** Posting/options inputs and problem-space/selection outputs; call boundaries undecided.
-- **Assembly contract:** Retrieved-content and layout inputs, resume sections, and output format.
+1. **Database:** [`career_schema.sql`](career_schema.sql). A parent experience record (employment/project) owns separate evidence items; changing an item's parent does not recreate its ID. Approved profile, highlight, education, certification, and toolkit content is stored separately. Only user actions edit source content.
+2. **Inference:** [`inference_prompt_v1.md`](inference_prompt_v1.md) + [`selection.schema.json`](selection.schema.json). Input: `job_description: string` and `options: [{id, description, experience_id, kind, title, organization}]`. Output: `matches: [{requirement, evidence_id, relationship}]` and `unmatched_requirements: string[]`. List entries are model-stated interpretations, **not** verified career claims.
+3. **Assembly:** Given validated T, fetch evidence text **and its parent metadata** from D; place it under the owning experience/project. Place only approved content in other configured sections. Preserve source wording, allow selection/order/layout, and emit a structured resume, DOCX, and source-ID mapping for career statements. Invalid selections produce no resume.
+
+## Traceability
+
+For each build, retain the **exact application-supplied prompt version/text, job description, offered option IDs/text/context, model/provider settings available to the app, returned proposal, validation outcome, and output-to-source mapping**. This tracks observable inference provenance, **not** hidden model reasoning or semantic correctness.
