@@ -69,6 +69,23 @@ class LibraryFlow(unittest.TestCase):
         self.call("get-evidence", "--id", "missing", success=False)
         self.call("move-evidence", "--id", "missing", "--experience-id", exp, success=False)
 
+    def test_present_end_date_for_both_experience_kinds(self):
+        self.call("init")
+        for kind in ("employment", "project"):
+            with self.subTest(kind=kind):
+                exp_id = self.call(
+                    "add-experience", "--kind", kind, "--title", f"Ongoing {kind}",
+                    "--start-date", "2025-01-01", "--end-date", "Present"
+                )["id"]
+                record = self.call("get-experience", "--id", exp_id)
+                self.assertEqual(record["start_date"], "2025-01-01")
+                self.assertEqual(record["end_date"], "Present")
+                with sqlite3.connect(self.db) as con:
+                    stored_end = con.execute(
+                        "SELECT end_date FROM experience_records WHERE id = ?", (exp_id,)
+                    ).fetchone()[0]
+                self.assertEqual(stored_end, "Present")
+
     def test_initialization_and_input_validation(self):
         self.call("get-experience", "--id", "missing", success=False)
         self.assertFalse(self.db.exists())  # Reads must never create a database.
@@ -80,6 +97,12 @@ class LibraryFlow(unittest.TestCase):
                   "--start-date", "2025-05-02", "--end-date", "2025-04-02", success=False)
         self.call("add-experience", "--kind", "employment", "--title", "Operator",
                   "--start-date", "not-a-date", success=False)
+        self.call("add-experience", "--kind", "employment", "--title", "Operator",
+                  "--start-date", "Present", success=False)
+        self.call("add-experience", "--kind", "project", "--title", "Project",
+                  "--end-date", "present", success=False)
+        self.call("add-experience", "--kind", "project", "--title", "Project",
+                  "--end-date", "not-a-date", success=False)
         with sqlite3.connect(self.db) as con:
             self.assertEqual(con.execute("SELECT COUNT(*) FROM experience_records").fetchone()[0], 0)
 
