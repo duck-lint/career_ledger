@@ -1,8 +1,6 @@
 # Career Ledger — diagrams
 
-These are Mermaid sources supported by [Pele](https://pele.run/examples). Copy the **content inside** a code fence into Pele.
-
-**Status:** The SQL schema exists on `revamp`; the storage CLI is in PR #2; model inference, selection validation, and resume assembly are **proposed**, not implemented.
+**Status:** The SQL schema exists and storage CLI exist on `revamp`; model inference, selection validation, and resume assembly are **proposed**, not implemented.
 
 ## 1. System architecture
 
