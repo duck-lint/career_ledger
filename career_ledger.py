@@ -28,10 +28,11 @@ def nonblank(text, field):
 
 
 def checked_dates(start, end):
-    for value in (start, end):
-        if value is not None and (date.fromisoformat(value).isoformat() != value):
-            raise ValueError("dates must be YYYY-MM-DD")
-    if start and end and start > end:
+    if start is not None and date.fromisoformat(start).isoformat() != start:
+        raise ValueError("start date must be YYYY-MM-DD")
+    if end is not None and end != "Present" and date.fromisoformat(end).isoformat() != end:
+        raise ValueError('end date must be YYYY-MM-DD or "Present"')
+    if start and end and end != "Present" and start > end:
         raise ValueError("start date must not be after end date")
 
 
