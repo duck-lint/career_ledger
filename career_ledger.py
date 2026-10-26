@@ -43,6 +43,20 @@ def required_row(db, sql, id):
     return dict(row)
 
 
+def format_table(headers, rows, widths, total):
+    def cell(value, width):
+        value = " ".join(str(value if value is not None else "—").split())
+        return (value[:width - 1] + "…") if len(value) > width else value
+
+    def line(values):
+        return "  ".join(cell(value, width).ljust(width) for value, width in zip(values, widths)).rstrip()
+
+    return "\n".join([
+        line(headers), line(["-" * width for width in widths]),
+        *(line(row) for row in rows), f"Showing {len(rows)} of {total} records"
+    ])
+
+
 def execute(args):
     path = Path(args.db)
     if args.command == "init":
@@ -98,6 +112,28 @@ def execute(args):
             )
             return item
 
+        if args.command in ("list-experiences", "list-evidence"):
+            if args.limit < 1:
+                raise ValueError("--limit must be a positive integer")
+            if args.command == "list-experiences":
+                total = db.execute("SELECT COUNT(*) FROM experience_records").fetchone()[0]
+                rows = db.execute("""
+                    SELECT kind, title, end_date FROM experience_records
+                    ORDER BY (end_date = 'Present') DESC,
+                             (end_date IS NULL), end_date DESC,
+                             start_date DESC, title COLLATE NOCASE, id
+                    LIMIT ?
+                """, (args.limit,)).fetchall()
+                return format_table(("TYPE", "TITLE", "END"), rows, (10, 30, 10), total)
+            total = db.execute("SELECT COUNT(*) FROM evidence_items").fetchone()[0]
+            rows = db.execute("""
+                SELECT r.title, e.description FROM evidence_items AS e
+                JOIN experience_records AS r ON r.id = e.experience_id
+                ORDER BY r.title COLLATE NOCASE, e.id
+                LIMIT ?
+            """, (args.limit,)).fetchall()
+            return format_table(("EXPERIENCE", "EVIDENCE"), rows, (24, 50), total)
+
     raise ValueError(f"unknown command: {args.command}")
 
 
@@ -121,13 +157,17 @@ def main(argv=None):
     for name in ("get-experience", "get-evidence"):
         commands.add_parser(name).add_argument("--id", required=True)
 
+    for name in ("list-experiences", "list-evidence"):
+        commands.add_parser(name).add_argument("--limit", type=int, default=15)
+
     move = commands.add_parser("move-evidence")
     move.add_argument("--id", required=True)
     move.add_argument("--experience-id", required=True)
 
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(execute(args), ensure_ascii=False))
+        result = execute(args)
+        print(result if isinstance(result, str) else json.dumps(result, ensure_ascii=False))
     except (ValueError, sqlite3.Error, OSError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
