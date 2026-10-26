@@ -20,3 +20,13 @@ python -m unittest discover -s tests -v
 ```
 
 **Boundary:** User text is stored verbatim. Evidence has a stable ID and an editable foreign key to its parent record. No inference, GUI, or resume generation in this slice.
+
+## Browse without JSON output
+
+```bash
+python career_ledger.py --db career.db list-experiences
+python career_ledger.py --db career.db list-evidence
+python career_ledger.py --db career.db list-evidence --limit 50
+```
+
+Listings are read-only text tables: 15 rows by default, with a count of total records. Long values and line breaks are shortened **for display only**; SQLite content is unchanged. Experience records show `Present` entries first. Existing `get-*` commands still return full JSON.
