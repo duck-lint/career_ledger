@@ -1,6 +1,6 @@
 # Career Ledger — diagrams
 
-**Status:** SQLite schema and CLI are implemented; MCP tools, model integration, validation, and resume assembly are proposed.
+**Status:** SQLite schema, CLI, and the first MCP tool (`list_experiences`) are implemented; further MCP tools, model integration, validation, and resume assembly are proposed.
 
 ## 1. System architecture
 
