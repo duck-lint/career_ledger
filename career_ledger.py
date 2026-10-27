@@ -118,13 +118,13 @@ def execute(args):
             if args.command == "list-experiences":
                 total = db.execute("SELECT COUNT(*) FROM experience_records").fetchone()[0]
                 rows = db.execute("""
-                    SELECT kind, title, end_date FROM experience_records
+                    SELECT kind, title, start_date, end_date FROM experience_records
                     ORDER BY (end_date = 'Present') DESC,
                              (end_date IS NULL), end_date DESC,
                              start_date DESC, title COLLATE NOCASE, id
                     LIMIT ?
                 """, (args.limit,)).fetchall()
-                return format_table(("TYPE", "TITLE", "END"), rows, (10, 30, 10), total)
+                return format_table(("TYPE", "TITLE", "START", "END"), rows, (10, 30, 10, 10), total)
             total = db.execute("SELECT COUNT(*) FROM evidence_items").fetchone()[0]
             rows = db.execute("""
                 SELECT r.title, e.description FROM evidence_items AS e
