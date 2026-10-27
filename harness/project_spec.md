@@ -5,66 +5,50 @@
 ## Roles and authority
 
 - **User:** Authoritative for the job posting and stored career content.
-- **Model:** Evaluates meaningful contextual/operational relationships and proposes existing evidence IDs with stated relationships.
-- **Validator:** Checks JSON shape, offered/existing IDs, and source associations—not semantic relevance.
-- **Executor/assembler:** Retrieves authoritative text and places it in resume sections; no model-authored career claims in v1.
-- The prompt constrains the **task**, not a closed vocabulary of permitted relationships. Internal reasoning remains unobservable; only submitted inputs and output are inspectable.
+- **Model:** Explores accessible evidence, evaluates substantive relationships to the posting, and proposes source IDs with stated relationships.
+- **MCP server:** Exposes read-only discovery/retrieval tools; it is an interface to SQLite, not a second database.
+- **Host:** Sends the model its versioned instructions and job posting, executes requested tool calls via an MCP client, and returns tool results.
+- **Validator and assembler:** Ordinary application functions, **not** MCP resources or model-callable tools. Check JSON/IDs/source associations, then retrieve and place authoritative text. Neither judges semantic relevance.
+- The prompt constrains the **task**, not the model's reasoning or a fixed relevance taxonomy. Its stated relationships are inspectable proposals, not internal reasoning.
 
 ## Kernel
 
 ```text
-O = Options(D)
-P = I_p(J, O)
-T = I_s(P, O)
-C(T, D, O) -> valid | invalid
-R = E(T, D)           [only if valid]
+(O_seen, L) = Explore(J, D, tools, bounds)
+P = I_p(J, O_seen)
+T = I_s(P, O_seen)
+C(T, D, O_seen) -> valid | invalid
+R = E(T, D)                  [only if valid]
 A = F(R, Approved(D), ℓ)
 ```
 
-- **J:** posting; **D:** live SQLite career library; **O:** offered evidence with role/project context.
-- **P:** relational interpretation of J and O; conceptual, not necessarily a serialized model output.
-- **I_p / I_s:** interpret the problem / propose strongest relevant matches. Distinct functions conceptually; separate model calls are **not required**.
-- **T:** proposed requirement-to-evidence matches and stated relationships; **C:** structural conformance.
-- **R:** database-retrieved records; **Approved(D):** preapproved non-evidence content; **ℓ:** layout; **A:** resume artifact.
-- No separately managed database snapshot is required by this contract.
+- **J:** posting; **D:** SQLite source of truth; **O_seen:** evidence actually returned to the model, with parent context; **L:** observed coverage and limits.
+- **Explore:** model requests bounded, read-only MCP tool calls; server executes SQLite queries and returns results. No automatic semantic filtering.
+- **P:** relational interpretation of J and encountered evidence; conceptual, not a mandatory serialized object.
+- **I_p / I_s:** problem interpretation / candidate proposal; separate model calls are **not required**.
+- **T:** observed evidence IDs with requirements and stated relationships; **C:** structural checks, including that IDs were actually offered.
+- **R:** retrieved source content; **Approved(D):** approved content; **ℓ:** layout; **A:** resume artifact.
+- No extra persisted snapshot, MCP resources, or MCP prompts are required.
 
 ## Data flow
 
-### Populate career library
+See [`diagrams.md`](diagrams.md) for the entry, exploration, and assembly paths.
 
-```mermaid
-flowchart LR
-    U["User-authored content"] --> V["Validate fields"]
-    V --> D[("SQLite library (D)")]
-```
+## MCP access — first slice
 
-### Build resume
-
-```mermaid
-flowchart TD
-    J["Job posting (J)"] --> P["Interpret relational problem space (P)"]
-    D[("Career library (D)")] --> O["Expose options (O)"]
-    O --> P
-    P --> T["Propose evidence matches (T)"]
-    O --> T
-    T --> C{"Validate schema and source IDs (C)"}
-    D --> C
-    C -->|invalid| X["Return violations"]
-    C -->|valid| E["Retrieve selected records (R)"]
-    D --> E
-    E --> F["Assemble resume (F)"]
-    D --> K["Retrieve approved content"]
-    K --> F
-    L["Layout (ℓ)"] --> F
-    F --> A["Resume artifact (A)"]
-```
+- `list_experiences(limit, offset)`: bounded catalogue of experience IDs and context.
+- `list_evidence(experience_id, limit, offset)`: bounded evidence discovery within a record.
+- `get_evidence(evidence_id)`: full evidence text and owning experience context.
+- Listing results report `total`, `items`, and `has_more`; these are **application tool-result fields**, not an MCP protocol requirement.
+- Neither a SQLite row nor a catalogue must become an MCP **resource**. Resources are host-read context; tools are model-requestable operations. Start with tools only.
+- **Not encountered ≠ irrelevant.** Measure what was returned; don't interpret unseen rows as negative evidence.
 
 ## Contracts — initial cut
 
 1. **Database:** [`career_schema.sql`](career_schema.sql). A parent experience record (employment/project) owns separate evidence items; changing an item's parent does not recreate its ID. Approved profile, highlight, education, certification, and toolkit content is stored separately. Only user actions edit source content.
-2. **Inference:** [`inference_prompt_v1.md`](inference_prompt_v1.md) + [`selection.schema.json`](selection.schema.json). Input: `job_description: string` and `options: [{id, description, experience_id, kind, title, organization}]`. Output: `matches: [{requirement, evidence_id, relationship}]` and `unmatched_requirements: string[]`. List entries are model-stated interpretations, **not** verified career claims.
+2. **Inference:** [`inference_prompt_v1.md`](inference_prompt_v1.md) + [`selection.schema.json`](selection.schema.json). Host supplies `job_description`, a versioned instructional prompt, and MCP tool definitions. Exploration returns bounded evidence with IDs, text, and parent context. Final output: `matches: [{requirement, evidence_id, relationship}]` and `unmatched_requirements: string[]`. These are model-stated proposals, **not** verified claims.
 3. **Assembly:** Given validated T, fetch evidence text **and its parent metadata** from D; place it under the owning experience/project. Place only approved content in other configured sections. Preserve source wording, allow selection/order/layout, and emit a structured resume, DOCX, and source-ID mapping for career statements. Invalid selections produce no resume.
 
 ## Traceability
 
-For each build, retain the **exact application-supplied prompt version/text, job description, offered option IDs/text/context, model/provider settings available to the app, returned proposal, validation outcome, and output-to-source mapping**. This tracks observable inference provenance, **not** hidden model reasoning or semantic correctness.
+For each build, retain the **exact prompt version/text, job description, tool requests and returned records/IDs, coverage limits, available model/provider settings, final proposal, validation outcome, and output-to-source mapping**. This tracks observable inference provenance—not hidden reasoning or semantic correctness.
