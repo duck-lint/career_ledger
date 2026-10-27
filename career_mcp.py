@@ -35,7 +35,7 @@ def make_server(db_path: Path):
 
     server = MCPServer("Career Ledger")
 
-    @server.tool()
+    @server.tool(structured_output=True)
     def list_experiences(limit: int = 20, offset: int = 0) -> dict:
         """Browse existing employment/project records and IDs; no relevance ranking."""
         try:
