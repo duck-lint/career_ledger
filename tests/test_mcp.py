@@ -59,10 +59,12 @@ class McpExperienceTests(unittest.TestCase):
             async with Client(params) as client:
                 discovered = await client.list_tools()
                 self.assertEqual([tool.name for tool in discovered.tools], ["list_experiences"])
+                self.assertIsNotNone(discovered.tools[0].output_schema,
+                                     "MCP tool must advertise a JSON output schema")
                 result = await client.call_tool("list_experiences", {"limit": 2, "offset": 0})
                 self.assertFalse(result.is_error)
                 body = result.structured_content
-                self.assertIsNotNone(body)
+                self.assertIsNotNone(body, f"Missing structured content; raw result: {result.content!r}")
                 self.assertEqual(body["total"], 3)
                 self.assertTrue(body["has_more"])
                 self.assertEqual(body["items"][0]["id"], "exp_1")
