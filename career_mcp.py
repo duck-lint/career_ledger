@@ -3,11 +3,27 @@
 import argparse
 from contextlib import closing
 from pathlib import Path
+from typing import TypedDict
 
 from career_ledger import connect
 
 
-def read_experiences(db_path: Path, limit: int = 20, offset: int = 0) -> dict:
+class ExperienceRecord(TypedDict):
+    id: str
+    kind: str
+    title: str
+    organization: str | None
+    start_date: str | None
+    end_date: str | None
+
+
+class ExperiencePage(TypedDict):
+    items: list[ExperienceRecord]
+    total: int
+    has_more: bool
+
+
+def read_experiences(db_path: Path, limit: int = 20, offset: int = 0) -> ExperiencePage:
     """Return a bounded, unranked page of existing experience records."""
     if not 1 <= limit <= 20:
         raise ValueError("limit must be between 1 and 20")
@@ -36,7 +52,7 @@ def make_server(db_path: Path):
     server = MCPServer("Career Ledger")
 
     @server.tool(structured_output=True)
-    def list_experiences(limit: int = 20, offset: int = 0) -> dict:
+    def list_experiences(limit: int = 20, offset: int = 0) -> ExperiencePage:
         """Browse existing employment/project records and IDs; no relevance ranking."""
         try:
             return read_experiences(db_path, limit, offset)
