@@ -30,3 +30,20 @@ python career_ledger.py --db career.db list-evidence --limit 50
 ```
 
 Listings are read-only text tables: 15 rows by default, with a count of total records. Long values and line breaks are shortened **for display only**; SQLite content is unchanged. Experience records show `Present` entries first. Existing `get-*` commands still return full JSON.
+
+## MCP experiment: read-only experience catalogue
+
+Python **3.11+** required for the optional MCP SDK v2 (the original CLI remains Python 3.10+).
+
+```bash
+python -m pip install -r requirements-mcp.txt
+python -m unittest discover -s tests -p test_mcp.py -v
+```
+
+The third test runs a real **stdio MCP client → subprocess server → SQLite → tool result** roundtrip. The client discovers exactly one tool, `list_experiences(limit=20, offset=0)`. No model or API key is needed.
+
+- **Input:** positive `limit` (max 20), nonnegative `offset`.
+- **Output:** JSON `{"items": [...], "total": 0, "has_more": false}`; records contain IDs, kind, title, organization, and dates.
+- **Boundaries:** source records remain in SQLite; no relevance ranking, resource registration, write tool, or resume builder.
+- **Transport:** local `stdio`. The MCP client starts `python career_mcp.py --db career.db`; don't start it manually unless you have a client to speak MCP.
+
