@@ -40,10 +40,11 @@ python -m pip install -r requirements-mcp.txt
 python -m unittest discover -s tests -p test_mcp.py -v
 ```
 
-The third test runs a real **stdio MCP client → subprocess server → SQLite → tool result** roundtrip. The client discovers exactly one tool, `list_experiences(limit=20, offset=0)`. No model or API key is needed.
+The MCP test runs a real **stdio client → MCP server → SQLite → structured result** roundtrip. It discovers `list_experiences(limit=20, offset=0)` and `list_evidence(experience_id, limit=20, offset=0)`. No model or API key is needed.
 
-- **Input:** positive `limit` (max 20), nonnegative `offset`.
-- **Output:** JSON `{"items": [...], "total": 0, "has_more": false}`; records contain IDs, kind, title, organization, and dates.
+- **Input:** positive `limit` (max 20), nonnegative `offset`; `list_evidence` also requires an `experience_id`.
+- **Output:** structured JSON `{"items": [...], "total": 0, "has_more": false}`. Experience rows include ID, kind, title, organization, dates; evidence rows include ID, parent experience ID, and full description.
 - **Boundaries:** source records remain in SQLite; no relevance ranking, resource registration, write tool, or resume builder.
+- **Try in Inspector:** call `list_experiences`, copy an `exp_...` ID, call `list_evidence` with that ID, then change `offset` to see the next page. An unknown ID returns a tool error.
 - **Transport:** local `stdio`. The MCP client starts `python career_mcp.py --db career.db`; don't start it manually unless you have a client to speak MCP.
 
