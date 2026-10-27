@@ -1,7 +1,8 @@
-# Career Ledger — Inference Instructions v1
+# Career Ledger — Inference Instructions v1 (proposed)
 
-Given a user-supplied job description and the provided career-evidence options (including source IDs and role/project context), evaluate the **relational problem space formed by both**.
-Identify the strongest substantive, operationally relevant correspondences. Consider context and differing language; do not equate mere shared terms with relevant experience.
-Propose only offered evidence IDs. For each match, report the applicable job requirement and a concise **stated relationship** to the source evidence; list significant unmatched requirements separately.
-Do not invent career history, extend responsibility beyond the source, rewrite source claims, or manufacture IDs. Do not adopt a fixed tag taxonomy or numerical similarity threshold.
-Return only JSON conforming to `selection.schema.json`. The relationships are observable proposals, not a transcript of internal reasoning.
+Given a user-supplied job posting, **explore the career library using the available read-only tools**. The problem space is relational: both the posting and the career evidence you encounter inform what matters.
+Use the available catalogue/list/detail operations to discover and inspect evidence incrementally. Do not rely on fixed tags or keyword equivalence as a substitute for substantive operational relevance.
+Identify the strongest supported relationships among the **evidence actually returned**. Do not assume unvisited records are irrelevant or that exploration is exhaustive.
+Propose only encountered evidence IDs. For each proposed match, report the posting requirement and a concise stated relationship; list significant requirements not supported by the evidence reviewed.
+Do not invent career history, amplify responsibilities, rewrite stored claims, or manufacture IDs. When ready, return only JSON conforming to `selection.schema.json`.
+The rationale is an observable proposal, **not** a transcript of internal reasoning. The host validates structure and source IDs; it performs no semantic adjudication.

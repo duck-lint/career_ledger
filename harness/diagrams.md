@@ -1,33 +1,40 @@
 # Career Ledger — diagrams
 
-**Status:** The SQL schema exists and storage CLI exist on `revamp`; model inference, selection validation, and resume assembly are **proposed**, not implemented.
+**Status:** SQLite schema and CLI are implemented; MCP tools, model integration, validation, and resume assembly are proposed.
 
 ## 1. System architecture
 
 ```mermaid
 architecture-beta
-    group app(server)[Career Ledger app]
-    service author(server)[User career content]
-    service posting(disk)[Job posting]
-    service entry(server)[Entry and read] in app
-    service db(database)[SQLite library] in app
-    service model(cloud)[LLM inference]
+    group app(server)[Career Ledger application]
+    service author(server)[Career data entry]
+    service job(disk)[Job posting]
+    service entry(server)[Entry and read CLI] in app
+    service db(database)[SQLite records] in app
+    service host(server)[Model host and MCP client] in app
+    service mcp(server)[Read only MCP tools] in app
+    service model(cloud)[LLM]
     service gate(server)[Selection validator] in app
-    service assembly(server)[Resume assembly] in app
+    service assembly(server)[Resume builder] in app
     service artifact(disk)[Resume and source map]
 
     author:R --> L:entry
     entry:R --> L:db
-    posting:R --> L:model
-    db:B --> T:model
-    model:R --> L:gate
+    job:R --> L:host
+    host:R --> L:model
+    model:B --> T:host
+    host:B --> T:mcp
+    mcp:B --> T:db
+    host:R --> L:gate
     db:R --> L:gate
     gate:B --> T:assembly
     db:B --> T:assembly
     assembly:R --> L:artifact
 ```
 
-## 2. Resume build — handoffs
+The MCP server exposes **read-only operations** over the existing SQLite records. The validator and builder are ordinary app code, not MCP tools/resources.
+
+## 2. Resume build — observable handoffs
 
 ```mermaid
 swimlane-beta LR
@@ -35,32 +42,39 @@ swimlane-beta LR
         job[Supply job posting]
         review[Review resume]
     end
-    subgraph app [Application]
-        options[Request offered evidence]
-        prompt[Compose posting, options and versioned instructions]
-        valid{Proposal valid?}
+    subgraph host [Model host and application]
+        prompt[Supply posting and versioned instructions]
+        dispatch[Forward requested tool call]
+        return[Return tool results and counts]
+        valid{Schema and source IDs valid?}
         failure[Return violations]
-        fetch[Request selected source content]
-        assembly[Assemble approved sections]
-    end
-    subgraph database [SQLite]
-        available[Read evidence IDs, text and parent context]
-        chosen[Read selected evidence, parents and approved content]
+        fetch[Retrieve chosen source records]
+        assembly[Assemble source-grounded sections]
     end
     subgraph llm [LLM]
-        relate[Interpret relational problem space]
-        propose[Return evidence IDs and stated relationships]
+        explore[Choose discovery or detail request]
+        relate[Interpret encountered evidence against posting]
+        propose[Propose observed evidence IDs and relationships]
     end
-    subgraph document [Output]
+    subgraph mcp [Read only MCP server]
+        tools[List experiences, list evidence, get evidence]
+    end
+    subgraph database [SQLite]
+        available[Return bounded records and parent context]
+        selected[Return source text and approved content]
+    end
+    subgraph output [Artifact]
         resume[Resume and source-ID map]
     end
 
-    job --> options --> available --> prompt --> relate --> propose --> valid
-    valid -->|Invalid JSON or IDs| failure
-    valid -->|Valid| fetch --> chosen --> assembly --> resume --> review
+    job --> prompt --> explore --> dispatch --> tools --> available --> return --> relate
+    relate -->|Explore further| explore
+    relate -->|Propose| propose --> valid
+    valid -->|Invalid| failure
+    valid -->|Valid| fetch --> selected --> assembly --> resume --> review
 ```
 
-**What crosses the model boundary:** `job_description` and `options` (IDs, text, parent context) go in; `matches` (requirement, evidence ID, relationship) and `unmatched_requirements` come out. The problem space is evaluated by the model, **not** serialized or stored as an authoritative object.
+Each list result reports `items`, `total`, and `has_more`. Records not encountered are **unknown**, not irrelevant. The model may request more records; it cannot run SQL directly. Only the final proposal goes to the validator, which does not judge semantic relevance.
 
 ## 3. Current SQLite schema
 
