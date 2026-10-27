@@ -61,6 +61,8 @@ class McpExperienceTests(unittest.TestCase):
                 self.assertEqual([tool.name for tool in discovered.tools], ["list_experiences"])
                 self.assertIsNotNone(discovered.tools[0].output_schema,
                                      "MCP tool must advertise a JSON output schema")
+                self.assertEqual(set(discovered.tools[0].output_schema["properties"]),
+                                 {"items", "total", "has_more"})
                 result = await client.call_tool("list_experiences", {"limit": 2, "offset": 0})
                 self.assertFalse(result.is_error)
                 body = result.structured_content
