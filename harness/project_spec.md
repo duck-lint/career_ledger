@@ -34,11 +34,11 @@ A = F(R, Approved(D), ℓ)
 
 See [`diagrams.md`](diagrams.md) for the entry, exploration, and assembly paths.
 
-## MCP access — first slice
+## MCP access — incremental slices
 
-- `list_experiences(limit, offset)`: bounded catalogue of experience IDs and context.
-- `list_evidence(experience_id, limit, offset)`: bounded evidence discovery within a record.
-- `get_evidence(evidence_id)`: full evidence text and owning experience context.
+- `list_experiences(limit, offset)`: **implemented** as the first read-only MCP tool; bounded catalogue of experience IDs and context.
+- `list_evidence(experience_id, limit, offset)`: **planned** bounded evidence discovery within a record.
+- `get_evidence(evidence_id)`: **planned** full evidence text and owning experience context.
 - Listing results report `total`, `items`, and `has_more`; these are **application tool-result fields**, not an MCP protocol requirement.
 - Neither a SQLite row nor a catalogue must become an MCP **resource**. Resources are host-read context; tools are model-requestable operations. Start with tools only.
 - **Not encountered ≠ irrelevant.** Measure what was returned; don't interpret unseen rows as negative evidence.
