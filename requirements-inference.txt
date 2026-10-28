@@ -1,0 +1,2 @@
+-r requirements-mcp.txt
+openai>=2,<3
