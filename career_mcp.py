@@ -116,7 +116,9 @@ def read_search_evidence(db_path: Path, query: str, limit: int = 20, offset: int
         db.execute("PRAGMA query_only = ON")
         where = "instr(lower(e.description), lower(?)) > 0"
         total = db.execute(
-            f"SELECT COUNT(*) FROM evidence_items AS e WHERE {where}", (query,)
+            f"""SELECT COUNT(*) FROM evidence_items AS e
+                JOIN experience_records AS x ON x.id = e.experience_id
+                WHERE {where}""", (query,)
         ).fetchone()[0]
         rows = db.execute(f"""
             SELECT e.id, e.experience_id, e.description,
