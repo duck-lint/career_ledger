@@ -42,12 +42,29 @@ python -m unittest discover -s tests -p test_mcp.py -v
 
 The MCP test runs a real **stdio client → MCP server → SQLite → structured result** roundtrip. It discovers `list_experiences(limit=20, offset=0)` and `list_evidence(experience_id, limit=20, offset=0)`. No model or API key is needed.
 
-- **Input:** positive `limit` (max 20), nonnegative `offset`; `list_evidence` also requires an `experience_id`.
+- **Input:** positive `limit` (max 20), nonnegative `offset`; `list_evidence` also requires an `experience_id`. The model-facing MCP input schemas explicitly advertise these bounds (`minimum`/`maximum`), and runtime validation remains in place.
 - **Output:** structured JSON `{"items": [...], "total": 0, "has_more": false}`. Experience rows include ID, kind, title, organization, dates; evidence rows include ID, parent experience ID, and full description.
 - **Boundaries:** source records remain in SQLite; no relevance ranking, resource registration, write tool, or resume builder.
 - **Try in Inspector:** call `list_experiences`, copy an `exp_...` ID, call `list_evidence` with that ID, then change `offset` to see the next page. An unknown ID returns a tool error.
 - **Transport:** local `stdio`. The MCP client starts `python career_mcp.py --db career.db`; don't start it manually unless you have a client to speak MCP.
 
+
+## Opening the live database in a GUI
+
+Keep **one authoritative** `career.db` file. The MCP server closes each
+read connection after its query; it does not maintain a long-lived database
+session. If Windows DB Browser fails to open a SQLite file under WSL's Linux
+filesystem through a Windows WSL network path, that is a cross-filesystem access issue to
+diagnose, not something to bypass by disabling SQLite locking.
+
+For direct GUI access, prefer running Linux DB Browser inside WSL against
+the original WSL path. Alternatively, if you want Windows DB Browser, place
+the **original** database on the Windows filesystem and update every WSL
+`--db` argument to the matching `/mnt/c/...` path. Close open database
+connections before moving or editing it. Avoid simultaneous writes from
+Windows and WSL. Do not create snapshot copies or use SQLite unsafe
+locking bypasses. A persistent lock needs process/filesystem inspection;
+this tool-schema change does not claim to repair it.
 
 ## Inference runner pilot: OpenAI API → MCP → SQLite
 
