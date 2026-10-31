@@ -116,15 +116,27 @@ def execute(args):
             if args.limit < 1:
                 raise ValueError("--limit must be a positive integer")
             if args.command == "list-experiences":
+                if args.offset < 0:
+                    raise ValueError("--offset must be nonnegative")
                 total = db.execute("SELECT COUNT(*) FROM experience_records").fetchone()[0]
                 rows = db.execute("""
-                    SELECT kind, title, start_date, end_date FROM experience_records
+                    SELECT id, kind, title, organization, start_date, end_date
+                    FROM experience_records
                     ORDER BY (end_date = 'Present') DESC,
                              (end_date IS NULL), end_date DESC,
                              start_date DESC, title COLLATE NOCASE, id
-                    LIMIT ?
-                """, (args.limit,)).fetchall()
-                return format_table(("TYPE", "TITLE", "START", "END"), rows, (10, 30, 10, 10), total)
+                    LIMIT ? OFFSET ?
+                """, (args.limit, args.offset)).fetchall()
+                if args.json:
+                    items = [dict(row) for row in rows]
+                    return {"items": items, "total": total,
+                            "has_more": args.offset + len(items) < total}
+                return format_table(
+                    ("TYPE", "TITLE", "START", "END"),
+                    [(row["kind"], row["title"], row["start_date"], row["end_date"])
+                     for row in rows],
+                    (10, 30, 10, 10), total
+                )
             total = db.execute("SELECT COUNT(*) FROM evidence_items").fetchone()[0]
             rows = db.execute("""
                 SELECT r.title, e.description FROM evidence_items AS e
@@ -158,7 +170,12 @@ def main(argv=None):
         commands.add_parser(name).add_argument("--id", required=True)
 
     for name in ("list-experiences", "list-evidence"):
-        commands.add_parser(name).add_argument("--limit", type=int, default=15)
+        listing = commands.add_parser(name)
+        listing.add_argument("--limit", type=int, default=15)
+        if name == "list-experiences":
+            listing.add_argument("--offset", type=int, default=0)
+            listing.add_argument("--json", action="store_true",
+                                 help="return structured records with IDs for the desktop UI")
 
     move = commands.add_parser("move-evidence")
     move.add_argument("--id", required=True)
