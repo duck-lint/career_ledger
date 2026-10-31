@@ -40,13 +40,32 @@ python -m pip install -r requirements-mcp.txt
 python -m unittest discover -s tests -p test_mcp.py -v
 ```
 
-The MCP test runs a real **stdio client → MCP server → SQLite → structured result** roundtrip. It discovers `list_experiences(limit=20, offset=0)` and `list_evidence(experience_id, limit=20, offset=0)`. No model or API key is needed.
+The MCP test runs a real **stdio client → MCP server → SQLite → structured result** roundtrip. It discovers `list_experiences(limit=20, offset=0)`, `list_evidence(experience_id, limit=20, offset=0)`, and `search_evidence(query, limit=20, offset=0)`. No model or API key is needed.
 
 - **Input:** positive `limit` (max 20), nonnegative `offset`; `list_evidence` also requires an `experience_id`. The model-facing MCP input schemas explicitly advertise these bounds (`minimum`/`maximum`), and runtime validation remains in place.
 - **Output:** structured JSON `{"items": [...], "total": 0, "has_more": false}`. Experience rows include ID, kind, title, organization, dates; evidence rows include ID, parent experience ID, and full description.
 - **Boundaries:** source records remain in SQLite; no relevance ranking, resource registration, write tool, or resume builder.
 - **Try in Inspector:** call `list_experiences`, copy an `exp_...` ID, call `list_evidence` with that ID, then change `offset` to see the next page. An unknown ID returns a tool error.
 - **Transport:** local `stdio`. The MCP client starts `python career_mcp.py --db career.db`; don't start it manually unless you have a client to speak MCP.
+
+### Literal evidence search
+
+`search_evidence(query="Workday", limit=20, offset=0)` searches the **description**
+of every evidence record across the library, independent of its parent
+experience. Results include original evidence ID/text and parent experience
+ID/title/organization/kind, plus `items`, `total`, and `has_more`.
+Matching is **contiguous literal substring**, case-insensitive for ASCII
+characters using SQLite's built-in `lower()`. Non-ASCII case is not folded.
+`%` and `_` are literal characters, **not wildcards**; words are not stemmed,
+and neither acronyms nor synonyms are automatically expanded. Results are
+ordered by evidence ID, not semantic relevance. Empty results mean no literal
+matches for that query, not that relevant evidence is absent.
+
+The inference runner's instruction explicitly informs the model of these
+limitations and invites alternate searches (such as `SME` versus
+`Subject Matter Expert`) and exploration of related records when useful.
+The model decides whether to search, what strings to try, and how to
+interpret the returned evidence.
 
 
 ## Opening the live database in a GUI
