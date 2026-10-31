@@ -49,6 +49,23 @@ The MCP test runs a real **stdio client → MCP server → SQLite → structured
 - **Transport:** local `stdio`. The MCP client starts `python career_mcp.py --db career.db`; don't start it manually unless you have a client to speak MCP.
 
 
+## Opening the live database in a GUI
+
+Keep **one authoritative** `career.db` file. The MCP server closes each
+read connection after its query; it does not maintain a long-lived database
+session. If Windows DB Browser fails to open a SQLite file under WSL's Linux
+filesystem via `\\\\wsl$\\...`, that is a cross-filesystem access issue to
+diagnose, not something to bypass by disabling SQLite locking.
+
+For direct GUI access, prefer running Linux DB Browser inside WSL against
+the original WSL path. Alternatively, if you want Windows DB Browser, place
+the **original** database on the Windows filesystem and update every WSL
+`--db` argument to the matching `/mnt/c/...` path. Close open database
+connections before moving or editing it. Avoid simultaneous writes from
+Windows and WSL. Do not create snapshot copies or use SQLite unsafe
+locking bypasses. A persistent lock needs process/filesystem inspection;
+this tool-schema change does not claim to repair it.
+
 ## Inference runner pilot: OpenAI API → MCP → SQLite
 
 This optional runner demonstrates the **model-host boundary**, not resume building.
