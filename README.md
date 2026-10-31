@@ -118,3 +118,17 @@ selection prompt is connected yet. The runner uses `store=False` and
 keeps the conversation only in process memory for this run. Tests use fake
 model replies and don't spend API credits; the optional stdio integration
 test needs the MCP dependency installed.
+
+## WSLg Tauri evidence-entry pilot
+
+The [desktop app](desktop/README.md) provides a first practical UI for
+selecting an experience, browsing its evidence, and adding one item at a time.
+It launches inside WSLg and delegates all database operations to the existing
+Python CLI, against a single explicitly configured `CAREER_LEDGER_DB` file.
+The CLI's `list-experiences --json --limit N --offset N` mode supplies a
+structured, paginated experience catalogue with stable IDs without changing
+the default human-readable listing. No schema migration, CSV import, separate
+database, or MCP write tool is introduced.
+
+Follow [desktop/README.md](desktop/README.md) for Tauri 2 Linux prerequisites,
+launch instructions, and the native smoke-test checklist.

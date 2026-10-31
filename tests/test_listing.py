@@ -46,6 +46,33 @@ class ListCommands(unittest.TestCase):
         self.assertEqual(len(small.splitlines()), 5)
         self.assertIn("--limit must be a positive integer", self.command("list-experiences", "--limit", "0", success=False))
 
+    def test_experience_json_pages_include_ids_and_parent_metadata(self):
+        records = [
+            ("exp_current", "employment", "Current role", "City", "2025-01-01", "Present"),
+            ("exp_older", "project", "Earlier work", None, "2022-01-01", "2022-06-01"),
+        ]
+        with sqlite3.connect(self.db) as db:
+            db.executemany("INSERT INTO experience_records VALUES (?, ?, ?, ?, ?, ?)", records)
+        first = json.loads(self.command("list-experiences", "--json", "--limit", "1"))
+        self.assertEqual(first["total"], 2)
+        self.assertTrue(first["has_more"])
+        self.assertEqual(first["items"], [{
+            "id": "exp_current", "kind": "employment", "title": "Current role",
+            "organization": "City", "start_date": "2025-01-01", "end_date": "Present",
+        }])
+        second = json.loads(self.command(
+            "list-experiences", "--json", "--limit", "1", "--offset", "1"
+        ))
+        self.assertEqual(second["items"][0]["id"], "exp_older")
+        self.assertFalse(second["has_more"])
+        self.assertEqual(json.loads(self.command(
+            "list-experiences", "--json", "--offset", "50"
+        ))["items"], [])
+        self.assertIn("--offset must be nonnegative", self.command(
+            "list-experiences", "--json", "--offset", "-1", success=False
+        ))
+        self.assertIn("Showing 2 of 2", self.command("list-experiences"))
+
     def test_evidence_is_capped_truncated_and_read_only(self):
         parent = json.loads(self.command("add-experience", "--kind", "project", "--title", "Career Ledger"))["id"]
         long_text = "  Used SQLite — and commands.\n" + "More detail " * 12
