@@ -42,7 +42,7 @@ python -m unittest discover -s tests -p test_mcp.py -v
 
 The MCP test runs a real **stdio client → MCP server → SQLite → structured result** roundtrip. It discovers `list_experiences(limit=20, offset=0)` and `list_evidence(experience_id, limit=20, offset=0)`. No model or API key is needed.
 
-- **Input:** positive `limit` (max 20), nonnegative `offset`; `list_evidence` also requires an `experience_id`.
+- **Input:** positive `limit` (max 20), nonnegative `offset`; `list_evidence` also requires an `experience_id`. The model-facing MCP input schemas explicitly advertise these bounds (`minimum`/`maximum`), and runtime validation remains in place.
 - **Output:** structured JSON `{"items": [...], "total": 0, "has_more": false}`. Experience rows include ID, kind, title, organization, dates; evidence rows include ID, parent experience ID, and full description.
 - **Boundaries:** source records remain in SQLite; no relevance ranking, resource registration, write tool, or resume builder.
 - **Try in Inspector:** call `list_experiences`, copy an `exp_...` ID, call `list_evidence` with that ID, then change `offset` to see the next page. An unknown ID returns a tool error.
