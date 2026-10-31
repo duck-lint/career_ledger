@@ -3,7 +3,7 @@
 import argparse
 from contextlib import closing
 from pathlib import Path
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 from career_ledger import connect
 
@@ -85,22 +85,30 @@ def read_evidence(db_path: Path, experience_id: str, limit: int = 20, offset: in
 
 
 def make_server(db_path: Path):
+    from pydantic import Field
     from mcp.server import MCPServer
     from mcp.server.mcpserver.exceptions import ToolError
 
     server = MCPServer("Career Ledger")
 
     @server.tool(structured_output=True)
-    def list_experiences(limit: int = 20, offset: int = 0) -> ExperiencePage:
-        """Browse existing employment/project records and IDs; no relevance ranking."""
+    def list_experiences(
+        limit: Annotated[int, Field(ge=1, le=20, description="Page size: 1–20 records")] = 20,
+        offset: Annotated[int, Field(ge=0, description="Zero-based starting row; advance by page size while has_more is true")] = 0,
+    ) -> ExperiencePage:
+        """Browse employment/project records, in pages of at most 20; no relevance ranking."""
         try:
             return read_experiences(db_path, limit, offset)
         except (ValueError, OSError) as error:
             raise ToolError(str(error)) from error
 
     @server.tool(structured_output=True)
-    def list_evidence(experience_id: str, limit: int = 20, offset: int = 0) -> EvidencePage:
-        """List evidence belonging to an experience ID; read-only and unranked."""
+    def list_evidence(
+        experience_id: str,
+        limit: Annotated[int, Field(ge=1, le=20, description="Page size: 1–20 evidence records")] = 20,
+        offset: Annotated[int, Field(ge=0, description="Zero-based starting row; advance by page size while has_more is true")] = 0,
+    ) -> EvidencePage:
+        """Browse evidence belonging to an experience ID, in pages of at most 20; read-only and unranked."""
         try:
             return read_evidence(db_path, experience_id, limit, offset)
         except (ValueError, OSError) as error:
