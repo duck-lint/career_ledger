@@ -102,6 +102,12 @@ class McpExperienceTests(unittest.TestCase):
                                          "MCP tool must advertise a JSON output schema")
                     self.assertEqual(set(tool.output_schema["properties"]),
                                      {"items", "total", "has_more"})
+                    # The model-facing tool input schema must expose the same
+                    # pagination limits enforced by the SQLite read functions.
+                    properties = tool.input_schema["properties"]
+                    self.assertEqual(properties["limit"]["minimum"], 1)
+                    self.assertEqual(properties["limit"]["maximum"], 20)
+                    self.assertEqual(properties["offset"]["minimum"], 0)
                 result = await client.call_tool("list_experiences", {"limit": 2, "offset": 0})
                 self.assertFalse(result.is_error)
                 body = result.structured_content
