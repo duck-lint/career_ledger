@@ -198,7 +198,7 @@ class McpExperienceTests(unittest.TestCase):
                 found = matched.structured_content
                 self.assertEqual(found["total"], 1)
                 self.assertEqual(found["items"][0]["id"], "ev_1")
-                self.assertEqual(found["items"][0]["description"], "Cleared snow — safely.\\n")
+                self.assertEqual(found["items"][0]["description"], "Cleared snow — safely.\n")
                 self.assertEqual(found["items"][0]["experience_title"], "Grounds")
                 self.assertFalse(found["has_more"])
                 rejected = await client.call_tool("search_evidence", {"query": " "})
