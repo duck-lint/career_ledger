@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Career Ledger</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">CL</div>
+          <div><div class="brand-name">Career Ledger</div><div class="brand-subtitle">Evidence workspace</div></div>
+        </div>
+        <div class="panel-caption">EXPERIENCES</div>
+        <div id="experiences" class="experience-list" aria-label="Select an experience" role="group"></div>
+        <div class="sidebar-footer">One authoritative library · Read-only model tools</div>
+      </aside>
+      <main class="workspace">
+        <header class="workspace-header">
+          <div>
+            <p class="eyebrow">SELECTED EXPERIENCE</p>
+            <h1 id="experience-title">Choose an experience</h1>
+            <p id="experience-meta" class="muted">Select a record to view and add evidence.</p>
+          </div>
+          <span id="evidence-count" class="count-pill" aria-label="Evidence count">0 items</span>
+        </header>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+        <section class="entry-panel" aria-labelledby="entry-heading">
+          <div class="section-heading">
+            <h2 id="entry-heading">Add evidence</h2>
+            <span class="hint">Ctrl / Cmd + Enter to save</span>
+          </div>
+          <form id="entry-form">
+            <label for="description" class="field-label">Description</label>
+            <textarea id="description" name="description" rows="5"
+              placeholder="Describe a responsibility, contribution, or accomplishment…" required
+              disabled></textarea>
+            <div class="entry-footer">
+              <span class="hint">Saves directly under the selected experience.</span>
+              <button id="save-button" type="submit" disabled>Add evidence</button>
+            </div>
+          </form>
+        </section>
+        <section class="evidence-panel" aria-labelledby="evidence-heading">
+          <div class="section-heading">
+            <h2 id="evidence-heading">Saved evidence</h2>
+            <span class="hint">Original descriptions, unchanged</span>
+          </div>
+          <div id="evidence-list" class="evidence-list"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

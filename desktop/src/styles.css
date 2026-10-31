@@ -1,0 +1,48 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
+:root { font-family: "DM Sans", system-ui, sans-serif; color: #e9e8ed; background: #111217; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, textarea { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, textarea:focus-visible { outline: 2px solid #ae93f5; outline-offset: 3px; }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+.sidebar { background: #191a22; border-right: 1px solid #30313a; padding: 26px 16px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 0 10px; margin-bottom: 44px; }
+.brand-mark { display: grid; place-items: center; width: 41px; height: 41px; background: #6651aa; border-radius: 12px; font-weight: 700; letter-spacing: -1px; }
+.brand-name { font-weight: 700; font-size: 16px; }
+.brand-subtitle, .sidebar-footer { color: #9898a7; font-size: 12px; }
+.brand-subtitle { margin-top: 3px; }
+.panel-caption, .eyebrow { color: #9995ad; letter-spacing: 1.6px; font-size: 11px; font-weight: 700; }
+.panel-caption { padding-left: 12px; margin-bottom: 12px; }
+.experience-list { display: flex; flex-direction: column; gap: 5px; }
+.experience-item { text-align: left; border: 1px solid transparent; color: #e4e1ec; background: transparent; border-radius: 10px; padding: 13px; display: flex; flex-direction: column; gap: 4px; }
+.experience-item:hover { background: #282832; }
+.experience-item.active { background: #312941; border-color: #604982; }
+.experience-name { font-size: 13px; font-weight: 700; }
+.experience-org { font-size: 12px; color: #a6a0b1; }
+.sidebar-footer { margin-top: auto; padding: 18px 10px 0; line-height: 1.5; }
+.workspace { max-width: 1050px; padding: 36px clamp(24px, 5vw, 72px) 60px; width: 100%; margin: 0 auto; }
+.workspace-header { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+h1 { margin: 8px 0 4px; font-size: clamp(21px, 3vw, 29px); letter-spacing: -.6px; }
+h2 { font-size: 16px; margin: 0; }
+.muted, .hint { color: #a1a0af; font-size: 12px; }
+.count-pill { border: 1px solid #44404e; border-radius: 30px; padding: 7px 12px; font-size: 12px; color: #c9bfdc; white-space: nowrap; }
+.status { min-height: 28px; margin-top: 15px; color: #bba8e9; font-size: 13px; }
+.status.error { color: #f4a3a3; }
+.entry-panel { margin-top: 16px; padding: 24px; background: #1d1e27; border: 1px solid #34343e; border-radius: 16px; }
+.section-heading { display: flex; justify-content: space-between; gap: 15px; align-items: center; margin-bottom: 20px; }
+.field-label { color: #d3cfdc; font-size: 12px; font-weight: 700; display: block; margin-bottom: 9px; }
+textarea { width: 100%; color: #f0eff4; background: #14151c; border: 1px solid #454452; border-radius: 10px; resize: vertical; min-height: 145px; padding: 15px; line-height: 1.55; }
+textarea::placeholder { color: #777785; }
+textarea:disabled { opacity: .6; }
+.entry-footer { margin-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+#save-button { color: #fff; border: 0; background: #7358b5; padding: 11px 16px; border-radius: 10px; font-weight: 700; }
+#save-button:not(:disabled):hover { background: #8668d0; }
+#save-button:disabled { opacity: .5; cursor: not-allowed; }
+.evidence-panel { margin-top: 34px; }
+.evidence-list { display: grid; gap: 11px; }
+.evidence-card { border: 1px solid #34343e; background: #1b1c24; border-radius: 12px; padding: 18px 20px; }
+.evidence-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; margin: 0 0 12px; }
+.evidence-id { font-size: 10px; color: #9b94b0; overflow-wrap: anywhere; }
+.empty { padding: 32px 20px; color: #9d9ba8; background: #1b1c24; border-radius: 12px; }
+@media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { border-right: none; border-bottom: 1px solid #30313a; padding: 18px; } .brand { margin-bottom: 20px; } .experience-list { flex-direction: row; overflow-x: auto; } .experience-item { min-width: 180px; } .sidebar-footer { display: none; } .workspace { padding: 25px 20px; } .entry-footer { align-items: flex-start; } }
