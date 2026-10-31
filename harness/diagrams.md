@@ -1,6 +1,6 @@
 # Career Ledger — diagrams
 
-**Status:** SQLite schema, CLI, and two MCP tools (`list_experiences`, `list_evidence`) are implemented; `get_evidence`, full selection inference, validation, and resume assembly are proposed; an API-to-MCP inference runner pilot is implemented.
+**Status:** SQLite schema, CLI, and three MCP tools (`list_experiences`, `list_evidence`, `search_evidence`) are implemented; `get_evidence`, full selection inference, validation, and resume assembly are proposed; an API-to-MCP inference runner pilot is implemented.
 
 ## 1. System architecture
 
@@ -57,7 +57,7 @@ swimlane-beta LR
         propose[Propose observed evidence IDs and relationships]
     end
     subgraph mcp [Read only MCP server]
-        tools[List experiences, list evidence, get evidence]
+        tools[List experiences, list evidence, search evidence; get evidence planned]
     end
     subgraph database [SQLite]
         available[Return bounded records and parent context]
