@@ -38,6 +38,7 @@ See [`diagrams.md`](diagrams.md) for the entry, exploration, and assembly paths.
 
 - `list_experiences(limit, offset)`: **implemented** as the first read-only MCP tool; bounded catalogue of experience IDs and context.
 - `list_evidence(experience_id, limit, offset)`: **implemented** bounded evidence discovery within a record; returns original descriptions and IDs without ranking.
+- `search_evidence(query, limit, offset)`: **implemented** literal substring search across all evidence descriptions; read-only, paginated, and unranked, with parent context. Model formulates/revises terms and judges substantive relevance; lexical misses do not establish absence of relevant material.
 - `get_evidence(evidence_id)`: **planned** full evidence text and owning experience context.
 - Listing results report `total`, `items`, and `has_more`; these are **application tool-result fields**, not an MCP protocol requirement.
 - Neither a SQLite row nor a catalogue must become an MCP **resource**. Resources are host-read context; tools are model-requestable operations. Start with tools only.

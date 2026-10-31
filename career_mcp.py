@@ -35,6 +35,21 @@ class EvidencePage(TypedDict):
     has_more: bool
 
 
+class SearchEvidenceRecord(TypedDict):
+    id: str
+    experience_id: str
+    description: str
+    experience_title: str
+    organization: str | None
+    kind: str
+
+
+class SearchEvidencePage(TypedDict):
+    items: list[SearchEvidenceRecord]
+    total: int
+    has_more: bool
+
+
 def read_experiences(db_path: Path, limit: int = 20, offset: int = 0) -> ExperiencePage:
     """Return a bounded, unranked page of existing experience records."""
     if not 1 <= limit <= 20:
@@ -84,6 +99,40 @@ def read_evidence(db_path: Path, experience_id: str, limit: int = 20, offset: in
     return {"items": items, "total": total, "has_more": offset + len(items) < total}
 
 
+def read_search_evidence(db_path: Path, query: str, limit: int = 20, offset: int = 0) -> SearchEvidencePage:
+    """Find literal substrings in evidence descriptions across all experiences.
+
+    SQLite lower() folds ASCII characters by default; non-ASCII case is not folded.
+    Neither lexical matching nor result order asserts semantic relevance.
+    """
+    if not query.strip():
+        raise ValueError("query must not be blank")
+    if not 1 <= limit <= 20:
+        raise ValueError("limit must be between 1 and 20")
+    if offset < 0:
+        raise ValueError("offset must not be negative")
+
+    with closing(connect(db_path)) as db:
+        db.execute("PRAGMA query_only = ON")
+        where = "instr(lower(e.description), lower(?)) > 0"
+        total = db.execute(
+            f"""SELECT COUNT(*) FROM evidence_items AS e
+                JOIN experience_records AS x ON x.id = e.experience_id
+                WHERE {where}""", (query,)
+        ).fetchone()[0]
+        rows = db.execute(f"""
+            SELECT e.id, e.experience_id, e.description,
+                   x.title AS experience_title, x.organization, x.kind
+            FROM evidence_items AS e
+            JOIN experience_records AS x ON x.id = e.experience_id
+            WHERE {where}
+            ORDER BY e.id
+            LIMIT ? OFFSET ?
+        """, (query, limit, offset)).fetchall()
+        items = [dict(row) for row in rows]
+    return {"items": items, "total": total, "has_more": offset + len(items) < total}
+
+
 def make_server(db_path: Path):
     from pydantic import Field
     from mcp.server import MCPServer
@@ -111,6 +160,18 @@ def make_server(db_path: Path):
         """Browse evidence belonging to an experience ID, in pages of at most 20; read-only and unranked."""
         try:
             return read_evidence(db_path, experience_id, limit, offset)
+        except (ValueError, OSError) as error:
+            raise ToolError(str(error)) from error
+
+    @server.tool(structured_output=True)
+    def search_evidence(
+        query: Annotated[str, Field(description="Literal contiguous substring of evidence descriptions; ASCII case-insensitive. No synonyms, stemming, or semantic search.")],
+        limit: Annotated[int, Field(ge=1, le=20, description="Page size: 1–20 matching evidence records")] = 20,
+        offset: Annotated[int, Field(ge=0, description="Zero-based starting match; advance by page size while has_more is true")] = 0,
+    ) -> SearchEvidencePage:
+        """Find literal text in evidence descriptions across all experiences; unranked."""
+        try:
+            return read_search_evidence(db_path, query, limit, offset)
         except (ValueError, OSError) as error:
             raise ToolError(str(error)) from error
 

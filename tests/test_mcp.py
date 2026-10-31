@@ -9,7 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from career_mcp import read_evidence, read_experiences  # noqa: E402
+from career_mcp import read_evidence, read_experiences, read_search_evidence  # noqa: E402
 
 
 class McpExperienceTests(unittest.TestCase):
@@ -82,6 +82,54 @@ class McpExperienceTests(unittest.TestCase):
             read_evidence(nonexistent, "exp_1")
         self.assertFalse(nonexistent.exists())
 
+    def test_literal_search_across_experiences_and_pagination(self):
+        with sqlite3.connect(self.db) as conn:
+            conn.executemany("INSERT INTO evidence_items VALUES (?, ?, ?)", [
+                ("ev_5", "exp_2", "Subject Matter Expert for Workday"),
+                ("ev_6", "exp_1", "SME for workday"),
+                ("ev_7", "exp_1", "Improved 100%_complete reports"),
+            ])
+
+        # Case-insensitive ASCII literal substrings; no inferred acronym expansion.
+        expanded = read_search_evidence(self.db, "subject matter expert")
+        self.assertEqual([item["id"] for item in expanded["items"]], ["ev_5"])
+        self.assertEqual(expanded["items"][0]["experience_title"], "Career Ledger")
+        self.assertEqual(expanded["items"][0]["kind"], "project")
+        self.assertIsNone(expanded["items"][0]["organization"])
+        self.assertEqual(read_search_evidence(self.db, "SME")["items"][0]["id"], "ev_6")
+        self.assertEqual(read_search_evidence(self.db, "expertise")["total"], 0)
+
+        first = read_search_evidence(self.db, "WORKDAY", limit=1)
+        self.assertEqual(first["total"], 2)
+        self.assertEqual([x["id"] for x in first["items"]], ["ev_5"])
+        self.assertTrue(first["has_more"])
+        second = read_search_evidence(self.db, "workday", limit=1, offset=1)
+        self.assertEqual([x["id"] for x in second["items"]], ["ev_6"])
+        self.assertEqual(second["items"][0]["experience_title"], "Grounds")
+        self.assertFalse(second["has_more"])
+        self.assertEqual(read_search_evidence(self.db, "workday", offset=99)["items"], [])
+
+        # Percent and underscore are literal characters, not LIKE wildcards.
+        self.assertEqual([x["id"] for x in read_search_evidence(self.db, "%_")["items"]],
+                         ["ev_7"])
+        self.assertEqual(read_search_evidence(self.db, "no results"),
+                         {"items": [], "total": 0, "has_more": False})
+
+    def test_search_rejects_bad_arguments_and_never_creates_db(self):
+        for args in (
+            {"query": ""},
+            {"query": "   "},
+            {"query": "SME", "limit": 0},
+            {"query": "SME", "limit": 21},
+            {"query": "SME", "offset": -1},
+        ):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                read_search_evidence(self.db, **args)
+        missing = self.db.parent / "missing.db"
+        with self.assertRaises(ValueError):
+            read_search_evidence(missing, "workday")
+        self.assertFalse(missing.exists())
+
     def test_stdio_mcp_client_roundtrip(self):
         try:
             from mcp import Client, StdioServerParameters
@@ -96,7 +144,7 @@ class McpExperienceTests(unittest.TestCase):
             async with Client(params) as client:
                 discovered = await client.list_tools()
                 tools = {tool.name: tool for tool in discovered.tools}
-                self.assertEqual(set(tools), {"list_experiences", "list_evidence"})
+                self.assertEqual(set(tools), {"list_experiences", "list_evidence", "search_evidence"})
                 for tool in tools.values():
                     self.assertIsNotNone(tool.output_schema,
                                          "MCP tool must advertise a JSON output schema")
@@ -108,6 +156,9 @@ class McpExperienceTests(unittest.TestCase):
                     self.assertEqual(properties["limit"]["minimum"], 1)
                     self.assertEqual(properties["limit"]["maximum"], 20)
                     self.assertEqual(properties["offset"]["minimum"], 0)
+                search_input = tools["search_evidence"].input_schema
+                self.assertIn("query", search_input["required"])
+                self.assertIn("Literal", search_input["properties"]["query"]["description"])
                 result = await client.call_tool("list_experiences", {"limit": 2, "offset": 0})
                 self.assertFalse(result.is_error)
                 body = result.structured_content
@@ -141,6 +192,17 @@ class McpExperienceTests(unittest.TestCase):
 
                 missing = await client.call_tool("list_evidence", {"experience_id": "absent"})
                 self.assertTrue(missing.is_error)
+
+                matched = await client.call_tool("search_evidence", {"query": "snow"})
+                self.assertFalse(matched.is_error)
+                found = matched.structured_content
+                self.assertEqual(found["total"], 1)
+                self.assertEqual(found["items"][0]["id"], "ev_1")
+                self.assertEqual(found["items"][0]["description"], "Cleared snow — safely.\n")
+                self.assertEqual(found["items"][0]["experience_title"], "Grounds")
+                self.assertFalse(found["has_more"])
+                rejected = await client.call_tool("search_evidence", {"query": " "})
+                self.assertTrue(rejected.is_error)
 
 
         asyncio.run(check())

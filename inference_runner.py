@@ -14,6 +14,13 @@ INSTRUCTIONS = (
     "You are inspecting a career evidence library through read-only tools. "
     "Use returned records as evidence; never invent experience, evidence, or IDs. "
     "You may request further pages or evidence for an experience. "
+    "search_evidence performs only literal substring matching in descriptions "
+    "(ASCII case-insensitive): no semantic retrieval, synonyms, stemming, or "
+    "automatic acronym expansion. For conceptual questions, choose and revise "
+    "search terms using plausible wording variants (for example, SME and "
+    "Subject Matter Expert) and related operational descriptions; inspect "
+    "promising results and adjacent evidence as needed. A lexical miss does "
+    "not establish that substantively relevant evidence is absent. "
     "Do not treat unseen records as irrelevant. Briefly explain what you observed."
 )
 
