@@ -190,8 +190,15 @@ function repaint() {
   renderEvidence();
   updateAvailability();
 }
+function hasUnsavedEvidenceDraft() {
+  if (!state.action || state.action.mode !== "edit") return false;
+  const item = state.evidence.find((entry) => entry.id === state.action.id);
+  return Boolean(item && state.action.draft !== item.description);
+}
 function setAction(action) {
   if (state.busy) return;
+  if (hasUnsavedEvidenceDraft() &&
+      !window.confirm("Discard unsaved evidence description changes?")) return;
   state.action = action;
   renderEvidence();
 }
@@ -259,7 +266,8 @@ async function selectExperience(id) {
   if (!id || state.busy || id === state.selectedId) return;
   if (state.editorOpen && hasChangedExperienceDraft() &&
       !window.confirm("Discard unsaved experience changes?")) return;
-  if (state.action && !window.confirm("Discard unfinished evidence changes?")) return;
+  if (hasUnsavedEvidenceDraft() &&
+      !window.confirm("Discard unsaved evidence description changes?")) return;
   if (ui.description.value.trim() &&
       !window.confirm("Discard the unsaved new evidence description?")) return;
   closeExperienceEditor();
