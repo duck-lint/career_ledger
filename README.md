@@ -54,7 +54,7 @@ The MCP test runs a real **stdio client → MCP server → SQLite → structured
 Keep **one authoritative** `career.db` file. The MCP server closes each
 read connection after its query; it does not maintain a long-lived database
 session. If Windows DB Browser fails to open a SQLite file under WSL's Linux
-filesystem via `\\\\wsl$\\...`, that is a cross-filesystem access issue to
+filesystem through a Windows WSL network path, that is a cross-filesystem access issue to
 diagnose, not something to bypass by disabling SQLite locking.
 
 For direct GUI access, prefer running Linux DB Browser inside WSL against
