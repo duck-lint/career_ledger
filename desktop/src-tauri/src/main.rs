@@ -55,7 +55,7 @@ async fn get_experience(experience_id: String) -> Result<Value, String> {
 async fn add_evidence(experience_id: String, description: String) -> Result<Value, String> {
     dispatch(vec![
         "add-evidence".into(), "--experience-id".into(), experience_id,
-        "--description".into(), description,
+        format!("--description={description}"),
     ]).await
 }
 
