@@ -45,3 +45,51 @@ textarea:disabled { opacity: .6; }
 .evidence-id { font-size: 10px; color: #9b94b0; overflow-wrap: anywhere; }
 .empty { padding: 32px 20px; color: #9d9ba8; background: #1b1c24; border-radius: 12px; }
 @media (max-width: 760px) { .app-shell { grid-template-columns: 1fr; } .sidebar { border-right: none; border-bottom: 1px solid #30313a; padding: 18px; } .brand { margin-bottom: 20px; } .experience-list { flex-direction: row; overflow-x: auto; } .experience-item { min-width: 180px; } .sidebar-footer { display: none; } .workspace { padding: 25px 20px; } .entry-footer { align-items: flex-start; } }
+
+/* Record-management controls share the evidence-entry surface. */
+button, input, select, textarea { font: inherit; }
+input, select {
+  width: 100%; color: #f0eff4; background: #14151c;
+  border: 1px solid #454452; border-radius: 9px; padding: 10px;
+}
+input:focus-visible, select:focus-visible {
+  outline: 2px solid #ae93f5; outline-offset: 2px;
+}
+button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
+.header-actions, .action-row, .evidence-actions {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+}
+.experience-editor[hidden] { display: none; }
+.experience-editor { margin-top: 6px; }
+.editor-fields {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+.editor-fields label, .evidence-edit-form label {
+  color: #d3cfdc; font-size: 12px; font-weight: 600;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.secondary-button, .minor-button {
+  background: #282934; border: 1px solid #4b4757;
+  color: #e8e3f0; border-radius: 8px; padding: 8px 12px; font-size: 12px;
+}
+.secondary-button:hover:not(:disabled), .minor-button:hover:not(:disabled) {
+  background: #353345;
+}
+.minor-button.destructive { color: #f0acac; border-color: #75424d; }
+.minor-button.destructive:hover:not(:disabled) { background: #462932; }
+#save-experience-button, .evidence-edit-form button[type="submit"] {
+  background: #7358b5; border: 0; border-radius: 8px;
+  color: #fff; font-weight: 700; padding: 9px 13px; cursor: pointer;
+}
+#save-experience-button:disabled, .evidence-edit-form button:disabled { opacity: .5; }
+.evidence-actions { margin-top: 13px; }
+.evidence-edit-form {
+  border-top: 1px solid #383542; padding-top: 16px;
+  margin-top: 16px; display: grid; gap: 12px;
+}
+.evidence-edit-form textarea { min-height: 110px; }
+@media (max-width: 760px) {
+  .workspace-header { flex-wrap: wrap; }
+  .editor-fields { grid-template-columns: 1fr; }
+}
