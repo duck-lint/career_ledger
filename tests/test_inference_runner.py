@@ -46,6 +46,10 @@ class FakeMCP:
                 input_schema={"type": "object", "properties": {
                     "experience_id": {"type": "string"}
                 }, "required": ["experience_id"]}),
+            Obj(name="search_evidence", description="Literal evidence search",
+                input_schema={"type": "object", "properties": {
+                    "query": {"type": "string"}
+                }, "required": ["query"]}),
         ]
 
     async def list_tools(self):
@@ -56,6 +60,11 @@ class FakeMCP:
         if self.failure:
             return Obj(is_error=True, structured_content=None,
                        content=[Obj(text="limit must be between 1 and 20")])
+        if name == "search_evidence":
+            hits = [] if args["query"] == "SME" else [{"id": "ev_1"}]
+            return Obj(is_error=False, content=[],
+                       structured_content={"items": hits, "total": len(hits),
+                                           "has_more": False})
         return Obj(is_error=False, content=[], structured_content={
             "items": [{"id": "exp_1"}] if name == "list_experiences" else [{"id": "ev_1"}],
             "total": 1, "has_more": False,
@@ -84,7 +93,7 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(model.requests[0]["store"])
         advertised = model.requests[0]["tools"]
         self.assertEqual({tool["name"] for tool in advertised},
-                         {"list_experiences", "list_evidence"})
+                         {"list_experiences", "list_evidence", "search_evidence"})
         self.assertTrue(all(tool["strict"] is False for tool in advertised))
         second_input = model.requests[1]["input"]
         outputs = [item for item in second_input if isinstance(item, dict)
@@ -95,6 +104,32 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(trace), 4)
         self.assertIn("list_experiences", trace[0])
         self.assertIn("ev_1", trace[3])
+
+    async def test_lexical_miss_can_lead_to_model_reformulation(self):
+        mcp = FakeMCP()
+        model = FakeModel([
+            reply(call("search_evidence", '{"query":"SME"}', "first")),
+            reply(call("search_evidence", '{"query":"Subject Matter Expert"}', "second")),
+            reply(text="The spelled-out term matched evidence."),
+        ])
+        answer = await run_inference(
+            mcp, model, model="test-model",
+            question="What evidence of SME experience exists?", emit=lambda _: None
+        )
+        self.assertEqual(mcp.calls, [
+            ("search_evidence", {"query": "SME"}),
+            ("search_evidence", {"query": "Subject Matter Expert"}),
+        ])
+        self.assertIn("spelled-out", answer)
+        self.assertIn("literal substring", model.requests[0]["instructions"])
+        self.assertIn("no semantic retrieval", model.requests[0]["instructions"])
+        self.assertIn("Subject Matter Expert", model.requests[0]["instructions"])
+        # The actual tool response is replayed, including the empty lexical page.
+        second_input = model.requests[1]["input"]
+        returned = [x for x in second_input if isinstance(x, dict)
+                    and x.get("type") == "function_call_output"]
+        self.assertEqual(len(returned), 1)
+        self.assertIn('"total": 0', returned[0]["output"])
 
     async def test_model_can_choose_evidence_as_first_tool(self):
         mcp = FakeMCP()
