@@ -53,3 +53,4 @@ src-tauri/gen/schemas/
 *.sqlite3-wal
 !src-tauri/fixtures/
 !src-tauri/fixtures/career.db
+.venv/
