@@ -48,3 +48,35 @@ The MCP test runs a real **stdio client → MCP server → SQLite → structured
 - **Try in Inspector:** call `list_experiences`, copy an `exp_...` ID, call `list_evidence` with that ID, then change `offset` to see the next page. An unknown ID returns a tool error.
 - **Transport:** local `stdio`. The MCP client starts `python career_mcp.py --db career.db`; don't start it manually unless you have a client to speak MCP.
 
+
+## Inference runner pilot: OpenAI API → MCP → SQLite
+
+This optional runner demonstrates the **model-host boundary**, not resume building.
+It launches the existing read-only MCP server as a subprocess, discovers its
+tools, translates their schemas to OpenAI Responses functions, sends the model's
+requests to MCP, and returns structured tool results to the model.
+
+```bash
+python -m pip install -r requirements-inference.txt
+python -m unittest discover -s tests -p test_inference_runner.py -v
+read -rsp "OpenAI API key: " OPENAI_API_KEY; echo; export OPENAI_API_KEY
+python inference_runner.py --db career.db --model gpt-5.6-luna
+```
+
+Choose an API model available to your account; API usage is separately billed
+from ChatGPT. You can change the question with `--question "Your question here"`.
+
+**Follow the handoff:** `MODEL → MCP` displays the requested tool and
+arguments, `MCP → MODEL` displays the exact returned JSON, and `MODEL ANSWER`
+shows the result. The **first** call is deliberately forced to
+`list_experiences`, to demonstrate the interface; subsequent tool calls
+(up to four rounds) are selected by the model. This is not evidence that the
+model would have independently chosen its first tool.
+
+**Boundaries:** All MCP tools remain read-only; the API receives the question
+and any records the model retrieves. No SQLite changes, semantic ranking,
+source-ID validation, resume creation, automatic persistence, or versioned
+selection prompt is connected yet. The runner uses `store=False` and
+keeps the conversation only in process memory for this run. Tests use fake
+model replies and don't spend API credits; the optional stdio integration
+test needs the MCP dependency installed.

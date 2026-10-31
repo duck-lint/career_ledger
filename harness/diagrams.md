@@ -1,6 +1,6 @@
 # Career Ledger — diagrams
 
-**Status:** SQLite schema, CLI, and two MCP tools (`list_experiences`, `list_evidence`) are implemented; `get_evidence`, model integration, validation, and resume assembly are proposed.
+**Status:** SQLite schema, CLI, and two MCP tools (`list_experiences`, `list_evidence`) are implemented; `get_evidence`, full selection inference, validation, and resume assembly are proposed; an API-to-MCP inference runner pilot is implemented.
 
 ## 1. System architecture
 

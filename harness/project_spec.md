@@ -7,7 +7,7 @@
 - **User:** Authoritative for the job posting and stored career content.
 - **Model:** Explores accessible evidence, evaluates substantive relationships to the posting, and proposes source IDs with stated relationships.
 - **MCP server:** Exposes read-only discovery/retrieval tools; it is an interface to SQLite, not a second database.
-- **Host:** Sends the model its versioned instructions and job posting, executes requested tool calls via an MCP client, and returns tool results.
+- **Host:** The experimental `inference_runner.py` proves the model-to-MCP tool-call cycle with a demonstration question. The eventual resume host will send the versioned selection instructions and posting, execute requested MCP calls, and return results.
 - **Validator and assembler:** Ordinary application functions, **not** MCP resources or model-callable tools. Check JSON/IDs/source associations, then retrieve and place authoritative text. Neither judges semantic relevance.
 - The prompt constrains the **task**, not the model's reasoning or a fixed relevance taxonomy. Its stated relationships are inspectable proposals, not internal reasoning.
 
