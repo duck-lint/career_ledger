@@ -29,6 +29,7 @@ function renderExperiences() {
     button.className = "experience-item";
     button.classList.toggle("active", experience.id === state.selectedId);
     button.setAttribute("aria-pressed", String(experience.id === state.selectedId));
+    button.disabled = state.busy;
     const title = document.createElement("span");
     title.className = "experience-name";
     title.textContent = experience.title;
@@ -128,20 +129,25 @@ elements.form.addEventListener("submit", async (event) => {
   const description = elements.description.value;
   if (state.busy || !experienceId || !description.trim()) return;
   state.busy = true;
+  renderExperiences();
   updateEntryAvailability();
   try {
     const result = await invoke("add_evidence", { experienceId, description });
-    if (state.selectedId === experienceId) {
-      await refreshEvidence(experienceId);
-      elements.description.value = "";
-      elements.description.focus();
-    }
+    // The CLI acknowledged the commit. Clear immediately, independently of refresh.
+    elements.description.value = "";
     inform(`Saved evidence item ${result.id}`);
+    try {
+      await refreshEvidence(experienceId);
+    } catch (error) {
+      inform(`Saved ${result.id}, but could not refresh the list: ${error}`, true);
+    }
   } catch (error) {
     inform(`Evidence was not confirmed saved: ${error}`, true);
   } finally {
     state.busy = false;
+    renderExperiences();
     updateEntryAvailability();
+    elements.description.focus();
   }
 });
 loadExperiences();
