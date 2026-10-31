@@ -68,10 +68,12 @@ from ChatGPT. You can change the question with `--question "Your question here"`
 
 **Follow the handoff:** `MODEL → MCP` displays the requested tool and
 arguments, `MCP → MODEL` displays the exact returned JSON, and `MODEL ANSWER`
-shows the result. The **first** call is deliberately forced to
-`list_experiences`, to demonstrate the interface; subsequent tool calls
-(up to four rounds) are selected by the model. This is not evidence that the
-model would have independently chosen its first tool.
+shows the result. From the **first** response, the model chooses whether
+to call a tool, which tool to request, and what arguments to provide.
+There is no forced initial `list_experiences` call; the runner allows up to
+four rounds of tool calls, then requires a final response. A model response
+without any tool calls is permitted and does not establish that the database
+was explored.
 
 **Boundaries:** All MCP tools remain read-only; the API receives the question
 and any records the model retrieves. No SQLite changes, semantic ranking,

@@ -44,11 +44,9 @@ async def run_inference(mcp_client, model_client, *, model, question,
 
     history = [{"role": "user", "content": question}]
     for round_number in range(max_tool_rounds + 1):
-        # Explicitly force the FIRST call to prove the wire path. Later calls
-        # are model-directed; the final round must produce an answer.
-        choice = ({"type": "function", "name": "list_experiences"}
-                  if round_number == 0 else
-                  ("auto" if round_number < max_tool_rounds else "none"))
+        # The model chooses whether to call a tool, and which one.
+        # The final round requires an answer rather than another tool call.
+        choice = "auto" if round_number < max_tool_rounds else "none"
         response = await model_client.responses.create(
             model=model,
             instructions=INSTRUCTIONS,

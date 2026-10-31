@@ -79,10 +79,7 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
             ("list_experiences", {"limit": 2, "offset": 0}),
             ("list_evidence", {"experience_id": "exp_1"}),
         ])
-        self.assertEqual(
-            model.requests[0]["tool_choice"],
-            {"type": "function", "name": "list_experiences"},
-        )
+        self.assertEqual(model.requests[0]["tool_choice"], "auto")
         self.assertEqual(model.requests[1]["tool_choice"], "auto")
         self.assertFalse(model.requests[0]["store"])
         advertised = model.requests[0]["tools"]
@@ -98,6 +95,32 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(trace), 4)
         self.assertIn("list_experiences", trace[0])
         self.assertIn("ev_1", trace[3])
+
+    async def test_model_can_choose_evidence_as_first_tool(self):
+        mcp = FakeMCP()
+        model = FakeModel([
+            reply(call("list_evidence", '{"experience_id":"exp_1"}', "first")),
+            reply(text="Found supporting evidence."),
+        ])
+        answer = await run_inference(
+            mcp, model, model="test-model", question="Inspect evidence under exp_1",
+            emit=lambda _: None
+        )
+        self.assertEqual(model.requests[0]["tool_choice"], "auto")
+        self.assertEqual(mcp.calls, [("list_evidence", {"experience_id": "exp_1"})])
+        self.assertEqual(answer, "Found supporting evidence.")
+
+    async def test_model_can_answer_without_a_tool_call(self):
+        mcp = FakeMCP()
+        model = FakeModel([reply(text="Please provide an experience ID.")])
+        answer = await run_inference(
+            mcp, model, model="test-model", question="Can you explain the format?",
+            emit=lambda _: None
+        )
+        self.assertEqual(answer, "Please provide an experience ID.")
+        self.assertEqual(model.requests[0]["tool_choice"], "auto")
+        self.assertEqual(mcp.calls, [])
+        self.assertEqual(len(model.requests), 1)
 
     async def test_mcp_tool_error_is_returned_to_model(self):
         mcp = FakeMCP(failure=True)
