@@ -6,8 +6,40 @@ This is a tool-call wiring experiment, NOT the resume-selection or assembly pipe
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 import sys
+
+
+def resolve_api_key(env_file=None, environ=None):
+    """Prefer the process environment, otherwise read the project-root .env.
+
+    Only the OPENAI_API_KEY assignment is needed; no general dotenv parser or
+    additional package is required. The key is never logged or persisted.
+    """
+    if environ is None:
+        environ = os.environ
+    key = environ.get("OPENAI_API_KEY")
+    if key:
+        return key
+
+    if env_file is None:
+        env_file = Path(__file__).resolve().with_name(".env")
+    try:
+        with Path(env_file).open(encoding="utf-8") as file:
+            for raw_line in file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                name, equals, value = line.partition("=")
+                if name.strip() == "OPENAI_API_KEY" and equals:
+                    value = value.strip()
+                    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                        value = value[1:-1]
+                    return value or None
+    except FileNotFoundError:
+        return None
+    return None
 
 
 INSTRUCTIONS = (
@@ -118,13 +150,16 @@ async def main():
     args = parser.parse_args()
     if not args.db.is_file():
         parser.error(f"Database file does not exist: {args.db}")
+    api_key = resolve_api_key()
+    if not api_key:
+        parser.error("OPENAI_API_KEY is missing: set it in the shell or project-root .env")
     params = StdioServerParameters(
         command=sys.executable,
         args=[str(Path(__file__).resolve().with_name("career_mcp.py")),
               "--db", str(args.db.resolve())],
     )
     async with Client(params) as mcp_client:
-        async with AsyncOpenAI() as model_client:
+        async with AsyncOpenAI(api_key=api_key) as model_client:
             answer = await run_inference(
                 mcp_client, model_client, model=args.model, question=args.question
             )

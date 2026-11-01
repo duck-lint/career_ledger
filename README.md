@@ -95,9 +95,22 @@ requests to MCP, and returns structured tool results to the model.
 ```bash
 python -m pip install -r requirements-inference.txt
 python -m unittest discover -s tests -p test_inference_runner.py -v
-read -rsp "OpenAI API key: " OPENAI_API_KEY; echo; export OPENAI_API_KEY
+# Create a project-root .env file containing OPENAI_API_KEY=your-key
+# (The .env file is ignored by Git; edit it locally, never commit it.)
 python inference_runner.py --db career.db --model gpt-5.6-luna
 ```
+
+Create `.env` next to `inference_runner.py` at the repository root. Its contents can be just:
+
+```dotenv
+OPENAI_API_KEY=your-actual-api-key
+```
+
+The inference runner reads this file automatically, even when invoked from a
+different working directory. A nonempty `OPENAI_API_KEY` already exported in
+the shell takes precedence. The file is already covered by the repository's
+`.gitignore`; never commit or share actual keys. No additional Python
+dependency or shell export is required.
 
 Choose an API model available to your account; API usage is separately billed
 from ChatGPT. You can change the question with `--question "Your question here"`.
