@@ -42,19 +42,32 @@ def resolve_api_key(env_file=None, environ=None):
     return None
 
 
-INSTRUCTIONS = (
-    "You are inspecting a career evidence library through read-only tools. "
-    "Use returned records as evidence; never invent experience, evidence, or IDs. "
-    "You may request further pages or evidence for an experience. "
-    "search_evidence performs only literal substring matching in descriptions "
-    "(ASCII case-insensitive): no semantic retrieval, synonyms, stemming, or "
-    "automatic acronym expansion. For conceptual questions, choose and revise "
-    "search terms using plausible wording variants (for example, SME and "
-    "Subject Matter Expert) and related operational descriptions; inspect "
-    "promising results and adjacent evidence as needed. A lexical miss does "
-    "not establish that substantively relevant evidence is absent. "
-    "Do not treat unseen records as irrelevant. Briefly explain what you observed."
-)
+def load_inquiry_instructions(*, kernel_path=None, prompt_path=None):
+    """Expose the canonical kernel verbatim, followed by versioned inquiry guidance.
+
+    project_spec.md remains the sole mathematical source of truth. Fail closed
+    if the source headings or prompt placeholder change unexpectedly.
+    """
+    harness = Path(__file__).resolve().parent / "harness"
+    spec = (kernel_path or harness / "project_spec.md").read_text(encoding="utf-8")
+    prompt = (prompt_path or harness / "inquiry_prompt_v1.md").read_text(encoding="utf-8")
+
+    start = "## Kernel\\n"
+    end = "\\n## Data flow"
+    if spec.count(start) != 1:
+        raise RuntimeError("Canonical project kernel section missing or ambiguous")
+    after = spec.split(start, 1)[1]
+    if end not in after:
+        raise RuntimeError("Canonical project kernel terminator missing")
+    kernel = after.split(end, 1)[0].strip()
+
+    marker = "{{CANONICAL_KERNEL}}"
+    if prompt.count(marker) != 1:
+        raise RuntimeError("Inquiry prompt must contain exactly one canonical-kernel marker")
+    return prompt.replace(marker, kernel)
+
+
+INSTRUCTIONS = load_inquiry_instructions()
 
 
 def response_tools(discovered):

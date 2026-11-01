@@ -10,7 +10,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from inference_runner import response_tools, run_inference  # noqa: E402
+from inference_runner import (  # noqa: E402
+    INSTRUCTIONS, load_inquiry_instructions, response_tools, run_inference,
+)
 
 
 def call(name, arguments, call_id):
@@ -71,7 +73,49 @@ class FakeMCP:
         })
 
 
+
+class ModelFacingInquirySpecTests(unittest.TestCase):
+    def test_model_instructions_embed_exact_canonical_kernel_and_definitions(self):
+        source = (ROOT / "harness" / "project_spec.md").read_text(encoding="utf-8")
+        kernel = source.split("## Kernel\\n", 1)[1].split("\\n## Data flow", 1)[0].strip()
+        self.assertEqual(INSTRUCTIONS.count(kernel), 1)
+        self.assertIn("O_seen", INSTRUCTIONS)
+        self.assertIn("L:", INSTRUCTIONS)
+        self.assertIn("C(T, D, O_seen) -> valid | invalid", INSTRUCTIONS)
+        self.assertIn("job posting", INSTRUCTIONS)
+        self.assertIn("direct question", INSTRUCTIONS)
+        self.assertIn("Observed evidence IDs", INSTRUCTIONS)
+
+    def test_missing_kernel_heading_fails_instead_of_using_an_alternate_spec(self):
+        with tempfile.TemporaryDirectory() as temp:
+            bad_spec = Path(temp) / "project_spec.md"
+            bad_spec.write_text("# No mathematical kernel here\\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "kernel section missing"):
+                load_inquiry_instructions(kernel_path=bad_spec)
+
+    def test_inquiry_prompt_must_have_exactly_one_kernel_placeholder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            bad_prompt = Path(temp) / "inquiry_prompt_v1.md"
+            bad_prompt.write_text("No kernel placeholder here\\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "exactly one"):
+                load_inquiry_instructions(prompt_path=bad_prompt)
+
 class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_same_canonical_spec_for_broad_question_and_resume_inquiry(self):
+        for question in (
+            "What evidence supports subject matter expertise?",
+            "Which records support the requirements in this job posting?",
+        ):
+            with self.subTest(question=question):
+                model = FakeModel([reply(text="No sources were inspected.")])
+                await run_inference(
+                    FakeMCP(), model, model="test-model", question=question,
+                    emit=lambda _: None,
+                )
+                self.assertEqual(model.requests[0]["instructions"], INSTRUCTIONS)
+                self.assertEqual(model.requests[0]["input"][0]["content"], question)
+                self.assertEqual(model.requests[0]["tool_choice"], "auto")
+
     async def test_model_call_mcp_result_model_answer(self):
         mcp = FakeMCP()
         model = FakeModel([
@@ -123,7 +167,8 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("spelled-out", answer)
         self.assertIn("literal substring", model.requests[0]["instructions"])
         self.assertIn("no semantic retrieval", model.requests[0]["instructions"])
-        self.assertIn("Subject Matter Expert", model.requests[0]["instructions"])
+        self.assertIn("P = I_p(J, O_seen)", model.requests[0]["instructions"])
+        self.assertIn("substantive relationships", model.requests[0]["instructions"])
         # The actual tool response is replayed, including the empty lexical page.
         second_input = model.requests[1]["input"]
         returned = [x for x in second_input if isinstance(x, dict)
