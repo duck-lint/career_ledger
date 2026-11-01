@@ -59,10 +59,55 @@ async fn add_evidence(experience_id: String, description: String) -> Result<Valu
     ]).await
 }
 
+#[tauri::command]
+async fn update_experience(
+    id: String, kind: String, title: String, organization: Option<String>,
+    start_date: Option<String>, end_date: Option<String>,
+) -> Result<Value, String> {
+    let mut args = vec![
+        "update-experience".into(), "--id".into(), id,
+        "--kind".into(), kind, format!("--title={title}"),
+    ];
+    if let Some(value) = organization {
+        args.push(format!("--organization={value}"));
+    }
+    if let Some(value) = start_date {
+        args.push(format!("--start-date={value}"));
+    }
+    if let Some(value) = end_date {
+        args.push(format!("--end-date={value}"));
+    }
+    dispatch(args).await
+}
+
+#[tauri::command]
+async fn update_evidence(id: String, description: String) -> Result<Value, String> {
+    dispatch(vec![
+        "update-evidence".into(), "--id".into(), id,
+        format!("--description={description}"),
+    ]).await
+}
+
+#[tauri::command]
+async fn move_evidence(id: String, experience_id: String) -> Result<Value, String> {
+    dispatch(vec![
+        "move-evidence".into(), "--id".into(), id,
+        "--experience-id".into(), experience_id,
+    ]).await
+}
+
+#[tauri::command]
+async fn delete_evidence(id: String) -> Result<Value, String> {
+    dispatch(vec![
+        "delete-evidence".into(), "--id".into(), id,
+    ]).await
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_experiences, get_experience, add_evidence,
+            update_experience, update_evidence, move_evidence, delete_evidence,
         ])
         .run(tauri::generate_context!())
         .expect("Unable to start Career Ledger desktop app");

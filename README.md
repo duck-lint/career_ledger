@@ -122,7 +122,9 @@ test needs the MCP dependency installed.
 ## WSLg Tauri evidence-entry pilot
 
 The [desktop app](desktop/README.md) provides a first practical UI for
-selecting an experience, browsing its evidence, and adding one item at a time.
+selecting an experience, browsing its evidence, adding one item at a time,
+editing experience fields and evidence descriptions, moving evidence to another
+experience, and deleting individual items with confirmation.
 It launches inside WSLg and delegates all database operations to the existing
 Python CLI, against a single explicitly configured `CAREER_LEDGER_DB` file.
 The CLI's `list-experiences --json --limit N --offset N` mode supplies a

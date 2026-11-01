@@ -82,6 +82,19 @@ def execute(args):
                 )
             return {"id": id}
 
+        if args.command == "update-experience":
+            title = nonblank(args.title, "title")
+            checked_dates(args.start_date, args.end_date)
+            with db:
+                cursor = db.execute("""
+                    UPDATE experience_records
+                    SET kind = ?, title = ?, organization = ?, start_date = ?, end_date = ?
+                    WHERE id = ?
+                """, (args.kind, title, args.organization, args.start_date, args.end_date, args.id))
+                if cursor.rowcount != 1:
+                    raise ValueError(f"experience not found: {args.id}")
+            return {"id": args.id}
+
         if args.command == "add-evidence":
             description = nonblank(args.description, "description")
             id = "ev_" + uuid4().hex
@@ -89,6 +102,24 @@ def execute(args):
                 db.execute("INSERT INTO evidence_items VALUES (?, ?, ?)",
                            (id, args.experience_id, description))
             return {"id": id}
+
+        if args.command == "update-evidence":
+            description = nonblank(args.description, "description")
+            with db:
+                cursor = db.execute(
+                    "UPDATE evidence_items SET description = ? WHERE id = ?",
+                    (description, args.id)
+                )
+                if cursor.rowcount != 1:
+                    raise ValueError(f"evidence not found: {args.id}")
+            return {"id": args.id}
+
+        if args.command == "delete-evidence":
+            with db:
+                cursor = db.execute("DELETE FROM evidence_items WHERE id = ?", (args.id,))
+                if cursor.rowcount != 1:
+                    raise ValueError(f"evidence not found: {args.id}")
+            return {"id": args.id, "deleted": True}
 
         if args.command == "move-evidence":
             with db:
@@ -162,9 +193,25 @@ def main(argv=None):
     exp.add_argument("--start-date")
     exp.add_argument("--end-date")
 
+    update_exp = commands.add_parser(
+        "update-experience", help="replace editable fields of an existing experience"
+    )
+    update_exp.add_argument("--id", required=True)
+    update_exp.add_argument("--kind", choices=("employment", "project"), required=True)
+    update_exp.add_argument("--title", required=True)
+    update_exp.add_argument("--organization")
+    update_exp.add_argument("--start-date")
+    update_exp.add_argument("--end-date")
+
     evidence = commands.add_parser("add-evidence")
     evidence.add_argument("--experience-id", required=True)
     evidence.add_argument("--description", required=True)
+
+    update_ev = commands.add_parser("update-evidence")
+    update_ev.add_argument("--id", required=True)
+    update_ev.add_argument("--description", required=True)
+
+    commands.add_parser("delete-evidence").add_argument("--id", required=True)
 
     for name in ("get-experience", "get-evidence"):
         commands.add_parser(name).add_argument("--id", required=True)

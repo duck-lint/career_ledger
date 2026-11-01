@@ -23,9 +23,47 @@
             <h1 id="experience-title">Choose an experience</h1>
             <p id="experience-meta" class="muted">Select a record to view and add evidence.</p>
           </div>
-          <span id="evidence-count" class="count-pill" aria-label="Evidence count">0 items</span>
+          <div class="header-actions">
+            <span id="evidence-count" class="count-pill" aria-label="Evidence count">0 items</span>
+            <button id="edit-experience-button" type="button" class="secondary-button" disabled>Edit experience</button>
+          </div>
         </header>
         <div id="status" class="status" role="status" aria-live="polite"></div>
+        <section id="experience-editor" class="entry-panel experience-editor" aria-labelledby="experience-editor-heading" hidden>
+          <div class="section-heading">
+            <h2 id="experience-editor-heading">Edit experience</h2>
+            <span class="hint">Updates the selected record; evidence stays attached.</span>
+          </div>
+          <form id="experience-form">
+            <div class="editor-fields">
+              <label>Kind
+                <select id="experience-kind" required>
+                  <option value="employment">Employment</option>
+                  <option value="project">Project</option>
+                </select>
+              </label>
+              <label>Title
+                <input id="experience-name" type="text" required />
+              </label>
+              <label>Organization (optional)
+                <input id="experience-organization" type="text" />
+              </label>
+              <label>Start date (optional)
+                <input id="experience-start" type="text" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" />
+              </label>
+              <label>End date (optional)
+                <input id="experience-end" type="text" placeholder="YYYY-MM-DD or Present" pattern="([0-9]{4}-[0-9]{2}-[0-9]{2}|Present)" />
+              </label>
+            </div>
+            <div class="entry-footer">
+              <span class="hint">Leave an optional field empty to clear it.</span>
+              <div class="action-row">
+                <button id="cancel-experience-edit" type="button" class="secondary-button">Cancel</button>
+                <button id="save-experience-button" type="submit">Save experience</button>
+              </div>
+            </div>
+          </form>
+        </section>
         <section class="entry-panel" aria-labelledby="entry-heading">
           <div class="section-heading">
             <h2 id="entry-heading">Add evidence</h2>
