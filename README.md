@@ -134,3 +134,12 @@ database, or MCP write tool is introduced.
 
 Follow [desktop/README.md](desktop/README.md) for Tauri 2 Linux prerequisites,
 launch instructions, and the native smoke-test checklist.
+
+
+## Importing legacy experiences and evidence
+
+For a one-time move from the former Career Ledger database, use
+[the interactive legacy importer](IMPORTING_LEGACY.md). It imports only
+experience fields and verbatim atomic evidence text, offers explicit mapping
+to existing experience IDs, previews duplicates, and applies a single transaction.
+The source database is opened read-only; MCP tools remain read-only.
