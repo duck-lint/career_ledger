@@ -52,8 +52,8 @@ def load_inquiry_instructions(*, kernel_path=None, prompt_path=None):
     spec = (kernel_path or harness / "project_spec.md").read_text(encoding="utf-8")
     prompt = (prompt_path or harness / "inquiry_prompt_v1.md").read_text(encoding="utf-8")
 
-    start = "## Kernel\\n"
-    end = "\\n## Data flow"
+    start = "## Kernel\n"
+    end = "\n## Data flow"
     if spec.count(start) != 1:
         raise RuntimeError("Canonical project kernel section missing or ambiguous")
     after = spec.split(start, 1)[1]

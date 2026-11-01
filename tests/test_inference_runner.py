@@ -77,7 +77,7 @@ class FakeMCP:
 class ModelFacingInquirySpecTests(unittest.TestCase):
     def test_model_instructions_embed_exact_canonical_kernel_and_definitions(self):
         source = (ROOT / "harness" / "project_spec.md").read_text(encoding="utf-8")
-        kernel = source.split("## Kernel\\n", 1)[1].split("\\n## Data flow", 1)[0].strip()
+        kernel = source.split("## Kernel\n", 1)[1].split("\n## Data flow", 1)[0].strip()
         self.assertEqual(INSTRUCTIONS.count(kernel), 1)
         self.assertIn("O_seen", INSTRUCTIONS)
         self.assertIn("L:", INSTRUCTIONS)
@@ -89,14 +89,14 @@ class ModelFacingInquirySpecTests(unittest.TestCase):
     def test_missing_kernel_heading_fails_instead_of_using_an_alternate_spec(self):
         with tempfile.TemporaryDirectory() as temp:
             bad_spec = Path(temp) / "project_spec.md"
-            bad_spec.write_text("# No mathematical kernel here\\n", encoding="utf-8")
+            bad_spec.write_text("# No mathematical kernel here\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "kernel section missing"):
                 load_inquiry_instructions(kernel_path=bad_spec)
 
     def test_inquiry_prompt_must_have_exactly_one_kernel_placeholder(self):
         with tempfile.TemporaryDirectory() as temp:
             bad_prompt = Path(temp) / "inquiry_prompt_v1.md"
-            bad_prompt.write_text("No kernel placeholder here\\n", encoding="utf-8")
+            bad_prompt.write_text("No kernel placeholder here\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "exactly one"):
                 load_inquiry_instructions(prompt_path=bad_prompt)
 
