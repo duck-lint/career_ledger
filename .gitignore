@@ -54,3 +54,5 @@ src-tauri/gen/schemas/
 !src-tauri/fixtures/
 !src-tauri/fixtures/career.db
 .venv/
+*__pycache__*
+*target/
