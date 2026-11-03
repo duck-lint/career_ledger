@@ -95,6 +95,7 @@ async def run_inference(mcp_client, model_client, *, model, question,
         # The model chooses whether to call a tool, and which one.
         # The final round requires an answer rather than another tool call.
         choice = "auto" if round_number < max_tool_rounds else "none"
+        emit(f"=== MODEL ROUND {round_number + 1} (tool_choice={choice}) ===")
         response = await model_client.responses.create(
             model=model,
             instructions=INSTRUCTIONS,
@@ -108,9 +109,12 @@ async def run_inference(mcp_client, model_client, *, model, question,
         # Replay ALL items (including opaque reasoning) for tool-call continuity.
         history.extend(response.output)
         calls = [item for item in response.output if item.type == "function_call"]
+        emit(f"MODEL ROUND {round_number + 1}: {len(calls)} tool call(s) requested")
         if not calls:
             if not response.output_text:
                 raise RuntimeError("Model returned neither a tool call nor final text")
+            completion = "voluntary" if choice == "auto" else "forced by tool-round limit"
+            emit(f"MODEL ROUND {round_number + 1}: final answer ({completion})")
             return response.output_text
 
         if round_number >= max_tool_rounds:
