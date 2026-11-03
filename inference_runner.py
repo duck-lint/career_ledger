@@ -42,15 +42,11 @@ def resolve_api_key(env_file=None, environ=None):
     return None
 
 
-def load_inquiry_instructions(*, kernel_path=None, prompt_path=None):
-    """Expose the canonical kernel verbatim, followed by versioned inquiry guidance.
-
-    project_spec.md remains the sole mathematical source of truth. Fail closed
-    if the source headings or prompt placeholder change unexpectedly.
-    """
+def load_inference_instructions(*, kernel_path=None, prompt_path=None):
+    """Compose one inference prompt with the unchanged canonical project kernel."""
     harness = Path(__file__).resolve().parent / "harness"
     spec = (kernel_path or harness / "project_spec.md").read_text(encoding="utf-8")
-    prompt = (prompt_path or harness / "inquiry_prompt_v1.md").read_text(encoding="utf-8")
+    prompt = (prompt_path or harness / "inference_prompt_v1.md").read_text(encoding="utf-8")
 
     start = "## Kernel\n"
     end = "\n## Data flow"
@@ -60,14 +56,14 @@ def load_inquiry_instructions(*, kernel_path=None, prompt_path=None):
     if end not in after:
         raise RuntimeError("Canonical project kernel terminator missing")
     kernel = after.split(end, 1)[0].strip()
+    if not kernel:
+        raise RuntimeError("Canonical project kernel is empty")
+    if "{{" in prompt or "}}" in prompt:
+        raise RuntimeError("Inference prompt must not contain template placeholders")
+    return "## Canonical project kernel and definitions\n\n" + kernel + "\n\n" + prompt.strip()
 
-    marker = "{{CANONICAL_KERNEL}}"
-    if prompt.count(marker) != 1:
-        raise RuntimeError("Inquiry prompt must contain exactly one canonical-kernel marker")
-    return prompt.replace(marker, kernel)
 
-
-INSTRUCTIONS = load_inquiry_instructions()
+INSTRUCTIONS = load_inference_instructions()
 
 
 def response_tools(discovered):

@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from inference_runner import (  # noqa: E402
-    INSTRUCTIONS, load_inquiry_instructions, response_tools, run_inference,
+    INSTRUCTIONS, load_inference_instructions, response_tools, run_inference,
 )
 
 
@@ -91,14 +91,17 @@ class ModelFacingInquirySpecTests(unittest.TestCase):
             bad_spec = Path(temp) / "project_spec.md"
             bad_spec.write_text("# No mathematical kernel here\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "kernel section missing"):
-                load_inquiry_instructions(kernel_path=bad_spec)
+                load_inference_instructions(kernel_path=bad_spec)
 
-    def test_inquiry_prompt_must_have_exactly_one_kernel_placeholder(self):
+    def test_instructions_use_single_inference_prompt_without_placeholder(self):
+        self.assertNotIn("{{CANONICAL_KERNEL}}", INSTRUCTIONS)
+        self.assertIn("Explore(J, D, tools, bounds)", INSTRUCTIONS)
+        self.assertIn("Let O_seen revise P", INSTRUCTIONS)
         with tempfile.TemporaryDirectory() as temp:
-            bad_prompt = Path(temp) / "inquiry_prompt_v1.md"
-            bad_prompt.write_text("No kernel placeholder here\n", encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "exactly one"):
-                load_inquiry_instructions(prompt_path=bad_prompt)
+            bad_prompt = Path(temp) / "inference_prompt_v1.md"
+            bad_prompt.write_text("{{CANONICAL_KERNEL}}\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "must not contain template"):
+                load_inference_instructions(prompt_path=bad_prompt)
 
 class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_canonical_spec_for_broad_question_and_resume_inquiry(self):

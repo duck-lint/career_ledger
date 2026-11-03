@@ -62,12 +62,14 @@ ordered by evidence ID, not semantic relevance. Empty results mean no literal
 matches for that query, not that relevant evidence is absent.
 
 The inference runner now gives the model the **unchanged canonical kernel and
-its definitions** from `harness/project_spec.md`, followed by the versioned
-model-facing `harness/inquiry_prompt_v1.md`. The same relational interpretation
-applies to a direct question (such as expertise) and a job posting; the
-experimental runner does not perform resume validation or assembly. Literal
-substring search is only one discovery option. The model still decides which
-tools and search terms to use; no new retrieval system or taxonomy was added.
+its definitions** from `harness/project_spec.md`, together with the single
+versioned model-facing `harness/inference_prompt_v1.md`. The same relational
+interpretation applies to a direct question (such as expertise) and a job
+posting; the experimental runner does not perform resume validation or
+assembly. The kernel is assembled directly; there are no template markers or
+alternate mathematical specifications. Literal substring search is only one
+discovery option. The model still decides which tools and search terms to use;
+no new retrieval system or taxonomy was added.
 
 
 ## Opening the live database in a GUI
