@@ -42,19 +42,28 @@ def resolve_api_key(env_file=None, environ=None):
     return None
 
 
-INSTRUCTIONS = (
-    "You are inspecting a career evidence library through read-only tools. "
-    "Use returned records as evidence; never invent experience, evidence, or IDs. "
-    "You may request further pages or evidence for an experience. "
-    "search_evidence performs only literal substring matching in descriptions "
-    "(ASCII case-insensitive): no semantic retrieval, synonyms, stemming, or "
-    "automatic acronym expansion. For conceptual questions, choose and revise "
-    "search terms using plausible wording variants (for example, SME and "
-    "Subject Matter Expert) and related operational descriptions; inspect "
-    "promising results and adjacent evidence as needed. A lexical miss does "
-    "not establish that substantively relevant evidence is absent. "
-    "Do not treat unseen records as irrelevant. Briefly explain what you observed."
-)
+def load_inference_instructions(*, kernel_path=None, prompt_path=None):
+    """Compose one inference prompt with the unchanged canonical project kernel."""
+    harness = Path(__file__).resolve().parent / "harness"
+    spec = (kernel_path or harness / "project_spec.md").read_text(encoding="utf-8")
+    prompt = (prompt_path or harness / "inference_prompt_v1.md").read_text(encoding="utf-8")
+
+    start = "## Kernel\n"
+    end = "\n## Data flow"
+    if spec.count(start) != 1:
+        raise RuntimeError("Canonical project kernel section missing or ambiguous")
+    after = spec.split(start, 1)[1]
+    if end not in after:
+        raise RuntimeError("Canonical project kernel terminator missing")
+    kernel = after.split(end, 1)[0].strip()
+    if not kernel:
+        raise RuntimeError("Canonical project kernel is empty")
+    if "{{" in prompt or "}}" in prompt:
+        raise RuntimeError("Inference prompt must not contain template placeholders")
+    return "## Canonical project kernel and definitions\n\n" + kernel + "\n\n" + prompt.strip()
+
+
+INSTRUCTIONS = load_inference_instructions()
 
 
 def response_tools(discovered):
@@ -86,6 +95,7 @@ async def run_inference(mcp_client, model_client, *, model, question,
         # The model chooses whether to call a tool, and which one.
         # The final round requires an answer rather than another tool call.
         choice = "auto" if round_number < max_tool_rounds else "none"
+        emit(f"=== MODEL ROUND {round_number + 1} (tool_choice={choice}) ===")
         response = await model_client.responses.create(
             model=model,
             instructions=INSTRUCTIONS,
@@ -99,9 +109,12 @@ async def run_inference(mcp_client, model_client, *, model, question,
         # Replay ALL items (including opaque reasoning) for tool-call continuity.
         history.extend(response.output)
         calls = [item for item in response.output if item.type == "function_call"]
+        emit(f"MODEL ROUND {round_number + 1}: {len(calls)} tool call(s) requested")
         if not calls:
             if not response.output_text:
                 raise RuntimeError("Model returned neither a tool call nor final text")
+            completion = "voluntary" if choice == "auto" else "forced by tool-round limit"
+            emit(f"MODEL ROUND {round_number + 1}: final answer ({completion})")
             return response.output_text
 
         if round_number >= max_tool_rounds:

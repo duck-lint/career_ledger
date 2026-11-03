@@ -61,11 +61,15 @@ and neither acronyms nor synonyms are automatically expanded. Results are
 ordered by evidence ID, not semantic relevance. Empty results mean no literal
 matches for that query, not that relevant evidence is absent.
 
-The inference runner's instruction explicitly informs the model of these
-limitations and invites alternate searches (such as `SME` versus
-`Subject Matter Expert`) and exploration of related records when useful.
-The model decides whether to search, what strings to try, and how to
-interpret the returned evidence.
+The inference runner now gives the model the **unchanged canonical kernel and
+its definitions** from `harness/project_spec.md`, together with the single
+versioned model-facing `harness/inference_prompt_v1.md`. The same relational
+interpretation applies to a direct question (such as expertise) and a job
+posting; the experimental runner does not perform resume validation or
+assembly. The kernel is assembled directly; there are no template markers or
+alternate mathematical specifications. Literal substring search is only one
+discovery option. The model still decides which tools and search terms to use;
+no new retrieval system or taxonomy was added.
 
 
 ## Opening the live database in a GUI
@@ -114,6 +118,19 @@ dependency or shell export is required.
 
 Choose an API model available to your account; API usage is separately billed
 from ChatGPT. You can change the question with `--question "Your question here"`.
+
+**Inquiry experiment:** The model-facing specification supplies the canonical
+`Explore → I_p → I_s` dependencies and requests a compact final account:
+interpreted question, investigated evidence relationships, supported findings
+with encountered IDs, material coverage limits, and a stopping judgment.
+This is an **observable proposal**, not access to internal reasoning or a
+deterministic semantic validator. Compare the original and new prompts on the
+same database, question, model, and four-round tool budget. Save the existing
+baseline trace before merging this PR, then rerun and compare: new relevant
+evidence IDs, conceptual breadth, uninspected plausible areas, and whether
+claims are proportionate to actual coverage. A polished account without
+improved retrieval is **not** an inquiry-quality success. Multiple runs may
+be needed to assess variability.
 
 **Follow the handoff:** `MODEL → MCP` displays the requested tool and
 arguments, `MCP → MODEL` displays the exact returned JSON, and `MODEL ANSWER`

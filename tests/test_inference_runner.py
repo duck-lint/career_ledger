@@ -10,7 +10,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from inference_runner import response_tools, run_inference  # noqa: E402
+from inference_runner import (  # noqa: E402
+    INSTRUCTIONS, load_inference_instructions, response_tools, run_inference,
+)
 
 
 def call(name, arguments, call_id):
@@ -71,7 +73,52 @@ class FakeMCP:
         })
 
 
+
+class ModelFacingInquirySpecTests(unittest.TestCase):
+    def test_model_instructions_embed_exact_canonical_kernel_and_definitions(self):
+        source = (ROOT / "harness" / "project_spec.md").read_text(encoding="utf-8")
+        kernel = source.split("## Kernel\n", 1)[1].split("\n## Data flow", 1)[0].strip()
+        self.assertEqual(INSTRUCTIONS.count(kernel), 1)
+        self.assertIn("O_seen", INSTRUCTIONS)
+        self.assertIn("L:", INSTRUCTIONS)
+        self.assertIn("C(T, D, O_seen) -> valid | invalid", INSTRUCTIONS)
+        self.assertIn("job posting", INSTRUCTIONS)
+        self.assertIn("direct question", INSTRUCTIONS)
+        self.assertIn("Observed evidence IDs", INSTRUCTIONS)
+
+    def test_missing_kernel_heading_fails_instead_of_using_an_alternate_spec(self):
+        with tempfile.TemporaryDirectory() as temp:
+            bad_spec = Path(temp) / "project_spec.md"
+            bad_spec.write_text("# No mathematical kernel here\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "kernel section missing"):
+                load_inference_instructions(kernel_path=bad_spec)
+
+    def test_instructions_use_single_inference_prompt_without_placeholder(self):
+        self.assertNotIn("{{CANONICAL_KERNEL}}", INSTRUCTIONS)
+        self.assertIn("Explore(J, D, tools, bounds)", INSTRUCTIONS)
+        self.assertIn("Let O_seen revise P", INSTRUCTIONS)
+        with tempfile.TemporaryDirectory() as temp:
+            bad_prompt = Path(temp) / "inference_prompt_v1.md"
+            bad_prompt.write_text("{{CANONICAL_KERNEL}}\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "must not contain template"):
+                load_inference_instructions(prompt_path=bad_prompt)
+
 class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_same_canonical_spec_for_broad_question_and_resume_inquiry(self):
+        for question in (
+            "What evidence supports subject matter expertise?",
+            "Which records support the requirements in this job posting?",
+        ):
+            with self.subTest(question=question):
+                model = FakeModel([reply(text="No sources were inspected.")])
+                await run_inference(
+                    FakeMCP(), model, model="test-model", question=question,
+                    emit=lambda _: None,
+                )
+                self.assertEqual(model.requests[0]["instructions"], INSTRUCTIONS)
+                self.assertEqual(model.requests[0]["input"][0]["content"], question)
+                self.assertEqual(model.requests[0]["tool_choice"], "auto")
+
     async def test_model_call_mcp_result_model_answer(self):
         mcp = FakeMCP()
         model = FakeModel([
@@ -101,9 +148,64 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(outputs), 1)
         self.assertEqual(outputs[0]["call_id"], "call_one")
         self.assertIn('"exp_1"', outputs[0]["output"])
-        self.assertEqual(len(trace), 4)
-        self.assertIn("list_experiences", trace[0])
-        self.assertIn("ev_1", trace[3])
+        self.assertEqual(
+            [line for line in trace if line.startswith("=== MODEL ROUND")],
+            [
+                "=== MODEL ROUND 1 (tool_choice=auto) ===",
+                "=== MODEL ROUND 2 (tool_choice=auto) ===",
+                "=== MODEL ROUND 3 (tool_choice=auto) ===",
+            ],
+        )
+        self.assertEqual(
+            [line for line in trace if "tool call(s) requested" in line],
+            [
+                "MODEL ROUND 1: 1 tool call(s) requested",
+                "MODEL ROUND 2: 1 tool call(s) requested",
+                "MODEL ROUND 3: 0 tool call(s) requested",
+            ],
+        )
+        self.assertIn("MODEL → MCP list_experiences", trace[2])
+        self.assertIn('"ev_1"', trace[7])
+        self.assertEqual(trace[-1], "MODEL ROUND 3: final answer (voluntary)")
+
+    async def test_multiple_tool_calls_are_one_round_before_followup(self):
+        mcp = FakeMCP()
+        model = FakeModel([
+            reply(
+                call("list_experiences", '{}', "catalogue"),
+                call("search_evidence", '{"query":"SME"}', "search"),
+            ),
+            reply(call("list_evidence", '{"experience_id":"exp_1"}', "followup")),
+            reply(text="Done."),
+        ])
+        trace = []
+        answer = await run_inference(
+            mcp, model, model="test-model", question="Inspect evidence",
+            emit=trace.append,
+        )
+        self.assertEqual(answer, "Done.")
+        self.assertEqual([line for line in trace if "tool call(s) requested" in line], [
+            "MODEL ROUND 1: 2 tool call(s) requested",
+            "MODEL ROUND 2: 1 tool call(s) requested",
+            "MODEL ROUND 3: 0 tool call(s) requested",
+        ])
+        # Both round-one calls are returned before the model can request the next page.
+        self.assertEqual(
+            [name for name, _ in mcp.calls],
+            ["list_experiences", "search_evidence", "list_evidence"],
+        )
+        first_followup_inputs = model.requests[1]["input"]
+        returned = [item for item in first_followup_inputs
+                    if isinstance(item, dict)
+                    and item.get("type") == "function_call_output"]
+        self.assertEqual([item["call_id"] for item in returned], ["catalogue", "search"])
+        round_two = trace.index("=== MODEL ROUND 2 (tool_choice=auto) ===")
+        tool_positions = [i for i, line in enumerate(trace)
+                          if line.startswith("MODEL → MCP")]
+        self.assertEqual(len(tool_positions), 3)
+        self.assertTrue(all(i < round_two for i in tool_positions[:2]))
+        self.assertGreater(tool_positions[2], round_two)
+        self.assertEqual(trace[-1], "MODEL ROUND 3: final answer (voluntary)")
 
     async def test_lexical_miss_can_lead_to_model_reformulation(self):
         mcp = FakeMCP()
@@ -123,7 +225,8 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("spelled-out", answer)
         self.assertIn("literal substring", model.requests[0]["instructions"])
         self.assertIn("no semantic retrieval", model.requests[0]["instructions"])
-        self.assertIn("Subject Matter Expert", model.requests[0]["instructions"])
+        self.assertIn("P = I_p(J, O_seen)", model.requests[0]["instructions"])
+        self.assertIn("substantive relationships", model.requests[0]["instructions"])
         # The actual tool response is replayed, including the empty lexical page.
         second_input = model.requests[1]["input"]
         returned = [x for x in second_input if isinstance(x, dict)
@@ -148,14 +251,18 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_can_answer_without_a_tool_call(self):
         mcp = FakeMCP()
         model = FakeModel([reply(text="Please provide an experience ID.")])
+        trace = []
         answer = await run_inference(
             mcp, model, model="test-model", question="Can you explain the format?",
-            emit=lambda _: None
+            emit=trace.append
         )
         self.assertEqual(answer, "Please provide an experience ID.")
         self.assertEqual(model.requests[0]["tool_choice"], "auto")
         self.assertEqual(mcp.calls, [])
         self.assertEqual(len(model.requests), 1)
+        self.assertEqual(trace[0], "=== MODEL ROUND 1 (tool_choice=auto) ===")
+        self.assertEqual(trace[1], "MODEL ROUND 1: 0 tool call(s) requested")
+        self.assertEqual(trace[2], "MODEL ROUND 1: final answer (voluntary)")
 
     async def test_mcp_tool_error_is_returned_to_model(self):
         mcp = FakeMCP(failure=True)
@@ -190,11 +297,17 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
             reply(call("list_experiences", '{}', "one")),
             reply(text="Enough."),
         ])
+        trace = []
         answer = await run_inference(FakeMCP(), model, model="test-model",
                                      question="Inspect", max_tool_rounds=1,
-                                     emit=lambda _: None)
+                                     emit=trace.append)
         self.assertEqual(answer, "Enough.")
         self.assertEqual(model.requests[1]["tool_choice"], "none")
+        self.assertEqual(trace[-3:], [
+            "=== MODEL ROUND 2 (tool_choice=none) ===",
+            "MODEL ROUND 2: 0 tool call(s) requested",
+            "MODEL ROUND 2: final answer (forced by tool-round limit)",
+        ])
 
     async def test_with_real_stdio_server_and_fake_model(self):
         try:
