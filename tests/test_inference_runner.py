@@ -7,11 +7,12 @@ import sys
 import tempfile
 from types import SimpleNamespace as Obj
 import unittest
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from inference_runner import (  # noqa: E402
-    INSTRUCTIONS, load_inference_instructions, response_tools, run_inference,
+    INSTRUCTIONS, load_inference_instructions, main, response_tools, run_inference,
 )
 
 
@@ -338,6 +339,50 @@ class InferenceRunnerTests(unittest.IsolatedAsyncioTestCase):
                 )
             self.assertEqual(answer, "I saw Demo.")
             self.assertIn("exp_test", model.requests[1]["input"][-1]["output"])
+
+
+class InferenceCliTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cli_forwards_configured_rounds_and_preserves_default(self):
+        class FakeContext:
+            async def __aenter__(self):
+                return Obj()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        fake_mcp = Obj(
+            Client=lambda params: FakeContext(),
+            StdioServerParameters=lambda **kwargs: Obj(),
+        )
+        fake_openai = Obj(AsyncOpenAI=lambda api_key: FakeContext())
+        with tempfile.TemporaryDirectory() as temp:
+            db = Path(temp) / "career.db"
+            db.touch()
+            for flag, expected in (([], 4), (["--max-tool-rounds", "8"], 8)):
+                with self.subTest(round_budget=expected):
+                    argv = ["inference_runner.py", "--db", str(db),
+                            "--model", "test-model", *flag]
+                    with patch.dict(sys.modules, {"mcp": fake_mcp, "openai": fake_openai}), \
+                         patch.object(sys, "argv", argv), \
+                         patch("inference_runner.resolve_api_key", return_value="test-key"), \
+                         patch("inference_runner.run_inference", new_callable=AsyncMock) as fake_run, \
+                         patch("builtins.print"):
+                        fake_run.return_value = "Answer."
+                        await main()
+                        self.assertEqual(fake_run.await_args.kwargs["max_tool_rounds"],
+                                         expected)
+                        self.assertEqual(fake_run.await_args.kwargs["question"],
+                                         "What experience records are in my Career Ledger? Give me a brief overview.")
+
+    async def test_cli_rejects_nonpositive_round_budget(self):
+        fake_mcp = Obj(Client=lambda _: None, StdioServerParameters=lambda **_: None)
+        fake_openai = Obj(AsyncOpenAI=lambda **_: None)
+        with patch.dict(sys.modules, {"mcp": fake_mcp, "openai": fake_openai}), \
+             patch.object(sys, "argv", ["inference_runner.py", "--max-tool-rounds", "0"]), \
+             patch("sys.stderr"):
+            with self.assertRaises(SystemExit) as error:
+                await main()
+        self.assertEqual(error.exception.code, 2)
 
 
 if __name__ == "__main__":

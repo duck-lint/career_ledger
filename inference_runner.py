@@ -156,11 +156,17 @@ async def main():
     parser.add_argument("--db", type=Path, required=True, help="Existing SQLite database")
     parser.add_argument("--model", required=True, help="OpenAI API model ID")
     parser.add_argument(
+        "--max-tool-rounds", type=int, default=4, metavar="N",
+        help="Maximum model rounds permitting tool calls (default: 4)",
+    )
+    parser.add_argument(
         "--question",
         default="What experience records are in my Career Ledger? Give me a brief overview.",
         help="Question for the model; not a resume-generation request",
     )
     args = parser.parse_args()
+    if args.max_tool_rounds < 1:
+        parser.error("--max-tool-rounds must be a positive integer")
     if not args.db.is_file():
         parser.error(f"Database file does not exist: {args.db}")
     api_key = resolve_api_key()
@@ -174,7 +180,8 @@ async def main():
     async with Client(params) as mcp_client:
         async with AsyncOpenAI(api_key=api_key) as model_client:
             answer = await run_inference(
-                mcp_client, model_client, model=args.model, question=args.question
+                mcp_client, model_client, model=args.model, question=args.question,
+                max_tool_rounds=args.max_tool_rounds,
             )
     print(f"\nMODEL ANSWER:\n{answer}")
 
