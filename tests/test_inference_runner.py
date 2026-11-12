@@ -378,11 +378,16 @@ class InferenceCliTests(unittest.IsolatedAsyncioTestCase):
         fake_mcp = Obj(Client=lambda _: None, StdioServerParameters=lambda **_: None)
         fake_openai = Obj(AsyncOpenAI=lambda **_: None)
         with patch.dict(sys.modules, {"mcp": fake_mcp, "openai": fake_openai}), \
-             patch.object(sys, "argv", ["inference_runner.py", "--max-tool-rounds", "0"]), \
-             patch("sys.stderr"):
+             patch.object(sys, "argv", [
+                 "inference_runner.py", "--db", "unused.db", "--model", "test-model",
+                 "--max-tool-rounds", "0",
+             ]), \
+             patch("sys.stderr") as stderr:
             with self.assertRaises(SystemExit) as error:
                 await main()
         self.assertEqual(error.exception.code, 2)
+        self.assertIn("--max-tool-rounds must be a positive integer",
+                      "".join(str(call) for call in stderr.write.call_args_list))
 
 
 if __name__ == "__main__":
